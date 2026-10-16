@@ -5,10 +5,11 @@
 - **Criterion:** `2.4.2 Page Titled`; related `2.4.6 Headings and Labels`
   reuses sheet-name results in `WCAG_2.1_Excel_Automated_Validation_Methods.md`.
   This maps the heuristic only, not workbook-title checks or full criteria.
-- **Source:** `notes_phase2.pdf` (under `.docs/software_engr`), Q3.1
-  REQ-03–06, Q4 AC-03–06, and Q5.2 require source preservation, generic-name
-  checks, actionable findings, and human judgment. They do not establish the
-  normalization, numeric-name rule, or visible-only scope below.
+- **Requirement basis:** REQ-03: preserve the source; REQ-04: check generic
+  worksheet names; REQ-05: provide actionable findings; REQ-06: leave
+  meaning-dependent decisions to people. AC-03–06 cover these behaviors.
+  These requirements do not establish the normalization, numeric-name rule,
+  or visible-only scope below.
 - **Rule:** Inspect visible worksheets only (missing `state` means visible);
   exclude hidden, veryHidden, and chartsheets. For comparison only, remove
   whitespace using `"".join(name.split())` and lowercase using `lower()`.
@@ -38,9 +39,9 @@
 - **Criterion:** `1.1.1 Non-text Content`, per
   `WCAG_2.1_Excel_Automated_Validation_Methods.md`; presence-only coverage for
   ordinary inserted pictures, not the complete criterion.
-- **Source:** `notes_phase2.pdf`, Q3.1 REQ-03–06 and Q4 AC-03–06 require
-  preservation, missing-alt-text checks, locations, and human judgment, without
-  defining exact OOXML/title/decorative handling. Microsoft's
+- **Requirement basis:** REQ-03–06 and AC-03–06 cover source preservation,
+  missing-alt-text detection, actionable locations, and human judgment;
+  they do not define exact OOXML/title/decorative handling. Microsoft's
   [picture example](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.spreadsheet.picture?view=openxml-3.0.1)
   stores description in `xdr:pic/xdr:nvPicPr/xdr:cNvPr/@descr`;
   [properties](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.spreadsheet.nonvisualdrawingproperties?view=openxml-3.0.1)
