@@ -91,14 +91,15 @@ class ImageAltTextTests(unittest.TestCase):
         self.write_metadata([("Budget", None, [
             {}, {"descr": ""}, {"descr": " \t\n\u3000"}, {"title": "Sales forecast"},
         ])])
-        self.assertEqual(check_image_alt_text(self.path), [
-            {
-                "worksheet": "Budget", "drawing": "xl/drawings/drawing90.xml",
-                "image_id": str(index), "image_name": f"photo{index}.png", "reason": reason,
-            }
-            for index, reason in enumerate([
-                "MISSING_DESCRIPTION", "EMPTY_DESCRIPTION", "WHITESPACE_DESCRIPTION", "MISSING_DESCRIPTION",
-            ], 1)
+        findings = check_image_alt_text(self.path)
+        self.assertEqual([item["target"] for item in findings], [
+            f"xl/drawings/drawing90.xml#id={index}" for index in range(1, 5)
+        ])
+        self.assertEqual([item["message"] for item in findings], [
+            "Image alternative text description is missing.",
+            "Image alternative text description is empty.",
+            "Image alternative text description contains only whitespace.",
+            "Image alternative text description is missing.",
         ])
 
     def test_req04_ac04_description_present(self):
@@ -112,7 +113,9 @@ class ImageAltTextTests(unittest.TestCase):
             {"decorative": "1"}, {"decorative": "true"},
             {"decorative": "0"}, {"decorative": "false"},
         ])])
-        self.assertEqual([item["image_id"] for item in check_image_alt_text(self.path)], ["3", "4"])
+        self.assertEqual([item["target"] for item in check_image_alt_text(self.path)], [
+            "xl/drawings/drawing90.xml#id=3", "xl/drawings/drawing90.xml#id=4",
+        ])
 
     def test_req04_ac04_relationship_mapping_multiple_images_and_sheets(self):
         self.write_metadata([
@@ -120,12 +123,12 @@ class ImageAltTextTests(unittest.TestCase):
             ("First", "visible", [{"descr": ""}]),
         ])
         self.assertEqual([
-            (item["worksheet"], item["drawing"], item["image_id"])
+            (item["worksheet"], item["target"])
             for item in check_image_alt_text(str(self.path))
         ], [
-            ("Second", "xl/drawings/drawing90.xml", "1"),
-            ("Second", "xl/drawings/drawing90.xml", "3"),
-            ("First", "xl/drawings/drawing89.xml", "1"),
+            ("First", "xl/drawings/drawing89.xml#id=1"),
+            ("Second", "xl/drawings/drawing90.xml#id=1"),
+            ("Second", "xl/drawings/drawing90.xml#id=3"),
         ])
 
     def test_req04_ac04_hidden_sheets_and_nonpictures_excluded(self):
@@ -141,7 +144,33 @@ class ImageAltTextTests(unittest.TestCase):
             {"anchor": "oneCellAnchor"}, {"anchor": "twoCellAnchor"},
             {"anchor": "absoluteAnchor"},
         ])])
-        self.assertEqual([item["image_id"] for item in check_image_alt_text(self.path)], ["1", "2", "3"])
+        self.assertEqual([item["target"] for item in check_image_alt_text(self.path)], [
+            f"xl/drawings/drawing90.xml#id={index}" for index in range(1, 4)
+        ])
+
+    def test_req05_ac05_finding_contract_and_repeatability(self):
+        self.write_metadata([
+            ("Second", None, [{} for _ in range(12)]),
+            ("First", None, [{}]),
+        ])
+        findings = check_image_alt_text(self.path)
+        self.assertEqual(findings, check_image_alt_text(self.path))
+        self.assertEqual(len({item["findingId"] for item in findings}), 13)
+        for item in findings:
+            self.assertEqual(set(item), {
+                "findingId", "ruleId", "category", "worksheet", "target",
+                "classification", "message", "recommendation",
+            })
+            self.assertTrue(all(isinstance(value, str) for value in item.values()))
+            self.assertRegex(item["findingId"], r"\A[A-Za-z0-9_-]{1,64}\Z")
+            self.assertEqual(item["ruleId"], "ALT_TEXT")
+            self.assertEqual(item["category"], "NON_TEXT_CONTENT")
+            self.assertEqual(item["classification"], "REQUIRES_USER_INPUT")
+            for field in ("message", "recommendation"):
+                self.assertTrue(1 <= len(item[field]) <= 500)
+        self.assertEqual(findings, sorted(
+            findings, key=lambda item: (item["ruleId"], item["worksheet"], item["target"]),
+        ))
 
     def test_req03_ac03_original_bytes_unchanged(self):
         self.write_metadata([("Budget", None, [{}, {"descr": "Present"}])])

@@ -1,5 +1,8 @@
 # Assumptions and Extensions
 
+Output history in AE-001/AE-002 is superseded by AE-003; their detection scope
+and developer-only approval remain unchanged.
+
 ## AE-001 — Prototype worksheet-name heuristics (2026-10-16)
 
 - **Criterion:** `2.4.2 Page Titled`; related `2.4.6 Headings and Labels`
@@ -73,3 +76,34 @@
   source bytes. These are synthetic ZIP/XML fixtures. No Excel-created sample
   was available; real Excel serialization and unsupported content remain
   unverified. Passing tests does not establish shared approval or accessibility.
+
+## AE-003 — Temporary finding identifiers and contract mapping (2026-10-16)
+
+- **Basis:** The HTTP contract requires eight string fields: `findingId`,
+  `ruleId`, `category`, `worksheet`, `target`, `classification`, `message`,
+  `recommendation`. IDs are 1–64 characters matching `[A-Za-z0-9_-]+`;
+  messages/recommendations are 1–500 characters. Results sort by rule, sheet,
+  target. The shared rule catalog and concrete object-target syntax are absent.
+- **Authorized mapping:** `WORKSHEET_NAME` and `ALT_TEXT` are temporary rule IDs
+  awaiting catalog confirmation. Categories are `WORKSHEET_NAME` and
+  `NON_TEXT_CONTENT`; both classifications are `REQUIRES_USER_INPUT`.
+  Worksheet target is its original name; image target is `drawing-part#id=N`.
+  Existing detection conditions and exclusions remain unchanged; prior reason
+  distinctions move into messages. This supersedes earlier local output formats
+  and workbook-order results, not their detection rules (AE-001/AE-002).
+- **Temporary ID:** A dedicated `make_finding_id` function hashes rule ID,
+  worksheet, and target into 64 hex characters. It is deterministic but lacks
+  workbook/ruleset identity: identical locations across workbooks can share IDs.
+  Replace it when the final identity policy is available; full contract identity
+  semantics and approved-catalog conformance are not claimed.
+- **Approval:** The requesting developer authorized these temporary choices;
+  team/pod approval is not established. Scope: WCAG 2.1 `2.4.2 Page Titled`
+  (related `2.4.6 Headings and Labels`) and `1.1.1 Non-text Content`, partially.
+- **Implementation:** `finding_ids.py`, `worksheet_names.py`, `image_alt_text.py`;
+  TODO comments and `.docs/checker_notes_en.md` explicitly flag both ID updates.
+- **Verification:** All 17 tests passed with
+  `.venv/bin/python -m unittest discover -s tests -v`: 7 worksheet, 8 image,
+  2 ID tests. They verify unchanged detection/exclusions and source bytes,
+  exact field sets/types, category/classification values, message lengths,
+  target mapping, sorting, ID syntax, and local determinism. Workbook/ruleset
+  identity semantics and approved catalog conformance remain unimplemented.

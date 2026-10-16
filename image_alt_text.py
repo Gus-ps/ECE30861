@@ -8,6 +8,10 @@ from os import PathLike
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from finding_ids import make_finding_id
+
+# TODO: Confirm this temporary rule ID against the approved shared catalog.
+_RULE_ID = "ALT_TEXT"
 _DECORATIVE = "{http://schemas.microsoft.com/office/drawing/2017/decorative}decorative"
 
 
@@ -28,7 +32,9 @@ def _target(part: str, relationship: ET.Element) -> str:
 
 
 def check_image_alt_text(path: str | PathLike[str]) -> list[dict[str, str]]:
-    """Return missing descriptions with worksheet, drawing, image ID/name, reason.
+    """Return missing-description findings sorted by rule, worksheet, and target.
+
+    Rule and finding IDs are temporary (see finding_ids.py).
 
     Assume a valid, readable .xlsx. Read only directly anchored DrawingML pictures
     on visible worksheets. Explicit decorative=true pictures are exempt; titles
@@ -78,20 +84,34 @@ def check_image_alt_text(path: str | PathLike[str]) -> list[dict[str, str]]:
                             continue
                         description = properties.get("descr")
                         if description is None:
-                            reason = "MISSING_DESCRIPTION"
+                            message = "Image alternative text description is missing."
                         elif description == "":
-                            reason = "EMPTY_DESCRIPTION"
+                            message = "Image alternative text description is empty."
                         elif not description.strip():
-                            reason = "WHITESPACE_DESCRIPTION"
+                            message = "Image alternative text description contains only whitespace."
                         else:
                             continue
+                        worksheet = sheet.attrib["name"]
+                        target = f"{drawing_part}#id={properties.attrib['id']}"
                         results.append(
                             {
-                                "worksheet": sheet.attrib["name"],
-                                "drawing": drawing_part,
-                                "image_id": properties.attrib["id"],
-                                "image_name": properties.attrib["name"],
-                                "reason": reason,
+                                "findingId": make_finding_id(
+                                    _RULE_ID, worksheet, target
+                                ),
+                                "ruleId": _RULE_ID,
+                                "category": "NON_TEXT_CONTENT",
+                                "worksheet": worksheet,
+                                "target": target,
+                                "classification": "REQUIRES_USER_INPUT",
+                                "message": message,
+                                "recommendation": "Provide an alternative text description that conveys the image's purpose.",
                             }
                         )
-    return results
+    return sorted(
+        results,
+        key=lambda finding: (
+            finding["ruleId"],
+            finding["worksheet"],
+            finding["target"],
+        ),
+    )

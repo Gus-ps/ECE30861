@@ -61,13 +61,13 @@ class WorksheetNameTests(unittest.TestCase):
         ]
         self.write_metadata([(name, "visible", "worksheet") for name in names])
         self.assertEqual(
-            check_worksheet_names(self.path),
+            [(item["worksheet"], item["message"]) for item in check_worksheet_names(self.path)],
             [
-                {"name": "Sheet123", "reason": "DEFAULT_LIKE"},
-                {"name": "2025", "reason": "NUMERIC_REQUIRES_REVIEW"},
-                {"name": "Sheet", "reason": "DEFAULT_LIKE"},
-                {"name": "sheet2", "reason": "DEFAULT_LIKE"},
-                {"name": "Sheet1", "reason": "DEFAULT_LIKE"},
+                ("2025", "Worksheet name contains only digits; confirm whether it is descriptive."),
+                ("Sheet", "Worksheet name resembles a default name."),
+                ("Sheet1", "Worksheet name resembles a default name."),
+                ("Sheet123", "Worksheet name resembles a default name."),
+                ("sheet2", "Worksheet name resembles a default name."),
             ],
         )
 
@@ -87,16 +87,16 @@ class WorksheetNameTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.write_metadata([(name, "visible", "worksheet")])
                 self.assertEqual(
-                    check_worksheet_names(self.path),
-                    [{"name": name, "reason": "DEFAULT_LIKE"}],
+                    [(item["worksheet"], item["target"]) for item in check_worksheet_names(self.path)],
+                    [(name, name)],
                 )
 
     def test_req04_req06_ac04_ac06_numeric_names_require_review(self):
         names = ["1", "123", "2025", " 2 0\t2\n6 "]
         self.write_metadata([(name, "visible", "worksheet") for name in names])
         self.assertEqual(
-            check_worksheet_names(self.path),
-            [{"name": name, "reason": "NUMERIC_REQUIRES_REVIEW"} for name in names],
+            [(item["worksheet"], item["message"]) for item in check_worksheet_names(self.path)],
+            [(name, "Worksheet name contains only digits; confirm whether it is descriptive.") for name in sorted(names)],
         )
 
     def test_req04_ac04_nonmatching_names_return_empty_list(self):
@@ -130,12 +130,35 @@ class WorksheetNameTests(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            check_worksheet_names(str(self.path)),
-            [
-                {"name": "Sheet", "reason": "DEFAULT_LIKE"},
-                {"name": "Sheet001", "reason": "DEFAULT_LIKE"},
-            ],
+            [item["worksheet"] for item in check_worksheet_names(str(self.path))],
+            ["Sheet", "Sheet001"],
         )
+
+    def test_req05_ac05_finding_contract_and_repeatability(self):
+        self.write_metadata([
+            ("sheet2", "visible", "worksheet"),
+            ("2025", "visible", "worksheet"),
+            ("Sheet 1", "visible", "worksheet"),
+        ])
+        findings = check_worksheet_names(self.path)
+        self.assertEqual(findings, check_worksheet_names(self.path))
+        self.assertEqual(len({item["findingId"] for item in findings}), 3)
+        for item in findings:
+            self.assertEqual(set(item), {
+                "findingId", "ruleId", "category", "worksheet", "target",
+                "classification", "message", "recommendation",
+            })
+            self.assertTrue(all(isinstance(value, str) for value in item.values()))
+            self.assertRegex(item["findingId"], r"\A[A-Za-z0-9_-]{1,64}\Z")
+            self.assertEqual(item["ruleId"], "WORKSHEET_NAME")
+            self.assertEqual(item["category"], "WORKSHEET_NAME")
+            self.assertEqual(item["classification"], "REQUIRES_USER_INPUT")
+            self.assertEqual(item["target"], item["worksheet"])
+            for field in ("message", "recommendation"):
+                self.assertTrue(1 <= len(item[field]) <= 500)
+        self.assertEqual(findings, sorted(
+            findings, key=lambda item: (item["ruleId"], item["worksheet"], item["target"]),
+        ))
 
     def test_req03_ac03_original_bytes_unchanged(self):
         self.write_metadata(
