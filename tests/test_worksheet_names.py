@@ -1,4 +1,8 @@
-"""Prototype tests related to REQ-03/04 and AC-03/04, not full acceptance tests."""
+"""WCAG 2.1 2.4.2 Page Titled: prototype worksheet-name tests.
+
+Related: 2.4.6 Headings and Labels (sheet-name result reuse).
+REQ-03/04 and AC-03/04 references remain; these are not full acceptance tests.
+"""
 
 import tempfile
 import unittest

@@ -1,4 +1,8 @@
-"""Prototype name-matching rule, not a team/pod-approved common specification."""
+"""WCAG 2.1 2.4.2 Page Titled: prototype worksheet-name heuristics only.
+
+Related: 2.4.6 Headings and Labels reuses sheet-name results in the mapping guide.
+Does not assess either full criterion; not a team/pod-approved common rule.
+"""
 
 import re
 from os import PathLike
