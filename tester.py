@@ -10,7 +10,7 @@ CHUNK_SIZE = 8192
 
 app = FastAPI()
 product = "enter product url here"
-basepath = os.path.dirname(os.path.abspath(sys.argv[1])).replace("\\","/")
+basepath = os.path.dirname(os.path.abspath(__file__)).replace("\\","/")
 
 def testFile(infile, filename):
     line = ""
@@ -20,8 +20,7 @@ def testFile(infile, filename):
         ##  Fill line with result of test
         ##  ie, "FILENAME failed: color contrast below threshold"
         ##  ie, "FILENAME passed"
-    file.close()
-    return(line)
+    return(line + "\n")
 
 @app.get("/")
 def read_root():
@@ -34,7 +33,7 @@ def get_report():
     return FileResponse(
         path = filepath,
         filename = "report.md",
-        media_type = "application/md"
+        media_type = "text/markdown"
     )
 
 @app.post("/setup/")
@@ -49,30 +48,28 @@ def run_test():
     filepath = Path(basepath + "/sheets/eval")
     pulledpath = basepath + "/sheets/pulled"
     reportpath = basepath + "/reports/report.md"
-    report = open(reportpath, "w", encoding="utf-8")
-    for item in filepath.iterdir():
-        filename = item.name
-        file = open(item, "rb")
-        payload = {
-            "filename":filename
-        }
-        files = {"file":file}
-        file.close()
-        response = requests.post(product, data=payload, files=files)
-        if(response.status_code != 201):
-            line = filename + " failed: unable to post to product\n"
-            report.write(line)
-        else:
-            response = requests.get(product + "/" + filename, stream=True)
-            if(response.status_code != 200):
-                line = filename + " failed: unable to get file from product\n"
+    with open(reportpath, "w", encoding="utf-8") as report:
+        for item in filepath.iterdir():
+            filename = item.name
+            payload = {
+                "filename":filename
+            }
+            with open(item, "rb") as file:
+                files = {"file":file}
+                response = requests.post(product, data=payload, files=files)
+            if(response.status_code != 201):
+                line = filename + " failed: unable to post to product\n"
                 report.write(line)
             else:
-                newfilepath = pulledpath + filename
-                with open(newfilepath, "wb") as file:
-                    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                        file.write(chunk)
-                file.close()
-                line = testFile(newfilepath, filename)
-                report.write(line)
+                response = requests.get(product + "/" + filename, stream=True)
+                if(response.status_code != 200):
+                    line = filename + " failed: unable to get file from product\n"
+                    report.write(line)
+                else:
+                    newfilepath = pulledpath + "/" + filename
+                    with open(newfilepath, "wb") as file:
+                        for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                            file.write(chunk)
+                    line = testFile(newfilepath, filename)
+                    report.write(line)
     return("Test run complete")
