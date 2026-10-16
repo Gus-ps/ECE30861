@@ -1,4 +1,3 @@
 .venv/
 __pycache__/
 /.docs/checker_notes.md
-/.docs/assumptions_and_extensions.md
