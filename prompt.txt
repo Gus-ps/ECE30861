@@ -1,0 +1,41 @@
+Validity Checker for uploaded files
+Intention: To verify that uploaded files are valid for the site to check and suggest changes for.
+
+Input: file (any type)
+Output: 
+    If valid: validity statement
+    If invalid: Error statement, reasoning
+
+Requirements for the file:
+Expected to be a .xlsx file
+Cannot be password protected
+Cannot be corrupted
+Cannot be encrypted
+Maximum file size of 25 MB
+Maximum worksheet quantity of 50 worksheets
+Maximum nonempty cell quantity of 250,000 cells
+
+Response:
+I created validity_check.py. It only uses the Python standard library, so nobody needs to install anything to run it.
+
+Usage:
+
+
+python validity_check.py path/to/file
+A valid file prints 'file.xlsx' is valid and ready to be checked for accessibility. and exits with code 0. An invalid file prints an error that lists every requirement it breaks, with the reason for each, and exits with code 1.
+
+To call it from someone else's code, use validate_file(filepath). It returns a list of error messages, and an empty list means the file is valid. That should fit into the testFile stub in Logan's tester.py.
+
+How it checks each requirement:
+
+.xlsx: looks at the file extension. If it isn't .xlsx, the checker reports that and stops.
+25 MB: compares the file size against 25 MB.
+Encrypted / password to open: an Excel file with a password to open is stored in an older container format instead of as a zip archive. The checker looks for the parts that hold the encryption data.
+Corrupted: checks that the file is a real zip archive, that every part passes its integrity check, that the required workbook parts are there, and that the contents can be read. An old .xls file renamed to .xlsx also fails this check.
+50 worksheets: counts the worksheets listed in the workbook.
+250,000 nonempty cells: counts cells that hold a value, text or formula. Cells that only have formatting don't count.
+I ran it on sample files I generated: a valid workbook, 51 sheets, 250,001 cells, a protected workbook and sheet, a corrupted zip, a simulated encrypted file, a 26 MB file, a .txt file and a missing path. Each one gave the expected result. All of these were built by script, so it's still worth trying a few files saved from Excel itself, especially a real encrypted one.
+
+Decision for you: I took "password protected" to mean a password to open the file, and also workbook-structure or sheet protection, since protected sheets would block the site from suggesting changes. If your group only means a password to open, remove check_protection from validate_file.
+
+The file isn't committed yet. I can commit it to your Jonathan branch when you're ready.
