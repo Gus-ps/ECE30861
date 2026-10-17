@@ -70,7 +70,7 @@ Resources:
       MasterUsername: workbook_admin
       ManageMasterUserPassword: true
       PubliclyAccessible: false
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: 1
       CopyTagsToSnapshot: true
       DBSubnetGroupName: !Ref DatabaseSubnets
       VPCSecurityGroups: [!Ref DatabaseSecurityGroup]

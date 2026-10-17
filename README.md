@@ -122,7 +122,7 @@ Invoke-RestMethod "$($serviceUrl.TrimEnd('/'))/api/v1/health"
 generated and rotated by RDS. The application reads the current database secret
 when connecting, using its IAM task role. No AWS access keys are embedded in the
 application. Connections verify the RDS hostname and certificate using AWS's CA
-bundle, included in the image. The database is encrypted and has seven-day backups.
+bundle, included in the image. The database is encrypted and retains automated backups for one day.
 Its security group permits PostgreSQL only from application tasks.
 
 Deployment configuration in `database.py`:
