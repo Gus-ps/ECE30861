@@ -1,4 +1,7 @@
-"""Temporary IDs for 1.1.1 Non-text Content and 2.4.2 Page Titled findings."""
+"""Temporary IDs for partial WCAG 2.1 checks.
+
+1.1.1 Non-text Content, 1.3.1 Info and Relationships, and 2.4.2 Page Titled.
+"""
 
 import hashlib
 import json

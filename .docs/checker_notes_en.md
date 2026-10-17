@@ -18,17 +18,19 @@ python3 -m venv .venv
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
 from accessibility_checker.checks.workbook_title import check_workbook_title
+from accessibility_checker.checks.table_headers import check_table_headers
 
 path = "/path/to/workbook.xlsx"
 print(check_worksheet_names(path))
 print(check_image_alt_text(path))
 print(check_workbook_title(path))
+print(check_table_headers(path))
 ```
 
 Replace the path with an actual workbook. `pathlib.Path` is also accepted.
 Relative paths are resolved from the working directory. No CLI is provided.
 
-All functions return a list of dictionaries. Worksheet-name and image checks
+All functions return a list of dictionaries. Worksheet-name, image, and table checks
 inspect visible worksheets only; `hidden` and `veryHidden` are excluded.
 The Title check examines workbook metadata, independently of worksheet states.
 Input validation and custom error handling are not implemented. File/XML errors
@@ -136,9 +138,28 @@ conformance is not claimed. Replace these constants after agreement.
 The checker reuses `make_finding_id` unchanged: different workbooks with a
 missing title currently receive the same ID. No new identity policy is added.
 
+## Table Header Rows — 1.3.1 Info and Relationships
+
+`accessibility_checker/checks/table_headers.py`: `check_table_headers(path)`
+reports one finding per Excel Table with explicit `headerRowCount="0"` on a
+visible worksheet. It follows workbook → worksheet → table relationships;
+table part numbers need not match sheet numbers. The original worksheet name
+and table `ref` range (for example, `B3:D12`) identify the location.
+
+Rule ID `1.3.1-TABLE-NO-HEADER` is provisional, with a TODO to replace it after
+agreement with the other team. Category is `TABLE_STRUCTURE`; classification
+is `REQUIRES_USER_INPUT` because selecting meaningful headers requires people.
+The developer approved this prototype mapping; shared team/pod approval is not
+established. The existing ID generator and its workbook/ruleset limits apply.
+
+Nonzero or omitted header-row counts do not trigger this rule. Ordinary cell
+ranges, header-name quality, merged cells, and other structure issues remain
+unexamined. Hidden/veryHidden worksheets and chartsheets are excluded. Nothing
+is modified or declared accessible; the checker does not generate headers.
+
 ## Finding Format and Temporary IDs
 
-All three checkers use the HTTP contract's eight required string fields:
+All four checkers use the HTTP contract's eight required string fields:
 `findingId`, `ruleId`, `category`, `worksheet`, `target`, `classification`,
 `message`, and `recommendation`. Messages/recommendations are 1–500 characters.
 The previous `name`/`reason` and image-detail fields are no longer returned;
@@ -149,6 +170,7 @@ messages retain the distinctions between detected conditions.
 | Worksheet names    | `WORKSHEET_NAME`  | `WORKSHEET_NAME`                         | Original worksheet name   |
 | Image descriptions | `ALT_TEXT`        | `NON_TEXT_CONTENT`                       | Drawing part plus `#id=N` |
 | Workbook Title     | `WORKBOOK_TITLE`  | `WORKBOOK_TITLE` (provisional extension) | `__WORKBOOK__`            |
+| Table header row | `1.3.1-TABLE-NO-HEADER` | `TABLE_STRUCTURE` | Table `ref` range |
 
 All use `REQUIRES_USER_INPUT`. Multi-finding results are sorted lexicographically by
 `ruleId`, `worksheet`, then `target`, rather than workbook order.
@@ -175,8 +197,11 @@ or ruleset versions are fabricated now.
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-All 25 tests passed: 7 worksheet-name, 8 image, 8 workbook-title, and 2 temporary-ID
-tests. Title tests cover missing/empty/whitespace/nonblank values, absent core
+All 33 tests passed: 7 worksheet-name, 8 image, 8 workbook-title, 8 table-header,
+and 2 temporary-ID tests. Table tests cover detection/non-detection, multiple
+sheets/tables, mismatched part numbers, relative/absolute relationships,
+hidden/chartsheet exclusions, finding fields/IDs/sorting, and unchanged bytes.
+Title tests cover missing/empty/whitespace/nonblank values, absent core
 properties, part relationships, finding shape, repeatability, and unchanged
 source bytes. Existing detection, exclusion, and finding tests also pass.
 Fixtures contain synthetic ZIP/XML metadata, not complete Excel files.
@@ -184,6 +209,11 @@ Fixtures contain synthetic ZIP/XML metadata, not complete Excel files.
 The Title checker also read local `test.xlsx` (one finding, unchanged source
 bytes). Its Application metadata says `Microsoft Excel`, but creation provenance
 is not independently verified. Full real-Excel validation remains unverified.
+
+The table checker also read local `test.xlsx` without changing its bytes, but
+that file contains no table XML parts. This is a read smoke test, not evidence
+of missing-header detection on an Excel-created table. Positive/negative table
+cases have only been verified with synthetic metadata fixtures.
 
 An empty result means no findings within the implemented scope. Unsupported
 content and the workbook as a whole must not be reported as having passed.

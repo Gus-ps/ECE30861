@@ -135,3 +135,32 @@ and developer-only approval remain unchanged.
   are not complete Excel files. Local `test.xlsx` was also read (one finding,
   unchanged bytes); its Application metadata says `Microsoft Excel`, but origin
   is not independently verified. Full real-Excel validation remains unverified.
+
+## AE-005 — Excel Tables without a header row (2026-10-17)
+
+- **Basis/scope:** WCAG guide section 3, `1.3.1 Info and Relationships`, and
+  section 8.6 specify detection of `headerRowCount="0"` in Excel Tables.
+  Inspect visible worksheets only; exclude hidden/veryHidden and chartsheets.
+  Follow workbook → worksheet → table relationships, not part filename numbers.
+  Report one finding per table with an explicit zero header-row count. Absent
+  or nonzero counts, ordinary cell ranges, and header-name quality are outside
+  this detection rule; no result certifies their accessibility.
+- **Mapping/approval:** The requesting developer approved the recommended
+  visible-only scope, category `TABLE_STRUCTURE`, and table `ref` range as
+  target. Rule ID `1.3.1-TABLE-NO-HEADER` is provisional pending agreement with
+  the other team; keep a TODO. Classification is `REQUIRES_USER_INPUT`, since
+  choosing meaningful headers needs human input. This is developer approval,
+  not confirmed team/pod approval of a shared rule ID.
+- **Limits:** Existing eight-field findings and `make_finding_id` are unchanged;
+  workbook/ruleset identity limitations in AE-003 still apply. Read only; no
+  header creation, table repair, input validation, or new dependencies.
+- **Implementation:** `accessibility_checker/checks/table_headers.py`,
+  `tests/test_table_headers.py`, shared English notes. No existing checker or
+  ID-generation behavior was changed.
+- **Verification:** All 8 table tests pass, and all 33 tests pass with
+  `.venv/bin/python -m unittest discover -s tests -v`. Synthetic fixtures test
+  explicit zero/nonzero/omitted counts, multiple tables/sheets, relationship
+  mapping, exclusions, orphan parts, finding fields/IDs, ordering, unchanged
+  bytes. Local `test.xlsx` read successfully with unchanged bytes and zero
+  findings, but has no table parts: real-Excel missing-header detection remains
+  unverified. No table coverage or accessibility is inferred from that result.
