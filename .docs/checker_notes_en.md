@@ -15,6 +15,23 @@ python3 -m venv .venv
 ```
 
 ```python
+from accessibility_checker.runner import check_workbook
+
+findings = check_workbook("/path/to/workbook.xlsx")
+```
+
+`accessibility_checker/runner.py` explicitly calls worksheet names, image
+descriptions, workbook Title, then table headers. Each checker opens the path
+independently. The runner combines findings unchanged and sorts the complete
+list by `ruleId`, `worksheet`, then `target`. No auto-discovery is used.
+If any checker raises an exception, it propagates and no partial list is
+returned; later checkers are not run. Existing provisional IDs and values are
+preserved: no file hash or new pod-wide ID policy is introduced. An empty list
+is not an overall PASS/FAIL verdict.
+
+Individual checks can still be called directly:
+
+```python
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
 from accessibility_checker.checks.workbook_title import check_workbook_title
@@ -197,8 +214,11 @@ or ruleset versions are fabricated now.
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-All 33 tests passed: 7 worksheet-name, 8 image, 8 workbook-title, 8 table-header,
-and 2 temporary-ID tests. Table tests cover detection/non-detection, multiple
+All 38 tests passed: 7 worksheet-name, 8 image, 8 workbook-title, 8 table-header,
+5 runner, and 2 temporary-ID tests. Runner tests exercise all four real checker
+functions on one synthetic metadata fixture, empty results, unchanged bytes,
+explicit call order, global sorting, unchanged findings, and propagated errors.
+Table tests cover detection/non-detection, multiple
 sheets/tables, mismatched part numbers, relative/absolute relationships,
 hidden/chartsheet exclusions, finding fields/IDs/sorting, and unchanged bytes.
 Title tests cover missing/empty/whitespace/nonblank values, absent core

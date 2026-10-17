@@ -164,3 +164,26 @@ and developer-only approval remain unchanged.
   bytes. Local `test.xlsx` read successfully with unchanged bytes and zero
   findings, but has no table parts: real-Excel missing-header detection remains
   unverified. No table coverage or accessibility is inferred from that result.
+
+## AE-006 — Explicit workbook runner (2026-10-17)
+
+- **Scope/approval:** The developer requested `check_workbook(path)` to call
+  every currently implemented checker. This is a local entry point, not a
+  shared HTTP interface or team/pod-approved overall compliance assessment.
+  It covers only the existing partial checks for `1.1.1 Non-text Content`,
+  `1.3.1 Info and Relationships`, and `2.4.2 Page Titled` (related: `2.4.6
+  Headings and Labels`). No new detection rule is introduced.
+- **Behavior:** Explicitly call worksheet names, image descriptions, workbook
+  Title, and table headers in that order. Each checker opens the same path
+  independently. Combine unchanged findings and sort by ruleId/worksheet/target.
+  Propagate any exception; never return partial findings as a successful result.
+  No validation, hashing, new identity policy, CLI, or overall PASS/FAIL.
+- **Limits:** Existing exclusions, provisional values, and cross-workbook ID
+  limitations remain. No findings does not certify unchecked content.
+- **Implementation:** `accessibility_checker/runner.py`, `tests/test_runner.py`,
+  and shared usage notes. No existing checker or ID algorithm was modified.
+- **Verification:** All 5 runner tests and all 38 tests passed using
+  `.venv/bin/python -m unittest discover -s tests -v`. Tests cover four-checker
+  integration on one synthetic ZIP/XML fixture, empty results, global sorting,
+  unchanged findings, explicit invocation order, exceptions from each checker,
+  and unchanged source bytes. No new real-Excel verification was performed.
