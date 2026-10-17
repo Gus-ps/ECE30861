@@ -9,7 +9,9 @@ import unittest
 from pathlib import Path
 
 from accessibility_checker.finding_ids import (
-    get_source_sha256, make_finding_id, make_phase3_finding_id,
+    get_source_sha256,
+    make_finding_id,
+    make_phase3_finding_id,
 )
 
 
@@ -17,7 +19,9 @@ class FindingIdTests(unittest.TestCase):
     def test_identifier_format_and_repeatability(self):
         identifier = make_finding_id("ALT_TEXT", "予算", "drawing.xml#id=2")
         self.assertRegex(identifier, r"\A[A-Za-z0-9_-]{1,64}\Z")
-        self.assertEqual(identifier, make_finding_id("ALT_TEXT", "予算", "drawing.xml#id=2"))
+        self.assertEqual(
+            identifier, make_finding_id("ALT_TEXT", "予算", "drawing.xml#id=2")
+        )
 
     def test_rule_sheet_target_and_component_boundaries_distinguish_ids(self):
         inputs = [
@@ -26,27 +30,43 @@ class FindingIdTests(unittest.TestCase):
             ("ALT_TEXT", "Forecast", "drawing.xml#id=1"),
             ("ALT_TEXT", "Budget", "drawing.xml#id=2"),
             ("ALT_TEXT", "Budget", "other-drawing.xml#id=1"),
-            ("A", "B-C", "D"), ("A-B", "C", "D"),
+            ("A", "B-C", "D"),
+            ("A-B", "C", "D"),
         ]
         self.assertEqual(len({make_finding_id(*item) for item in inputs}), len(inputs))
 
     def test_phase3_exact_utf8_compact_json_recipe(self):
         source = "a" * 64
         # Literal oracle avoids reusing production JSON serialization.
-        payload = ('["' + source + '","1.0.0","ALT_TEXT","予算","xl/drawings/drawing1.xml#id=2"]').encode("utf-8")
-        identifier = make_phase3_finding_id(source, "ALT_TEXT", "予算", "xl/drawings/drawing1.xml#id=2")
+        payload = (
+            '["'
+            + source
+            + '","1.0.0","ALT_TEXT","予算","xl/drawings/drawing1.xml#id=2"]'
+        ).encode("utf-8")
+        identifier = make_phase3_finding_id(
+            source, "ALT_TEXT", "予算", "xl/drawings/drawing1.xml#id=2"
+        )
         self.assertEqual(identifier, hashlib.sha256(payload).hexdigest())
         self.assertRegex(identifier, r"\A[0-9a-f]{64}\Z")
-        self.assertNotEqual(identifier, make_phase3_finding_id("b" * 64, "ALT_TEXT", "予算", "xl/drawings/drawing1.xml#id=2"))
-        self.assertNotEqual(make_phase3_finding_id(source, "ALT_TEXT", "é", "x"),
-                            make_phase3_finding_id(source, "ALT_TEXT", "e\u0301", "x"))
+        self.assertNotEqual(
+            identifier,
+            make_phase3_finding_id(
+                "b" * 64, "ALT_TEXT", "予算", "xl/drawings/drawing1.xml#id=2"
+            ),
+        )
+        self.assertNotEqual(
+            make_phase3_finding_id(source, "ALT_TEXT", "é", "x"),
+            make_phase3_finding_id(source, "ALT_TEXT", "e\u0301", "x"),
+        )
 
     def test_source_hash_uses_original_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "source.xlsx"
             original = b"\x00raw\r\nbytes\xff"
             path.write_bytes(original)
-            self.assertEqual(get_source_sha256(path), hashlib.sha256(original).hexdigest())
+            self.assertEqual(
+                get_source_sha256(path), hashlib.sha256(original).hexdigest()
+            )
             self.assertEqual(path.read_bytes(), original)
 
 

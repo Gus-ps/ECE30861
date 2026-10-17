@@ -51,35 +51,71 @@ class WorksheetNameTests(unittest.TestCase):
 
     def test_req04_ac04_matching_and_nonmatching_names(self):
         matches = ["Sheet1", "sheet2", "SHEET3", "Sheet01", " \u3000Sheet3\u0085"]
-        excluded = ["Sheet0", "Sheet000", "Sheet", "Sheet 1", "123", "2025",
-                    "Sheet1 Budget", "Worksheet1", "Sheet１２", "ſheet1",
-                    "\u200bSheet1", "Sheet1\u200b"]
+        excluded = [
+            "Sheet0",
+            "Sheet000",
+            "Sheet",
+            "Sheet 1",
+            "123",
+            "2025",
+            "Sheet1 Budget",
+            "Worksheet1",
+            "Sheet１２",
+            "ſheet1",
+            "\u200bSheet1",
+            "Sheet1\u200b",
+        ]
         self.write_metadata([(name, None, "worksheet") for name in matches + excluded])
         findings = check_worksheet_names(self.path)
         self.assertEqual([f["worksheet"] for f in findings], sorted(matches))
         for item in findings:
             index = matches.index(item["worksheet"]) + 1
-            self.assertEqual(item["target"], f"xl/worksheets/sheet{index}.xml#sheetId={index}")
+            self.assertEqual(
+                item["target"], f"xl/worksheets/sheet{index}.xml#sheetId={index}"
+            )
 
     def test_exact_unicode_whitespace_boundaries(self):
         # Independent transcription of the Section 5 code-point set.
-        points = [*range(9, 14), 32, 133, 160, 5760, *range(8192, 8203),
-                  8232, 8233, 8239, 8287, 12288]
+        points = [
+            *range(9, 14),
+            32,
+            133,
+            160,
+            5760,
+            *range(8192, 8203),
+            8232,
+            8233,
+            8239,
+            8287,
+            12288,
+        ]
         from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
+
         self.assertEqual(set(map(ord, UNICODE_WHITE_SPACE)), set(points))
-        self.assertTrue(all(chr(p) not in UNICODE_WHITE_SPACE for p in (*range(28, 32), 8203)))
+        self.assertTrue(
+            all(chr(p) not in UNICODE_WHITE_SPACE for p in (*range(28, 32), 8203))
+        )
         # XML 1.0 cannot store U+000B/U+000C; check those in the policy above.
         for point in (p for p in points if p not in (11, 12)):
             with self.subTest(point=point):
                 name = chr(point) + "Sheet01" + chr(point)
                 self.write_metadata([(name, None, "worksheet")])
-                self.assertEqual([f["worksheet"] for f in check_worksheet_names(self.path)], [name])
+                self.assertEqual(
+                    [f["worksheet"] for f in check_worksheet_names(self.path)], [name]
+                )
 
     def test_hidden_worksheets_included_chartsheet_excluded(self):
-        self.write_metadata([("Sheet1", "hidden", "worksheet"),
-                             ("Sheet2", "veryHidden", "worksheet"),
-                             ("Sheet3", None, "chartsheet")])
-        self.assertEqual([f["worksheet"] for f in check_worksheet_names(self.path)], ["Sheet1", "Sheet2"])
+        self.write_metadata(
+            [
+                ("Sheet1", "hidden", "worksheet"),
+                ("Sheet2", "veryHidden", "worksheet"),
+                ("Sheet3", None, "chartsheet"),
+            ]
+        )
+        self.assertEqual(
+            [f["worksheet"] for f in check_worksheet_names(self.path)],
+            ["Sheet1", "Sheet2"],
+        )
 
     def test_req05_ac05_schema_repeatability_and_source_preservation(self):
         self.write_metadata([("Sheet1", None, "worksheet")])
@@ -88,9 +124,22 @@ class WorksheetNameTests(unittest.TestCase):
         self.assertEqual(findings, check_worksheet_names(self.path))
         self.assertEqual(self.path.read_bytes(), before)
         item = findings[0]
-        self.assertEqual(set(item), {"findingId", "ruleId", "category", "worksheet",
-                                    "target", "classification", "message", "recommendation"})
-        self.assertTrue(all(isinstance(value, str) and value for value in item.values()))
+        self.assertEqual(
+            set(item),
+            {
+                "findingId",
+                "ruleId",
+                "category",
+                "worksheet",
+                "target",
+                "classification",
+                "message",
+                "recommendation",
+            },
+        )
+        self.assertTrue(
+            all(isinstance(value, str) and value for value in item.values())
+        )
         self.assertRegex(item["findingId"], r"\A[0-9a-f]{64}\Z")
         self.assertEqual(item["ruleId"], "WORKSHEET_NAME")
         self.assertEqual(item["category"], "WORKSHEET_NAME")

@@ -8,7 +8,6 @@ import json
 from os import PathLike
 from pathlib import Path
 
-
 RULESET_VERSION = "1.0.0"
 
 

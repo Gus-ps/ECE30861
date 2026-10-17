@@ -28,5 +28,9 @@ def check_workbook(path: str | PathLike[str]) -> list[dict[str, str]]:
         findings.extend(checker(path, source_sha256=source_sha256))
     return sorted(
         findings,
-        key=lambda finding: (finding["ruleId"], finding["worksheet"], finding["target"]),
+        key=lambda finding: (
+            finding["ruleId"],
+            finding["worksheet"],
+            finding["target"],
+        ),
     )

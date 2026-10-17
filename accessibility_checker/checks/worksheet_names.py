@@ -29,7 +29,8 @@ def check_worksheet_names(
         root = ET.fromstring(workbook.read("xl/workbook.xml"))
         relationships = ET.fromstring(workbook.read("xl/_rels/workbook.xml.rels"))
         worksheets = {
-            rel.attrib["Id"]: rel for rel in relationships
+            rel.attrib["Id"]: rel
+            for rel in relationships
             if rel.attrib["Type"].endswith("/worksheet")
         }
         results = []
@@ -42,28 +43,39 @@ def check_worksheet_names(
                 continue
             name = sheet.attrib["name"]
             match = re.fullmatch(
-                r"sheet([0-9]+)", name.strip(UNICODE_WHITE_SPACE),
+                r"sheet([0-9]+)",
+                name.strip(UNICODE_WHITE_SPACE),
                 flags=re.IGNORECASE | re.ASCII,
             )
             if match is None or not match.group(1).lstrip("0"):
                 continue
             if relationship.get("TargetMode") == "External":
-                raise NotImplementedError("External worksheet relationship needs contract confirmation.")
+                raise NotImplementedError(
+                    "External worksheet relationship needs contract confirmation."
+                )
             part = posixpath.normpath(
                 posixpath.join("xl", relationship.attrib["Target"])
             ).lstrip("/")
             target = f"{part}#sheetId={sheet.attrib['sheetId']}"
-            results.append({
-                "findingId": make_phase3_finding_id(source_sha256, _RULE_ID, name, target),
-                "ruleId": _RULE_ID,
-                "category": "WORKSHEET_NAME",
-                "worksheet": name,
-                "target": target,
-                "classification": "REQUIRES_USER_INPUT",
-                "message": "Worksheet name is a default Sheet name with a positive numeric suffix.",
-                "recommendation": "Provide a descriptive worksheet name based on its purpose.",
-            })
+            results.append(
+                {
+                    "findingId": make_phase3_finding_id(
+                        source_sha256, _RULE_ID, name, target
+                    ),
+                    "ruleId": _RULE_ID,
+                    "category": "WORKSHEET_NAME",
+                    "worksheet": name,
+                    "target": target,
+                    "classification": "REQUIRES_USER_INPUT",
+                    "message": "Worksheet name is a default Sheet name with a positive numeric suffix.",
+                    "recommendation": "Provide a descriptive worksheet name based on its purpose.",
+                }
+            )
     return sorted(
         results,
-        key=lambda finding: (finding["ruleId"], finding["worksheet"], finding["target"]),
+        key=lambda finding: (
+            finding["ruleId"],
+            finding["worksheet"],
+            finding["target"],
+        ),
     )

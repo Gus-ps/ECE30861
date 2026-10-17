@@ -59,17 +59,23 @@ def check_table_headers(path: str | PathLike[str]) -> list[dict[str, str]]:
                     continue
                 worksheet = sheet.attrib["name"]
                 target = table.attrib["ref"]
-                results.append({
-                    "findingId": make_finding_id(_RULE_ID, worksheet, target),
-                    "ruleId": _RULE_ID,
-                    "category": _CATEGORY,
-                    "worksheet": worksheet,
-                    "target": target,
-                    "classification": "REQUIRES_USER_INPUT",
-                    "message": "Excel Table has no header row (headerRowCount=0).",
-                    "recommendation": "Enable the table header row and provide meaningful column names.",
-                })
+                results.append(
+                    {
+                        "findingId": make_finding_id(_RULE_ID, worksheet, target),
+                        "ruleId": _RULE_ID,
+                        "category": _CATEGORY,
+                        "worksheet": worksheet,
+                        "target": target,
+                        "classification": "REQUIRES_USER_INPUT",
+                        "message": "Excel Table has no header row (headerRowCount=0).",
+                        "recommendation": "Enable the table header row and provide meaningful column names.",
+                    }
+                )
     return sorted(
         results,
-        key=lambda finding: (finding["ruleId"], finding["worksheet"], finding["target"]),
+        key=lambda finding: (
+            finding["ruleId"],
+            finding["worksheet"],
+            finding["target"],
+        ),
     )
