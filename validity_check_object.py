@@ -54,6 +54,10 @@ WORKSHEET_REL_TYPE = REL_NS + "/worksheet"
 
 REQUIRED_PARTS = ("[Content_Types].xml", "xl/workbook.xml")
 
+# A <workbookProtection> element only protects the workbook when one of these
+# is turned on; some tools write an empty element into every workbook.
+WORKBOOK_LOCKS = ("lockStructure", "lockWindows", "lockRevision")
+
 
 def read_header(file_obj, length):
     """Read the first `length` bytes of the file, leaving it at the start."""
@@ -140,11 +144,18 @@ def check_corruption(file_obj):
     return [], archive
 
 
+def is_true(value):
+    """Return True for an XML boolean attribute set to true ("1" or "true")."""
+    return value is not None and value.strip().lower() in ("1", "true")
+
+
 def check_protection(archive):
     """Requirement: cannot be password protected (workbook / sheet protection)."""
     errors = []
     workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-    if workbook.find(f"{{{MAIN_NS}}}workbookProtection") is not None:
+    wb_protection = workbook.find(f"{{{MAIN_NS}}}workbookProtection")
+    if wb_protection is not None and any(
+            is_true(wb_protection.get(lock)) for lock in WORKBOOK_LOCKS):
         errors.append("File is password protected: the workbook structure is "
                       "protected. Unprotect the workbook and upload again.")
 
@@ -153,7 +164,8 @@ def check_protection(archive):
         if part not in archive.namelist():
             continue
         for _, elem in ET.iterparse(archive.open(part)):
-            if elem.tag == f"{{{MAIN_NS}}}sheetProtection":
+            if (elem.tag == f"{{{MAIN_NS}}}sheetProtection"
+                    and is_true(elem.get("sheet"))):
                 protected_sheets.append(name)
                 break
             elem.clear()
