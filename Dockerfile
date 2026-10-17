@@ -5,7 +5,7 @@ RUN chmod 644 /service/global-bundle.pem
 ENV DB_SSLROOTCERT=/service/global-bundle.pem
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py database.py ./
+COPY app.py database.py validity_check.py ./
 COPY static ./static
 RUN useradd --create-home service && mkdir /service/data && chown service:service /service/data
 USER service

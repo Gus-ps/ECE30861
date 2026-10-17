@@ -7,7 +7,8 @@ import os
 from pathlib import Path
 import secrets
 import tempfile
-import importlib.util
+import subprocess
+import sys
 from datetime import datetime, timezone
 from uuid import uuid4
 import zipfile
@@ -26,6 +27,32 @@ def now():
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
+def load_workbook_validator():
+    path = Path(os.getenv('VALIDATOR_PATH', str(ROOT / 'validity_check.py')))
+    if not path.is_file():
+        return None
+    path = path.resolve()
+
+    def validate(filepath):
+        # Process isolation releases handles left open by the supplied checker,
+        # including early XML parsing exits, before Windows deletes the temp file.
+        completed = subprocess.run(
+            [sys.executable, '-c',
+             'import json, runpy, sys; module = runpy.run_path(sys.argv[1]); '
+             'print(json.dumps(module["validate_file"](sys.argv[2])))',
+             str(path), filepath],
+            capture_output=True, text=True, check=True, timeout=60,
+        )
+        result = json.loads(completed.stdout)
+        # Jonathan's supplied version returns error strings; keep his file intact.
+        # Empty errors mean valid. Boolean-returning versions work unchanged too.
+        if isinstance(result, list) and all(isinstance(error, str) for error in result):
+            return not result
+        return result
+
+    return validate
+
+
 class ApiError(Exception):
     def __init__(self, status, code, message, details=None):
         self.status, self.code, self.message = status, code, message
@@ -33,13 +60,8 @@ class ApiError(Exception):
 
 
 def create_app(db_path=None, tokens=None, workbook_validator=None):
-    # The integrated deployment can mount/provide Jonathan's module separately.
-    # Never copy his implementation into this branch.
-    if workbook_validator is None and os.getenv('VALIDATOR_PATH'):
-        spec = importlib.util.spec_from_file_location('workbook_validity', os.environ['VALIDATOR_PATH'])
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        workbook_validator = module.validate_file
+    if workbook_validator is None:
+        workbook_validator = load_workbook_validator()
     app = FastAPI(title='Workbook validation service', version='1.0')
     # Tokens map opaque bearer credentials to stable user identifiers. No default credentials.
     credentials = tokens if tokens is not None else json.loads(os.getenv('API_TOKENS_JSON', '{}'))
@@ -135,9 +157,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None):
                     content_types = archive.read('[Content_Types].xml')
                     if b'macroEnabled' in content_types or b'vbaProject' in content_types:
                         raise ValueError('Macro-enabled workbooks are unsupported.')
-                # TODO: Supply Jonathan's path-based validate_file(filepath) through
-                # workbook_validator when the branches are integrated. Its code
-                # belongs on Jonathan; do not copy or implement its rules here.
+                # Call Jonathan's checker with a real file path, preserving its source.
                 if workbook_validator is not None:
                     # Close the file before calling the validator so it can reopen
                     # the path on Windows. Each request gets an isolated directory.

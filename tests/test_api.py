@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 from contextlib import closing
 
 from fastapi.testclient import TestClient
@@ -135,9 +136,10 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT COUNT(*) FROM versions').fetchone()[0], 1)
 
     def test_unconfigured_validator_does_not_claim_validity_or_save(self):
-        with TestClient(create_app(self.db, self.tokens)) as client:
-            response = client.post('/api/v1/workbooks', headers=self.auth,
-                                   files={'file': ('budget.xlsx', workbook())})
+        with patch('app.load_workbook_validator', return_value=None):
+            with TestClient(create_app(self.db, self.tokens)) as client:
+                response = client.post('/api/v1/workbooks', headers=self.auth,
+                                       files={'file': ('budget.xlsx', workbook())})
         self.assertEqual(response.status_code, 503)
         self.assertIsNone(response.json()['details']['valid'])
         with closing(sqlite3.connect(self.db)) as db:
@@ -169,6 +171,33 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.json()['findings'], [])
         self.assertEqual(self.client.get(path).status_code, 401)
         self.assertEqual(self.client.get(path, headers={'Authorization': 'Bearer bob-token'}).status_code, 403)
+
+    def test_real_validator_valid_and_invalid_workbooks(self):
+        invalid = [
+            {'xl/worksheets/sheet1.xml': '<broken'},
+            {'xl/workbook.xml': '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><workbookProtection/></workbook>'},
+            {'xl/worksheets/sheet1.xml': '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetProtection/></worksheet>'},
+        ]
+        with TestClient(create_app(self.db, self.tokens)) as client:
+            for parts in invalid:
+                with self.subTest(parts=parts):
+                    response = client.post('/api/v1/workbooks', headers=self.auth,
+                                           files={'file': ('invalid.xlsx', workbook(parts))})
+                    self.assertEqual(response.status_code, 422, response.text)
+                    self.assertIs(response.json()['details']['valid'], False)
+            with closing(sqlite3.connect(self.db)) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM versions').fetchone()[0], 0)
+            data = workbook()
+            response = client.post('/api/v1/workbooks', headers=self.auth,
+                                   files={'file': ('valid.xlsx', data)})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertIs(response.json()['valid'], True)
+            ids = response.json()
+            original = client.get(f"/api/v1/workbooks/{ids['workbookId']}/versions/{ids['versionId']}/original", headers=self.auth)
+            self.assertEqual(original.content, data)
+        with closing(sqlite3.connect(self.db)) as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM versions').fetchone()[0], 1)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM audits').fetchone()[0], 0)
 
 
 if __name__ == '__main__':
