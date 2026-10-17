@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Workbook validation</title>
+  <title>Workbook validation and accessibility</title>
   <style>
     body {font: 1.05rem/1.6 system-ui; color: #172637; background: #f1f5f8; margin: 0}
     main {max-width: 48rem; margin: 4rem auto; padding: 2rem; background: white; border-radius: 1rem}
@@ -16,20 +16,30 @@
   </style>
 </head>
 <body><main>
-  <h1>Workbook validation</h1>
-  <p>Check whether your Excel workbook is valid and save its unchanged original.</p>
-  <p>Supported: .xlsx, up to 25 MiB, 50 worksheets and 250,000 nonempty cells. Password protection and macros are unsupported.</p>
+  <h1>Workbook validation and accessibility</h1>
+  <p>Upload and validate your workbook, preserve its original, and retrieve audit results.</p>
+  <p>Supported: .xlsx, up to 25,000,000 bytes, 50 worksheets and 250,000 nonempty cells. Password protection and macros are unsupported.</p>
   <form id="upload">
     <label for="token">Access token</label>
     <input id="token" type="password" autocomplete="off" required aria-describedby="token-help">
     <small id="token-help">Use the token provided by your service administrator. It is kept only on this page.</small>
     <label for="file">Excel workbook</label>
     <input id="file" type="file" accept=".xlsx" required>
-    <button id="submit" type="submit">Validate workbook</button>
+    <button id="submit" type="submit">Upload workbook</button>
   </form>
   <p id="status" role="status" aria-live="polite"></p>
+  <ul id="messages" aria-label="Validation messages"></ul>
   <button id="download" type="button" hidden>Download unchanged original</button>
+  <section id="audit-results" aria-labelledby="findings-heading" hidden>
+    <h2 id="findings-heading">Accessibility findings</h2>
+    <ul id="findings"></ul>
+    <h2>Scope and limitations</h2>
+    <ul id="limitations"></ul>
+    <p>These checks do not establish full accessibility or legal compliance.</p>
+  </section>
+  <details id="json" hidden><summary>Response JSON</summary>
   <pre id="result" hidden></pre>
+  </details>
 </main>
 <script>
   const form = document.querySelector('#upload');
@@ -37,7 +47,17 @@
   const result = document.querySelector('#result');
   const button = document.querySelector('#submit');
   const download = document.querySelector('#download');
-  let originalUrl, accessToken;
+  const messages = document.querySelector('#messages');
+  const findings = document.querySelector('#findings');
+  const limitations = document.querySelector('#limitations');
+  let originalUrl, accessToken, originalName;
+  function showJson(value) {
+    result.textContent = JSON.stringify(value, null, 2); result.hidden = false;
+    document.querySelector('#json').hidden = false;
+  }
+  function appendMessage(list, message) {
+    const item = document.createElement('li'); item.textContent = message; list.append(item);
+  }
   async function request(url, options = {}) {
     const response = await fetch(url, {...options, headers: {Authorization: `Bearer ${accessToken}`}});
     if (!response.ok) {
@@ -50,19 +70,45 @@
   }
   form.addEventListener('submit', async event => {
     event.preventDefault(); button.disabled = true; download.hidden = true; result.hidden = true;
+    messages.replaceChildren(); findings.replaceChildren(); limitations.replaceChildren();
+    document.querySelector('#json').hidden = true;
+    document.querySelector('#audit-results').hidden = true;
     accessToken = document.querySelector('#token').value;
     status.textContent = 'Uploading workbook…';
     try {
-      const body = new FormData(); body.append('file', document.querySelector('#file').files[0]);
+      const file = document.querySelector('#file').files[0]; originalName = file.name;
+      const body = new FormData(); body.append('file', file);
       const uploaded = await (await request('/api/v1/workbooks', {method: 'POST', body})).json();
       const base = `/api/v1/workbooks/${uploaded.workbookId}/versions/${uploaded.versionId}`;
       originalUrl = `${base}/original`; download.hidden = false;
-      status.textContent = 'Workbook is valid. Original saved.';
-      result.textContent = JSON.stringify(uploaded, null, 2); result.hidden = false;
+      status.textContent = 'Workbook is valid. Original saved. Checking accessibility…';
+      showJson(uploaded);
+      const deadline = Date.now() + 180000;
+      let audit;
+      while (true) {
+        audit = await (await request(`${base}/audits/${uploaded.auditId}`)).json();
+        showJson(audit);
+        if (audit.status !== 'PROCESSING') break;
+        if (Date.now() >= deadline) throw new Error('The workbook is valid, but the audit is still processing. Use the identifiers in the JSON to check its status later.');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      document.querySelector('#audit-results').hidden = false;
+      for (const finding of audit.findings) {
+        appendMessage(findings, `${finding.ruleId} · ${finding.worksheet} · ${finding.target}: ${finding.message} ${finding.recommendation}`);
+      }
+      for (const limitation of audit.limitations) appendMessage(limitations, limitation);
+      if (audit.status === 'PROCESSING_FAILED') {
+        status.textContent = `Workbook is valid and saved. Accessibility audit failed: ${audit.error?.message || 'Processing failed.'}`;
+      } else if (audit.findings.length) {
+        status.textContent = `Workbook is valid. ${audit.findings.length} accessibility finding(s) require review.`;
+      } else {
+        status.textContent = 'Workbook is valid. The connected checker returned no findings. See any limitations below.';
+      }
     } catch (error) {
       status.textContent = error.message;
       if (error.response) {
-        result.textContent = JSON.stringify(error.response, null, 2); result.hidden = false;
+        for (const message of error.response.details?.errors || []) appendMessage(messages, message);
+        showJson(error.response);
       }
     }
     finally { button.disabled = false; }
@@ -71,7 +117,7 @@
     try {
       const blob = await (await request(originalUrl)).blob();
       const url = URL.createObjectURL(blob); const link = document.createElement('a');
-      link.href = url; link.download = document.querySelector('#file').files[0].name;
+      link.href = url; link.download = originalName;
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { status.textContent = error.message; }
   });

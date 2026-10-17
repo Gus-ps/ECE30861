@@ -22,7 +22,7 @@ class Database:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
     @contextmanager
-    def connect(self):
+    def connect(self, write=False):
         if self.postgres:
             import psycopg
             from psycopg.rows import dict_row
@@ -45,6 +45,8 @@ class Database:
             connection.row_factory = sqlite3.Row
             try:
                 connection.execute('PRAGMA foreign_keys=ON')
+                if write:
+                    connection.execute('BEGIN IMMEDIATE')
                 with connection:
                     yield connection
             finally:
@@ -64,6 +66,23 @@ class Database:
                 audit_id TEXT PRIMARY KEY, workbook_id TEXT NOT NULL REFERENCES versions(workbook_id),
                 status TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT,
                 findings TEXT NOT NULL DEFAULT '[]', limitations TEXT NOT NULL DEFAULT '[]', error TEXT)''')
+            # Additive migration of the earlier validation-only database.
+            if self.postgres:
+                columns = {row['column_name'] for row in db.execute(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='audits'").fetchall()}
+            else:
+                columns = {row['name'] for row in db.execute('PRAGMA table_info(audits)').fetchall()}
+            additions = {
+                'version_id': 'TEXT REFERENCES versions(version_id)',
+                'ruleset_version': "TEXT NOT NULL DEFAULT '1.0'",
+                'request_id': "TEXT NOT NULL DEFAULT 'request-legacy'",
+            }
+            for column, definition in additions.items():
+                if column not in columns:
+                    db.execute(f'ALTER TABLE audits ADD COLUMN {column} {definition}')
+            db.execute('''UPDATE audits SET version_id=(SELECT version_id FROM versions
+                WHERE versions.workbook_id=audits.workbook_id) WHERE version_id IS NULL''')
+            db.execute('CREATE INDEX IF NOT EXISTS audit_version_time ON audits(version_id, started_at)')
             if self.postgres:
                 db.execute('''CREATE OR REPLACE FUNCTION reject_source_update() RETURNS trigger
                     LANGUAGE plpgsql AS $$ BEGIN

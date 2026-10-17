@@ -1,181 +1,114 @@
-# ECE30861 — workbook upload service
+# ECE30861 workbook upload service
 
-Gustavo's Python API and upload page. Valid original workbook bytes are
-stored transactionally in PostgreSQL on AWS (SQLite locally). Source records cannot be updated, and authenticated
-owners can download their unchanged uploads for auditing.
+Gustavo's scope follows `PROMPT.md`: a Python upload website, authenticated
+endpoints, persistent storage, unchanged originals and AWS deployment.
+Jonathan's supplied `validity_check.py` is used without modifying it.
+Accessibility rules belong to the team's checker and are not implemented here.
 
-## Run locally (PowerShell)
+## Run locally
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-$env:API_TOKENS_JSON = '{"replace-with-a-long-random-secret":"test-user"}'
+$env:API_TOKENS_JSON = '{"replace-with-a-secret-token":"test-user"}'
 python -m uvicorn app:app --reload
 ```
 
-Open http://127.0.0.1:8000 and supply the configured token. API documentation is at
-`/docs`. No default token is enabled. Tokens map to user IDs; different tokens mapped
-to the same user share access. Keep token configuration out of version control.
-`DATABASE_PATH` defaults to `data/workbooks.sqlite3`.
+Open http://127.0.0.1:8000. Supply the configured token in the Access token field.
+API documentation and schemas are at `/docs` and `/openapi.json`.
+`API_TOKENS_JSON` maps bearer tokens to user IDs; there are no default credentials.
+SQLite defaults to `data/workbooks.sqlite3`; `DATABASE_PATH` can override it.
 
-## Interface
+## Endpoints from PROMPT.md
 
-| Method | Path | Purpose |
+| Operation | Endpoint | Response |
 | --- | --- | --- |
-| GET | `/api/v1/health` | Public service availability |
-| POST | `/api/v1/workbooks` | Validate multipart `file`; returns 200 with `valid: true` and saved resource IDs |
-| GET | `/api/v1/workbooks/{workbookId}/versions/{versionId}` | Metadata, SHA-256, status |
-| GET | `/api/v1/workbooks/{workbookId}/versions/{versionId}/original` | Unmodified original bytes |
+| 1 | `GET /api/v1/health` | Availability and API/ruleset versions |
+| 2 | `POST /api/v1/workbooks` | Multipart `file`; 202 with workbookId, versionId, auditId and PROCESSING |
+| 4 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}` | Filename, SHA-256, timestamps, status and audit/source IDs |
+| 5 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}` | Audit status, findings, limitations and error |
 
-All resource endpoints require `Authorization: Bearer <token>`. Errors contain
-`code`, `message`, `requestId`, and `details`. Rejected uploads create no records.
-Upload guards: 25 MiB uploaded, 100 MiB expanded, 10,000 ZIP entries;
-unreadable ZIP archives, encrypted ZIP entries, and macro-enabled files are
-rejected. Jonathan's integrated validator checks worksheet/cell limits, XML integrity,
-and workbook/sheet protection before saving any upload.
-Request IDs are also returned in `X-Request-ID`.
+The owner-authorized `/api/v1/workbooks/{workbookId}/versions/{versionId}/original`
+download supports the prompt's requirement that unchanged originals remain accessible.
+All resource endpoints require `Authorization: Bearer <token>`; health is public.
 
-## Checker integration
+The upload limit is **25,000,000 bytes**. Jonathan's validator checks the 50-sheet
+and 250,000-cell limits, readable workbook format and protection. Upload guards
+also reject macros, encrypted ZIP entries, archives over 100 MiB expanded or
+10,000 entries. Rejected uploads create no version or audit. Original bytes and
+the initial PROCESSING audit are committed in one database transaction.
+`contracts.py` enforces the supplied identifier, filename, hash, timestamp,
+finding and response schemas. Errors contain code, message, requestId and details.
 
-The supplied `validity_check.py` is loaded automatically from the application
-directory and is included in the Docker image. Its source is unchanged.
-The service calls its path-based `validate_file(filepath)` function.
-The service writes the uploaded bytes to an isolated temporary `.xlsx`
-file and passes its absolute path as a string. The validator must read it
-synchronously in an isolated process so its file handles close reliably on Windows;
-the temporary directory is removed after the call, including on
-failure. The permanent original remains unchanged in the database. The supplied
-checker currently returns error lists; the loading adapter converts an empty list
-to `True` and a nonempty list to `False`. It also supports `True`/`1` and `False`/`0`
-directly. Injected callbacks via `create_app(workbook_validator=...)` use the boolean
-contract. Other return types are integration errors (HTTP 500). Invalid files are
-rejected before creating records. Optionally set `VALIDATOR_PATH` to load a different
-validator file, available inside the container when deploying.
-Without a configured validator, uploads return HTTP 503 with
-`VALIDATOR_NOT_CONFIGURED` and create no records.
+## Checker integration hooks
 
-Phase 3 checks workbook validity only. Valid uploads return HTTP 200 with
-`{"valid": true, "workbookId": "...", "versionId": "..."}`. Invalid workbooks
-return HTTP 422 with `message: "Workbook is invalid."` and
-`details: {"valid": false}`. The page shows "Workbook is valid" or "Workbook is
-invalid" and the response JSON. Uploads do not create audits, start background
-processing, or poll audit status. The audit database schema and authenticated
-`GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}` endpoint
-are retained for later weeks. An audit must already exist to retrieve it; the
-current upload flow only validates and saves the original workbook.
+The upload passes an absolute temporary `.xlsx` path to Jonathan's checker. The
+file is removed after the call. `check_validity(path)` is preferred and its printed
+messages are forwarded to the server terminal/container logs. Available rejection
+details are also returned to the page. `VALIDATOR_PATH` optionally selects another
+validator module. Both boolean returns and older error-list modules are supported.
 
-No validator rule implementations were changed. No accessibility audits are started.
+To integrate the accessibility checker later, pass its path-based callable to
+`create_app(accessibility_checker=...)`. Comments in `app.py` mark the integration
+point. It must return a list of findings with the supplied schema's eight fields.
+The API validates them, assigns stable workbook/ruleset/location IDs, orders them
+by ruleId/worksheet/target and stores the audit result. No findings produces
+AUDIT_COMPLETE; unresolved findings produce REVIEW_REQUIRED; failures produce
+PROCESSING_FAILED. The checker must not modify the source.
 
-## Deploy to AWS (PowerShell)
+Until a checker is supplied, uploads still validate and save the original, while
+their audit reports CHECKER_NOT_CONFIGURED. The page distinguishes invalid files
+from valid files whose accessibility audit is unavailable. No Haruki rule modules
+are copied into this branch. Remediation/report generation is left to subsequent
+team integration; this service does not generate corrected workbooks itself.
 
-The deployment uses ECS Express Mode for the website/API and managed HTTPS, ECR
-for the container image, and RDS PostgreSQL for original workbook bytes and metadata.
-It provisions its own VPC, public application subnets, isolated database
-subnets, security groups, IAM roles, and Secrets Manager secrets. No existing VPC,
-database password, SSH key, domain, or certificate is required. PostgreSQL tables
-and the source-update prevention trigger are created automatically on startup.
+Background processing uses the application process. Audits interrupted by a
+restart require later worker integration; this scoped version has no recovery
+worker, leases, re-audit endpoint, scheduling or version-history operations.
 
-Prerequisites:
+## Deploy to AWS
 
-- AWS CLI v2 and an AWS account/profile, preferably through AWS IAM Identity Center.
-- Docker Desktop running with Linux containers.
-- A region supporting ECS Express Mode and RDS PostgreSQL, such as `us-east-1`.
-- Deployment permissions for CloudFormation, ECR, ECS, RDS, EC2 networking,
-  Secrets Manager, IAM role creation/pass-role, and ECS-managed load balancers,
-  logging, certificates, and scaling. A restricted class/lab account may need
-  an instructor to authorize those services.
+The Dockerfile and `infrastructure/aws.yaml` deploy the service through ECS Express
+Mode with HTTPS, an ECR image, private RDS PostgreSQL, networking, IAM roles and
+Secrets Manager. PostgreSQL stores workbook bytes and audit records. The schema
+is initialized automatically, and source records cannot be updated. Existing
+database records are preserved by additive audit-schema changes.
 
-Configure your AWS profile, then validate the account and template:
+With Docker Desktop running and your AWS CLI profile signed in:
 
 ```powershell
-aws configure sso --profile coursework
-aws sso login --profile coursework
-.\scripts\deploy-aws.ps1 -Region us-east-1 -Profile coursework
+aws login --profile coursework --region us-east-2
+.\scripts\deploy-aws.ps1 -Region us-east-2 -Profile coursework
+.\scripts\deploy-aws.ps1 -Region us-east-2 -Profile coursework -Deploy
 ```
 
-The default script invocation only checks the account and validates the template.
-To create the billable deployment:
+Without `-Deploy`, the script only validates the account/template. With `-Deploy`,
+it creates billable resources, uploads the image and prints ServiceUrl and secret
+ARNs. It does not push the Git branch. Deployment requires permissions for the
+services above. The database password is managed by RDS; the application reads it
+with its IAM role and verifies the database's TLS certificate. Automated backups
+are retained for one day. Application tokens are generated and injected from
+Secrets Manager. The bootstrap database user creates the schema; a production
+deployment should separate migrations from a restricted runtime database user.
+
+Retrieve the generated website token privately:
 
 ```powershell
-.\scripts\deploy-aws.ps1 -Region us-east-1 -Profile coursework -Deploy
+aws secretsmanager get-secret-value --secret-id 'PASTE_TOKEN_SECRET_ARN' --region us-east-2 --profile coursework --query SecretString --output text
 ```
 
-This builds a Linux image, uploads it to ECR, deploys the CloudFormation stack,
-and prints the service endpoint and secret ARNs. It never performs a Git push.
-Repeat the same command to deploy code updates using a new immutable image tag.
+Database settings are `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SECRET_ARN`, and
+`DB_SSLROOTCERT`; the deployment supplies them. `DB_SECRET_JSON` containing
+username/password supports a separate test database. Never commit credentials.
 
-Retrieve the generated test-user token privately and check the service:
-
-```powershell
-$outputs = (aws cloudformation describe-stacks --stack-name workbook-service --region us-east-1 --profile coursework --query 'Stacks[0].Outputs' --output json) | ConvertFrom-Json
-$serviceUrl = ($outputs | Where-Object OutputKey -eq 'ServiceUrl').OutputValue
-if ($serviceUrl -notmatch '^https://') { $serviceUrl = "https://$serviceUrl" }
-$tokenArn = ($outputs | Where-Object OutputKey -eq 'TokenSecretArn').OutputValue
-$token = aws secretsmanager get-secret-value --secret-id $tokenArn --region us-east-1 --profile coursework --query SecretString --output text
-Invoke-RestMethod "$($serviceUrl.TrimEnd('/'))/api/v1/health"
-# Paste the value of $token into the website's Access token field when testing.
-# Do not commit it or share it in chat.
-```
-
-`API_TOKENS_JSON` is injected from Secrets Manager; the database password is
-generated and rotated by RDS. The application reads the current database secret
-when connecting, using its IAM task role. No AWS access keys are embedded in the
-application. Connections verify the RDS hostname and certificate using AWS's CA
-bundle, included in the image. The database is encrypted and retains automated backups for one day.
-Its security group permits PostgreSQL only from application tasks.
-
-Deployment configuration in `database.py`:
-
-| Variable | Source |
-| --- | --- |
-| `DB_HOST`, `DB_PORT`, `DB_NAME` | CloudFormation RDS endpoint and database settings |
-| `DB_SECRET_ARN` | RDS-managed secret; read using the task role |
-| `DB_SSLROOTCERT` | CA bundle path set in the Dockerfile |
-| `API_TOKENS_JSON` | Generated application token mapping in Secrets Manager |
-
-The bootstrap application currently uses the RDS administrator to create its
-schema. A production deployment should run migrations separately and use a
-restricted application database user. Updates to the application-token secret
-require a fresh deployment to refresh injected values. Database password rotation
-does not require a deployment because credentials are retrieved per connection.
-
-Audit/report/correction processing is outside the current phase. Existing local SQLite data is
-not automatically migrated to RDS. Larger storage deployments can move workbook
-blobs to S3 later; this deployment stores originals in PostgreSQL transactions.
-
-To remove the deployment when you are finished:
-
-```powershell
-aws cloudformation delete-stack --stack-name workbook-service --region us-east-1 --profile coursework
-aws cloudformation wait stack-delete-complete --stack-name workbook-service --region us-east-1 --profile coursework
-```
-
-Deleting the stack removes the live database and takes a final database snapshot.
-Snapshots and the separately created ECR repository/images remain and can incur
-charges until explicitly removed. Review retained resources in the AWS console.
-
-AWS references: [ECS Express deployment](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-getting-started.html),
-[networking](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-work.html),
-[RDS-managed credentials](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-rds-dbinstance.html).
-
-## Verification
+## Verify
 
 ```powershell
 python -m pip install httpx==0.28.1
 python -m unittest discover -s tests -v
 ```
 
-The PostgreSQL integration test is skipped unless `RUN_POSTGRES_TESTS=1` is set.
-Run it from a machine with network access to a dedicated PostgreSQL test database,
-with the `DB_HOST`, `DB_NAME`, `DB_SSLROOTCERT`, and `DB_SECRET_ARN` (or
-`DB_SECRET_JSON` containing `username` and `password`) settings configured. It
-checks binary storage, source immutability, and transaction rollback. Use an empty
-test database: the test initializes the schema.
-
-Infrastructure validation:
-
-```powershell
-python -m pip install cfn-lint
-cfn-lint infrastructure/aws.yaml
-```
+Focused API tests cover the listed operations, validator integration, source
+preservation, errors and owner access. The optional PostgreSQL storage test runs
+only with `RUN_POSTGRES_TESTS=1` and a dedicated TLS test database configured.
