@@ -2,7 +2,6 @@
 import asyncio
 from datetime import datetime, timezone
 import hashlib
-import io
 import json
 import logging
 import os
@@ -12,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 from uuid import uuid4
-import zipfile
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -229,21 +227,6 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 data.extend(chunk)
                 if len(data) > MAX_UPLOAD:
                     raise ApiError(413, 'FILE_TOO_LARGE', 'Workbook exceeds the 25,000,000-byte limit.')
-            try:
-                with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                    entries = archive.infolist()
-                    if len(entries) > 10000 or sum(e.file_size for e in entries) > 100 * 1024 * 1024:
-                        raise ValueError('Archive exceeds documented processing limits.')
-                    if any(e.flag_bits & 1 for e in entries):
-                        raise ValueError('Encrypted archives are unsupported.')
-                    if any('vbaproject' in e.filename.lower() for e in entries):
-                        raise ValueError('Macro-enabled workbooks are unsupported.')
-                    content_types = archive.read('[Content_Types].xml')
-                    if b'macroEnabled' in content_types or b'vbaProject' in content_types:
-                        raise ValueError('Macro-enabled workbooks are unsupported.')
-            except (ValueError, zipfile.BadZipFile, KeyError, RuntimeError, NotImplementedError) as exc:
-                raise ApiError(422, 'INVALID_WORKBOOK', 'Workbook is invalid.',
-                               {'valid': False, 'errors': [str(exc)]}) from exc
             if workbook_validator is None:
                 raise ApiError(503, 'VALIDATOR_NOT_CONFIGURED', 'Workbook validation is not configured.')
             with tempfile.TemporaryDirectory(prefix='workbook-validation-') as directory:

@@ -106,7 +106,6 @@ class ApiTests(unittest.TestCase):
 
     def test_rejections_leave_no_records(self):
         cases = [(b'bad', 'a.xls', 415), (b'bad', 'a.xlsx', 422),
-                 (workbook({'xl/vbaProject.bin': b'macro'}), 'a.xlsx', 422),
                  (b'x' * (25_000_000 + 1), 'a.xlsx', 413),
                  (workbook(), 'a' * 251 + '.xlsx', 400),
                  (workbook({'xl/worksheets/sheet1.xml': '<broken'}), 'a.xlsx', 422),
@@ -128,6 +127,20 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len(data), MAX_UPLOAD)
         response = self.upload(data)
         self.assertEqual(response.status_code, 202, response.text)
+
+    def test_non_zip_upload_reaches_validity_checker(self):
+        received = []
+
+        def validator(filepath):
+            received.append(Path(filepath).read_bytes())
+            return False
+
+        with TestClient(create_app(self.db, self.tokens, workbook_validator=validator)) as client:
+            response = self.upload(b'not a zip archive', client=client)
+        self.assertEqual(received, [b'not a zip archive'])
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()['details'], {'valid': False})
+        self.assertEqual(self.counts(), (0, 0))
 
 
 
