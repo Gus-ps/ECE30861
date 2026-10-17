@@ -1,0 +1,221 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Workbook API on ECS Express Mode with a private RDS PostgreSQL database
+Parameters:
+  ImageUri:
+    Type: String
+    Description: Full ECR image URI including a unique image tag
+  DatabaseClass:
+    Type: String
+    Default: db.t4g.micro
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.38.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.38.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.38.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Additional ECS task identity for database access; no inbound rules
+      VpcId: !Ref Network
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.38.0.0/16
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL from ECS tasks only
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+  DatabaseSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Isolated database subnets
+      SubnetIds: [!Ref SubnetA, !Ref SubnetB]
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: postgres
+      DBInstanceClass: !Ref DatabaseClass
+      AllocatedStorage: '20'
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: workbooks
+      MasterUsername: workbook_admin
+      ManageMasterUserPassword: true
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DBSubnetGroupName: !Ref DatabaseSubnets
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+  ApiToken:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Generated bearer token for the initial test user
+      GenerateSecretString:
+        PasswordLength: 48
+        ExcludePunctuation: true
+  TokenConfiguration:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Application bearer-token to user mapping
+      SecretString: !Sub
+        - '{"{{resolve:secretsmanager:${TokenArn}:SecretString}}":"test-user"}'
+        - TokenArn: !Ref ApiToken
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadApplicationSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref TokenConfiguration
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReadDatabaseCredentials
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !GetAtt Database.MasterUserSecret.SecretArn
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Network
+      InternetGatewayId: !Ref InternetGateway
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.38.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.38.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+  PublicRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRoutes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  RouteAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRoutes
+  RouteAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRoutes
+  Cluster:
+    Type: AWS::ECS::Cluster
+  Service:
+    Type: AWS::ECS::ExpressGatewayService
+    DependsOn: [InternetRoute, RouteAssociationA, RouteAssociationB]
+    Properties:
+      Cluster: !Ref Cluster
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      InfrastructureRoleArn: !GetAtt InfrastructureRole.Arn
+      Cpu: '1024'
+      Memory: '2048'
+      HealthCheckPath: /api/v1/health
+      NetworkConfiguration:
+        Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+        SecurityGroups: [!Ref ApplicationSecurityGroup]
+      PrimaryContainer:
+        Image: !Ref ImageUri
+        ContainerPort: 8000
+        Environment:
+          - Name: DB_HOST
+            Value: !GetAtt Database.Endpoint.Address
+          - Name: DB_PORT
+            Value: !GetAtt Database.Endpoint.Port
+          - Name: DB_NAME
+            Value: workbooks
+          - Name: DB_SECRET_ARN
+            Value: !GetAtt Database.MasterUserSecret.SecretArn
+        Secrets:
+          - Name: API_TOKENS_JSON
+            ValueFrom: !Ref TokenConfiguration
+Outputs:
+  ServiceUrl:
+    Value: !GetAtt Service.Endpoint
+  ServiceArn:
+    Value: !GetAtt Service.ServiceArn
+  TokenSecretArn:
+    Description: Retrieve this secret privately to obtain the test-user bearer token
+    Value: !Ref ApiToken
+  TokenConfigurationSecretArn:
+    Value: !Ref TokenConfiguration
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address

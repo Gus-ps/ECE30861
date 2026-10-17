@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workbook validation</title>
+  <style>
+    body {font: 1.05rem/1.6 system-ui; color: #172637; background: #f1f5f8; margin: 0}
+    main {max-width: 48rem; margin: 4rem auto; padding: 2rem; background: white; border-radius: 1rem}
+    label {display: block; margin-top: 1.3rem; font-weight: 600}
+    input {display: block; margin: .5rem 0; max-width: 100%; font: inherit}
+    input[type=password] {box-sizing: border-box; width: 100%; padding: .6rem}
+    button, a {font: inherit} button {margin: 1.5rem 0; padding: .65rem 1.4rem; background: #174b77; color: white; border: 0; border-radius: .4rem; cursor: pointer}
+    :focus-visible {outline: 3px solid #b45e00; outline-offset: 3px}
+    pre {white-space: pre-wrap; overflow-wrap: anywhere; background: #f1f5f8; padding: 1rem}
+  </style>
+</head>
+<body><main>
+  <h1>Workbook validation</h1>
+  <p>Check whether your Excel workbook is valid and save its unchanged original.</p>
+  <p>Supported: .xlsx, up to 25 MiB. Macros are unsupported. Full workbook validity checks will become available when the team's validator is connected.</p>
+  <form id="upload">
+    <label for="token">Access token</label>
+    <input id="token" type="password" autocomplete="off" required aria-describedby="token-help">
+    <small id="token-help">Use the token provided by your service administrator. It is kept only on this page.</small>
+    <label for="file">Excel workbook</label>
+    <input id="file" type="file" accept=".xlsx" required>
+    <button id="submit" type="submit">Validate workbook</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <button id="download" type="button" hidden>Download unchanged original</button>
+  <pre id="result" hidden></pre>
+</main>
+<script>
+  const form = document.querySelector('#upload');
+  const status = document.querySelector('#status');
+  const result = document.querySelector('#result');
+  const button = document.querySelector('#submit');
+  const download = document.querySelector('#download');
+  let originalUrl, accessToken;
+  async function request(url, options = {}) {
+    const response = await fetch(url, {...options, headers: {Authorization: `Bearer ${accessToken}`}});
+    if (!response.ok) {
+      const error = await response.json();
+      const failure = new Error(error.message);
+      failure.response = error;
+      throw failure;
+    }
+    return response;
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); button.disabled = true; download.hidden = true; result.hidden = true;
+    accessToken = document.querySelector('#token').value;
+    status.textContent = 'Uploading workbook…';
+    try {
+      const body = new FormData(); body.append('file', document.querySelector('#file').files[0]);
+      const uploaded = await (await request('/api/v1/workbooks', {method: 'POST', body})).json();
+      const base = `/api/v1/workbooks/${uploaded.workbookId}/versions/${uploaded.versionId}`;
+      originalUrl = `${base}/original`; download.hidden = false;
+      status.textContent = 'Workbook is valid. Original saved.';
+      result.textContent = JSON.stringify(uploaded, null, 2); result.hidden = false;
+    } catch (error) {
+      status.textContent = error.message;
+      if (error.response) {
+        result.textContent = JSON.stringify(error.response, null, 2); result.hidden = false;
+      }
+    }
+    finally { button.disabled = false; }
+  });
+  download.addEventListener('click', async () => {
+    try {
+      const blob = await (await request(originalUrl)).blob();
+      const url = URL.createObjectURL(blob); const link = document.createElement('a');
+      link.href = url; link.download = document.querySelector('#file').files[0].name;
+      link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { status.textContent = error.message; }
+  });
+</script>
+</body></html>
