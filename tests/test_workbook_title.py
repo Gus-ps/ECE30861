@@ -9,8 +9,8 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from finding_ids import make_finding_id
-from workbook_title import check_workbook_title
+from accessibility_checker.finding_ids import make_finding_id
+from accessibility_checker.checks.workbook_title import check_workbook_title
 
 
 class WorkbookTitleTests(unittest.TestCase):

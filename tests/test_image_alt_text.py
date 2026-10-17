@@ -9,7 +9,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from image_alt_text import check_image_alt_text
+from accessibility_checker.checks.image_alt_text import check_image_alt_text
 
 
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"

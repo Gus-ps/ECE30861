@@ -5,7 +5,7 @@ from os import PathLike
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from finding_ids import make_finding_id
+from accessibility_checker.finding_ids import make_finding_id
 
 # TODO: Replace these developer-authorized placeholders after team confirmation.
 # WORKBOOK_TITLE is not a confirmed category in the current HTTP contract.

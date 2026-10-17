@@ -15,9 +15,9 @@ python3 -m venv .venv
 ```
 
 ```python
-from worksheet_names import check_worksheet_names
-from image_alt_text import check_image_alt_text
-from workbook_title import check_workbook_title
+from accessibility_checker.checks.worksheet_names import check_worksheet_names
+from accessibility_checker.checks.image_alt_text import check_image_alt_text
+from accessibility_checker.checks.workbook_title import check_workbook_title
 
 path = "/path/to/workbook.xlsx"
 print(check_worksheet_names(path))
@@ -36,7 +36,7 @@ propagate to the caller.
 
 ## Worksheet Names — 2.4.2 Page Titled
 
-`worksheet_names.py`: `check_worksheet_names(path)` checks name features only.
+`accessibility_checker/checks/worksheet_names.py`: `check_worksheet_names(path)` checks name features only.
 Related criterion: **2.4.6 Headings and Labels**, which reuses sheet-name results
 in the project's WCAG mapping guide.
 
@@ -71,7 +71,7 @@ evaluated.
 
 ## Image Descriptions — 1.1.1 Non-text Content
 
-`image_alt_text.py`: `check_image_alt_text(path)` follows workbook → worksheet →
+`accessibility_checker/checks/image_alt_text.py`: `check_image_alt_text(path)` follows workbook → worksheet →
 drawing relationships, rather than matching part filename numbers. It reads
 `pic/nvPicPr/cNvPr/@descr` for ordinary pictures directly inside `oneCellAnchor`,
 `twoCellAnchor`, or `absoluteAnchor`.
@@ -115,7 +115,7 @@ bytes are not decoded. No descriptions are generated or written.
 
 ## Workbook Title — 2.4.2 Page Titled
 
-`workbook_title.py`: `check_workbook_title(path)` reads the package's
+`accessibility_checker/checks/workbook_title.py`: `check_workbook_title(path)` reads the package's
 core-properties relationship in `_rels/.rels`, then the referenced part's
 `dc:title` (`http://purl.org/dc/elements/1.1/`). This normally resides in
 `docProps/core.xml`; the checker follows the relationship rather than assuming
@@ -157,7 +157,7 @@ All use `REQUIRES_USER_INPUT`. Multi-finding results are sorted lexicographicall
 These temporary IDs are developer-authorized placeholders, not confirmed
 catalog entries; WCAG criterion numbers remain separate references.
 
-`finding_ids.py` provides `make_finding_id(rule_id, worksheet, target)`, used by
+`accessibility_checker/finding_ids.py` provides `make_finding_id(rule_id, worksheet, target)`, used by
 all checkers. It hashes the three strings into a repeatable 64-character hex
 ID, within the contract's identifier syntax. Keeping generation in one function
 makes a later replacement local to that function and its call sites.

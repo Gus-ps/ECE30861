@@ -10,7 +10,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from worksheet_names import check_worksheet_names
+from accessibility_checker.checks.worksheet_names import check_worksheet_names
 
 
 class WorksheetNameTests(unittest.TestCase):

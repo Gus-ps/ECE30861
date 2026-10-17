@@ -27,7 +27,7 @@ and developer-only approval remain unchanged.
   is not the full shared finding schema; no shared API changes are made.
 - **Approval:** Authorized by the requesting developer for this prototype only.
   Team/pod approval of these detailed conditions is not established.
-- **Implementation:** Implemented in `worksheet_names.py`,
+- **Implementation:** Implemented in `accessibility_checker/checks/worksheet_names.py`,
   `check_worksheet_names`. Replaces case-sensitive `Sheet[0-9]*` matching and
   `list[str]` output; retains visible-only, read-only processing and workbook order.
 - **Verification:** All 6 tests in `tests/test_worksheet_names.py` passed on
@@ -63,7 +63,7 @@ and developer-only approval remain unchanged.
 - **Approval:** The requesting developer authorized proceeding with the proposed
   title-only and decorative handling after the pre-implementation question.
   This authorizes the prototype only, not shared team/pod requirements.
-- **Implementation:** `image_alt_text.py`, `check_image_alt_text` returns
+- **Implementation:** `accessibility_checker/checks/image_alt_text.py`, `check_image_alt_text` returns
   worksheet, drawing part, image ID/name, and missing/empty/whitespace reason.
   No dependencies or worksheet-name changes.
   Ordinary pictures directly anchored in DrawingML are examined; grouped,
@@ -99,7 +99,7 @@ and developer-only approval remain unchanged.
 - **Approval:** The requesting developer authorized these temporary choices;
   team/pod approval is not established. Scope: WCAG 2.1 `2.4.2 Page Titled`
   (related `2.4.6 Headings and Labels`) and `1.1.1 Non-text Content`, partially.
-- **Implementation:** `finding_ids.py`, `worksheet_names.py`, `image_alt_text.py`;
+- **Implementation:** `accessibility_checker/finding_ids.py`, `accessibility_checker/checks/worksheet_names.py`, `accessibility_checker/checks/image_alt_text.py`;
   TODO comments and `.docs/checker_notes_en.md` explicitly flag both ID updates.
 - **Verification:** All 17 tests passed with
   `.venv/bin/python -m unittest discover -s tests -v`: 7 worksheet, 8 image,
@@ -126,7 +126,7 @@ and developer-only approval remain unchanged.
   Do not describe them as approved shared values.
 - **ID limits:** Reuse `make_finding_id` unchanged (AE-003). It omits workbook
   and ruleset identity; missing-title findings across workbooks share an ID.
-- **Implementation:** `workbook_title.py`, `tests/test_workbook_title.py`, and
+- **Implementation:** `accessibility_checker/checks/workbook_title.py`, `tests/test_workbook_title.py`, and
   shared English notes; no new ID policy, dependencies, or checker framework.
 - **Verification:** All 25 tests pass (8 new title tests, 17 existing), using
   `.venv/bin/python -m unittest discover -s tests -v`. New tests cover title

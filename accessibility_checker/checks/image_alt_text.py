@@ -8,7 +8,7 @@ from os import PathLike
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from finding_ids import make_finding_id
+from accessibility_checker.finding_ids import make_finding_id
 
 # TODO: Confirm this temporary rule ID against the approved shared catalog.
 _RULE_ID = "ALT_TEXT"
@@ -34,7 +34,7 @@ def _target(part: str, relationship: ET.Element) -> str:
 def check_image_alt_text(path: str | PathLike[str]) -> list[dict[str, str]]:
     """Return missing-description findings sorted by rule, worksheet, and target.
 
-    Rule and finding IDs are temporary (see finding_ids.py).
+    Rule and finding IDs are temporary (see accessibility_checker/finding_ids.py).
 
     Assume a valid, readable .xlsx. Read only directly anchored DrawingML pictures
     on visible worksheets. Explicit decorative=true pictures are exempt; titles

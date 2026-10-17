@@ -9,7 +9,7 @@ from os import PathLike
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from finding_ids import make_finding_id
+from accessibility_checker.finding_ids import make_finding_id
 
 # TODO: Replace this temporary rule ID with the approved shared catalog ID.
 _RULE_ID = "WORKSHEET_NAME"
@@ -19,7 +19,7 @@ def check_worksheet_names(path: str | PathLike[str]) -> list[dict[str, str]]:
     """Return findings for visible worksheet names, sorted by rule/sheet/target.
 
     Numeric names may be meaningful; request review rather than declaring them
-    inappropriate. Rule and finding IDs are temporary (see finding_ids.py).
+    inappropriate. Rule and finding IDs are temporary (see accessibility_checker/finding_ids.py).
     Assume a valid, readable .xlsx. Never save it or assess content accessibility.
     """
     with ZipFile(path, "r") as workbook:

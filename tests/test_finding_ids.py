@@ -5,7 +5,7 @@ REQ-05/15 and AC-05/18: identifier format and local repeatability only.
 
 import unittest
 
-from finding_ids import make_finding_id
+from accessibility_checker.finding_ids import make_finding_id
 
 
 class FindingIdTests(unittest.TestCase):
