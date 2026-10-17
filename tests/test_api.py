@@ -6,10 +6,10 @@ import tempfile
 import unittest
 import zipfile
 from unittest.mock import patch
-from contextlib import closing
+from contextlib import closing, redirect_stdout
 
 from fastapi.testclient import TestClient
-from app import create_app
+from app import create_app, load_workbook_validator
 
 
 def workbook(extra=None):
@@ -42,6 +42,22 @@ class ApiTests(unittest.TestCase):
     def upload(self, data=None, filename='budget.xlsx'):
         return self.client.post('/api/v1/workbooks', headers=self.auth,
                                 files={'file': (filename, workbook() if data is None else data)})
+
+    def test_checker_prints_are_visible_without_changing_boolean_result(self):
+        path = Path(self.tmp.name) / 'sample.xlsx'
+        path.write_bytes(workbook())
+        checker = load_workbook_validator()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertIs(checker(str(path)), True)
+        self.assertIn('is valid and ready', output.getvalue())
+        path.write_bytes(workbook({'xl/workbook.xml':
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><workbookProtection lockStructure="1"/></workbook>'}))
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertIs(checker(str(path)), False)
+        self.assertIn('is invalid', output.getvalue())
+        self.assertIn('workbook structure is protected', output.getvalue())
 
     def test_health_auth_and_error_shape(self):
         self.assertEqual(self.client.get('/api/v1/health').json()['status'], 'AVAILABLE')

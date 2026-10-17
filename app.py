@@ -38,12 +38,24 @@ def load_workbook_validator():
         # including early XML parsing exits, before Windows deletes the temp file.
         completed = subprocess.run(
             [sys.executable, '-c',
-             'import json, runpy, sys; module = runpy.run_path(sys.argv[1]); '
-             'print(json.dumps(module["validate_file"](sys.argv[2])))',
+             '''import contextlib, io, json, runpy, sys
+output = io.StringIO()
+with contextlib.redirect_stdout(output):
+    module = runpy.run_path(sys.argv[1])
+    checker = module.get("check_validity", module.get("validate_file"))
+    result = checker(sys.argv[2])
+print(json.dumps({"result": result, "output": output.getvalue()}))
+''',
              str(path), filepath],
-            capture_output=True, text=True, check=True, timeout=60,
+            capture_output=True, text=True, timeout=60,
         )
-        result = json.loads(completed.stdout)
+        if completed.stderr:
+            print(completed.stderr, end='', file=sys.stderr, flush=True)
+        completed.check_returncode()
+        payload = json.loads(completed.stdout)
+        if payload['output']:
+            print(payload['output'], end='', flush=True)
+        result = payload['result']
         # Jonathan's supplied version returns error strings; keep his file intact.
         # Empty errors mean valid. Boolean-returning versions work unchanged too.
         if isinstance(result, list) and all(isinstance(error, str) for error in result):
