@@ -18,6 +18,8 @@ def workbook(extra=None):
     buffer = io.BytesIO()
     parts = {
         '[Content_Types].xml': '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+        '_rels/.rels': '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="core" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>',
+        'docProps/core.xml': '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Budget</dc:title></cp:coreProperties>',
         'xl/workbook.xml': '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>',
         'xl/_rels/workbook.xml.rels': '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
         'xl/worksheets/sheet1.xml': '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>',
@@ -185,12 +187,25 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.counts(), (0, 0))
 
     def test_audit_endpoint_reports_unconfigured_checker(self):
-        with TestClient(create_app(self.db, self.tokens)) as client:
-            response = self.upload(client=client)
-            self.assertEqual(response.status_code, 202)
-            audit = Audit.model_validate(client.get(self.audit_url(response.json()), headers=self.auth).json())
+        with patch('app.check_workbook', None):
+            with TestClient(create_app(self.db, self.tokens)) as client:
+                response = self.upload(client=client)
+                self.assertEqual(response.status_code, 202)
+                audit = Audit.model_validate(client.get(self.audit_url(response.json()), headers=self.auth).json())
         self.assertEqual(audit.status, 'PROCESSING_FAILED')
         self.assertEqual(audit.error.code, 'CHECKER_NOT_CONFIGURED')
+
+    def test_haruki_runner_is_connected_by_default(self):
+        with TestClient(create_app(self.db, self.tokens)) as client:
+            ids = self.upload(client=client).json()
+            audit = Audit.model_validate(client.get(self.audit_url(ids), headers=self.auth).json())
+            self.assertEqual(audit.status, 'REVIEW_REQUIRED')
+            self.assertEqual([finding.ruleId for finding in audit.findings], ['WORKSHEET_NAME'])
+            no_title = workbook({'docProps/core.xml': '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"/>'})
+            ids = self.upload(no_title, client=client).json()
+            audit = Audit.model_validate(client.get(self.audit_url(ids), headers=self.auth).json())
+            self.assertIsNone(audit.error)
+            self.assertTrue(any('WORKBOOK_TITLE' in limitation for limitation in audit.limitations))
 
     def test_checker_hook_returns_schema_valid_sorted_findings(self):
         from app import process_audit

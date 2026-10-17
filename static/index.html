@@ -101,6 +101,8 @@
         status.textContent = `Workbook is valid and saved. Accessibility audit failed: ${audit.error?.message || 'Processing failed.'}`;
       } else if (audit.findings.length) {
         status.textContent = `Workbook is valid. ${audit.findings.length} accessibility finding(s) require review.`;
+      } else if (audit.status === 'REVIEW_REQUIRED') {
+        status.textContent = 'Workbook is valid. Review the audit limitations for additional issues.';
       } else {
         status.textContent = 'Workbook is valid. The connected checker returned no findings. See any limitations below.';
       }

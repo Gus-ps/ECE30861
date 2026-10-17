@@ -3,7 +3,7 @@
 Gustavo's scope follows `PROMPT.md`: a Python upload website, authenticated
 endpoints, persistent storage, unchanged originals and AWS deployment.
 Jonathan's supplied `validity_check.py` is used without modifying it.
-Accessibility rules belong to the team's checker and are not implemented here.
+Accessibility rules come from Haruki's merged `accessibility_checker` package.
 
 ## Run locally
 
@@ -49,19 +49,26 @@ messages are forwarded to the server terminal/container logs. Available rejectio
 details are also returned to the page. `VALIDATOR_PATH` optionally selects another
 validator module. Both boolean returns and older error-list modules are supported.
 
-To integrate the accessibility checker later, pass its path-based callable to
-`create_app(accessibility_checker=...)`. Comments in `app.py` mark the integration
-point. It must return a list of findings with the supplied schema's eight fields.
+The default accessibility callable is Haruki's
+`accessibility_checker.runner.check_workbook(path)`. It aggregates worksheet names,
+image descriptions, workbook title and table header checks. Its source is unchanged.
+`create_app(accessibility_checker=...)` can override the callable for integration
+tests. It must return a list of findings with the supplied schema's eight fields.
 The API validates them, assigns stable workbook/ruleset/location IDs, orders them
 by ruleId/worksheet/target and stores the audit result. No findings produces
 AUDIT_COMPLETE; unresolved findings produce REVIEW_REQUIRED; failures produce
 PROCESSING_FAILED. The checker must not modify the source.
 
-Until a checker is supplied, uploads still validate and save the original, while
-their audit reports CHECKER_NOT_CONFIGURED. The page distinguishes invalid files
-from valid files whose accessibility audit is unavailable. No Haruki rule modules
-are copied into this branch. Remediation/report generation is left to subsequent
-team integration; this service does not generate corrected workbooks itself.
+Haruki's provisional WORKBOOK_TITLE category is not allowed by the shared schema.
+The API preserves these title issues visibly in `limitations`, marks the audit
+REVIEW_REQUIRED and returns the other findings in the supplied schema. The raw
+runner still returns all findings. Agree on a category with the team before moving
+title issues into the formal findings array. Results cover only the supported
+checks and do not establish full accessibility compliance.
+
+The page distinguishes invalid files from valid files with findings or an audit
+failure. Remediation/report generation is left to subsequent team integration;
+this service does not generate corrected workbooks itself.
 
 Background processing uses the application process. Audits interrupted by a
 restart require later worker integration; this scoped version has no recovery

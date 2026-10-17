@@ -21,6 +21,7 @@ from starlette.exceptions import HTTPException
 
 from contracts import Audit, Error, Finding, Health, Identifier, UploadResponse, WorkbookVersion
 from database import Database
+from accessibility_checker.runner import check_workbook
 
 ROOT = Path(__file__).parent
 MAX_UPLOAD = 25_000_000
@@ -32,7 +33,7 @@ def utc_now():
 
 
 def process_audit(database, audit_id, checker=None):
-    """Integration hook only: the team's checker supplies accessibility findings."""
+    """Run the connected checker and persist its findings in the shared schema."""
     with database.connect() as db:
         audit = db.execute('SELECT * FROM audits WHERE audit_id=?', (audit_id,)).fetchone()
         version = db.execute('SELECT original FROM versions WHERE version_id=?', (audit['version_id'],)).fetchone()
@@ -47,10 +48,22 @@ def process_audit(database, audit_id, checker=None):
     else:
         try:
             data = bytes(version['original'])
+            requires_review = False
+            if checker is check_workbook:
+                limitations.append('Haruki\'s checks cover selected workbook features only; results do not establish full accessibility compliance.')
             with tempfile.TemporaryDirectory(prefix='workbook-audit-') as directory:
                 path = Path(directory) / 'source.xlsx'
                 path.write_bytes(data)
-                for raw in checker(str(path)):
+                results = checker(str(path))
+                if not isinstance(results, list):
+                    raise ValueError('Accessibility checker must return a list of findings.')
+                for raw in results:
+                    # Haruki marks this category as provisional. Preserve the issue
+                    # visibly without adding an enum outside the shared contract.
+                    if checker is check_workbook and raw.get('category') == 'WORKBOOK_TITLE':
+                        limitations.append(f"WORKBOOK_TITLE (not in the shared finding-category schema): {raw['message']} {raw['recommendation']}")
+                        requires_review = True
+                        continue
                     item = Finding.model_validate(raw).model_dump()
                     identity = [audit['workbook_id'], audit['ruleset_version'],
                                 item['ruleId'], item['worksheet'], item['target']]
@@ -59,7 +72,7 @@ def process_audit(database, audit_id, checker=None):
                 if path.read_bytes() != data:
                     raise ValueError('Checker modified its input.')
             findings.sort(key=lambda item: (item['ruleId'], item['worksheet'], item['target']))
-            status = 'REVIEW_REQUIRED' if findings else 'AUDIT_COMPLETE'
+            status = 'REVIEW_REQUIRED' if findings or requires_review else 'AUDIT_COMPLETE'
         except Exception:
             logging.exception('Audit failed: %s', audit_id)
             findings = []
@@ -123,7 +136,7 @@ class ApiError(Exception):
 def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility_checker=None):
     if workbook_validator is None:
         workbook_validator = load_workbook_validator()
-    checker = accessibility_checker
+    checker = accessibility_checker if accessibility_checker is not None else check_workbook
     credentials = tokens if tokens is not None else json.loads(os.getenv('API_TOKENS_JSON', '{}'))
     if not isinstance(credentials, dict) or any(
         not isinstance(k, str) or not k or not isinstance(v, str) or not v
