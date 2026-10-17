@@ -50,6 +50,10 @@ WORKSHEET_REL_TYPE = REL_NS + "/worksheet"
 
 REQUIRED_PARTS = ("[Content_Types].xml", "xl/workbook.xml")
 
+# A <workbookProtection> element only protects the workbook when one of these
+# is turned on; some tools write an empty element into every workbook.
+WORKBOOK_LOCKS = ("lockStructure", "lockWindows", "lockRevision")
+
 
 def check_file_type(filepath):
     """Requirement: must be a .xlsx file."""
@@ -128,11 +132,18 @@ def check_corruption(filepath):
     return [], archive
 
 
+def is_true(value):
+    """Return True for an XML boolean attribute set to true ("1" or "true")."""
+    return value is not None and value.strip().lower() in ("1", "true")
+
+
 def check_protection(archive):
     """Requirement: cannot be password protected (workbook / sheet protection)."""
     errors = []
     workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-    if workbook.find(f"{{{MAIN_NS}}}workbookProtection") is not None:
+    wb_protection = workbook.find(f"{{{MAIN_NS}}}workbookProtection")
+    if wb_protection is not None and any(
+            is_true(wb_protection.get(lock)) for lock in WORKBOOK_LOCKS):
         errors.append("File is password protected: the workbook structure is "
                       "protected. Unprotect the workbook and upload again.")
 
@@ -141,7 +152,8 @@ def check_protection(archive):
         if part not in archive.namelist():
             continue
         for _, elem in ET.iterparse(archive.open(part)):
-            if elem.tag == f"{{{MAIN_NS}}}sheetProtection":
+            if (elem.tag == f"{{{MAIN_NS}}}sheetProtection"
+                    and is_true(elem.get("sheet"))):
                 protected_sheets.append(name)
                 break
             elem.clear()
@@ -252,23 +264,31 @@ def validate_file(filepath):
     return errors
 
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python validity_check.py <path_to_file>")
-        sys.exit(2)
+def check_validity(filepath):
+    """Check a file, print the result, and return whether it is valid.
 
-    filepath = sys.argv[1]
+    Returns True if the file meets every requirement, or False if it violates
+    one or more of them.
+    """
     filename = os.path.basename(filepath)
     errors = validate_file(filepath)
 
     if not errors:
         print(f"'{filename}' is valid and ready to be checked for accessibility.")
-        sys.exit(0)
+        return True
 
     print(f"Error: '{filename}' is invalid. Violated requirement(s):")
     for error in errors:
         print(f"  - {error}")
-    sys.exit(1)
+    return False
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python validity_check.py <path_to_file>")
+        sys.exit(2)
+
+    sys.exit(0 if check_validity(sys.argv[1]) else 1)
 
 
 if __name__ == "__main__":
