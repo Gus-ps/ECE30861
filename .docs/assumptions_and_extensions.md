@@ -107,3 +107,31 @@ and developer-only approval remain unchanged.
   exact field sets/types, category/classification values, message lengths,
   target mapping, sorting, ID syntax, and local determinism. Workbook/ruleset
   identity semantics and approved catalog conformance remain unimplemented.
+
+## AE-004 — Missing workbook title (2026-10-17)
+
+- **Basis/scope:** `2.4.2 Page Titled` in the WCAG mapping guide covers missing
+  workbook titles. The developer additionally specifies absent core properties,
+  absent/empty/whitespace-only title as missing, with one finding per workbook.
+  Any nonwhitespace text is accepted; generic titles, filename equality, and
+  content relevance are not evaluated. Assume a valid, readable `.xlsx`; never
+  save it. Read `dc:title` from the package's core-properties relationship.
+- **Temporary mapping:** Rule/category `WORKBOOK_TITLE`; worksheet/target
+  `__WORKBOOK__`. These constants identify workbook scope but the sentinel can
+  collide with a real worksheet name. This category is not a confirmed HTTP
+  contract value; the existing contract has no workbook-title category.
+- **Rationale/approval:** A separate small checker preserves existing rules.
+  The developer explicitly requires `REQUIRES_USER_INPUT`; the other mapping
+  values were chosen under developer permission and await team/pod agreement.
+  Do not describe them as approved shared values.
+- **ID limits:** Reuse `make_finding_id` unchanged (AE-003). It omits workbook
+  and ruleset identity; missing-title findings across workbooks share an ID.
+- **Implementation:** `workbook_title.py`, `tests/test_workbook_title.py`, and
+  shared English notes; no new ID policy, dependencies, or checker framework.
+- **Verification:** All 25 tests pass (8 new title tests, 17 existing), using
+  `.venv/bin/python -m unittest discover -s tests -v`. New tests cover title
+  states, absent core properties, relationship targets, eight-field output,
+  temporary values, ID reuse, and unchanged bytes. Synthetic metadata fixtures
+  are not complete Excel files. Local `test.xlsx` was also read (one finding,
+  unchanged bytes); its Application metadata says `Microsoft Excel`, but origin
+  is not independently verified. Full real-Excel validation remains unverified.
