@@ -49,127 +49,52 @@ class WorksheetNameTests(unittest.TestCase):
             archive.writestr("xl/workbook.xml", ET.tostring(workbook))
             archive.writestr("xl/_rels/workbook.xml.rels", ET.tostring(relationships))
 
-    def test_req04_ac04_matching_names_in_mixed_workbook(self):
-        names = [
-            "Sheet123",
-            "Budget",
-            "2025",
-            "Sheet",
-            "Sheet1 Budget",
-            "sheet2",
-            "Sheet1",
-        ]
-        self.write_metadata([(name, "visible", "worksheet") for name in names])
-        self.assertEqual(
-            [(item["worksheet"], item["message"]) for item in check_worksheet_names(self.path)],
-            [
-                ("2025", "Worksheet name contains only digits; confirm whether it is descriptive."),
-                ("Sheet", "Worksheet name resembles a default name."),
-                ("Sheet1", "Worksheet name resembles a default name."),
-                ("Sheet123", "Worksheet name resembles a default name."),
-                ("sheet2", "Worksheet name resembles a default name."),
-            ],
-        )
+    def test_req04_ac04_matching_and_nonmatching_names(self):
+        matches = ["Sheet1", "sheet2", "SHEET3", "Sheet01", " \u3000Sheet3\u0085"]
+        excluded = ["Sheet0", "Sheet000", "Sheet", "Sheet 1", "123", "2025",
+                    "Sheet1 Budget", "Worksheet1", "Sheet１２", "ſheet1",
+                    "\u200bSheet1", "Sheet1\u200b"]
+        self.write_metadata([(name, None, "worksheet") for name in matches + excluded])
+        findings = check_worksheet_names(self.path)
+        self.assertEqual([f["worksheet"] for f in findings], sorted(matches))
+        for item in findings:
+            index = matches.index(item["worksheet"]) + 1
+            self.assertEqual(item["target"], f"xl/worksheets/sheet{index}.xml#sheetId={index}")
 
-    def test_req04_ac04_default_name_variants_preserve_original_names(self):
-        for name in (
-            "Sheet",
-            "Sheet1",
-            "sheet1",
-            "SHEET1",
-            "Sheet 1",
-            " Sheet1 ",
-            "S h e e t 001",
-            "She\tet\n1",
-            "Sheet\u00a01",
-            "Sheet\u30001",
-        ):
-            with self.subTest(name=name):
-                self.write_metadata([(name, "visible", "worksheet")])
-                self.assertEqual(
-                    [(item["worksheet"], item["target"]) for item in check_worksheet_names(self.path)],
-                    [(name, name)],
-                )
+    def test_exact_unicode_whitespace_boundaries(self):
+        # Independent transcription of the Section 5 code-point set.
+        points = [*range(9, 14), 32, 133, 160, 5760, *range(8192, 8203),
+                  8232, 8233, 8239, 8287, 12288]
+        from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
+        self.assertEqual(set(map(ord, UNICODE_WHITE_SPACE)), set(points))
+        self.assertTrue(all(chr(p) not in UNICODE_WHITE_SPACE for p in (*range(28, 32), 8203)))
+        # XML 1.0 cannot store U+000B/U+000C; check those in the policy above.
+        for point in (p for p in points if p not in (11, 12)):
+            with self.subTest(point=point):
+                name = chr(point) + "Sheet01" + chr(point)
+                self.write_metadata([(name, None, "worksheet")])
+                self.assertEqual([f["worksheet"] for f in check_worksheet_names(self.path)], [name])
 
-    def test_req04_req06_ac04_ac06_numeric_names_require_review(self):
-        names = ["1", "123", "2025", " 2 0\t2\n6 "]
-        self.write_metadata([(name, "visible", "worksheet") for name in names])
-        self.assertEqual(
-            [(item["worksheet"], item["message"]) for item in check_worksheet_names(self.path)],
-            [(name, "Worksheet name contains only digits; confirm whether it is descriptive.") for name in sorted(names)],
-        )
+    def test_hidden_worksheets_included_chartsheet_excluded(self):
+        self.write_metadata([("Sheet1", "hidden", "worksheet"),
+                             ("Sheet2", "veryHidden", "worksheet"),
+                             ("Sheet3", None, "chartsheet")])
+        self.assertEqual([f["worksheet"] for f in check_worksheet_names(self.path)], ["Sheet1", "Sheet2"])
 
-    def test_req04_ac04_nonmatching_names_return_empty_list(self):
-        names = [
-            "Budget",
-            "Sheet1 Budget",
-            "Worksheet1",
-            "Sheet１２",
-            "Sheet١",
-            "１２３",
-            "١٢٣",
-            "2025 Budget",
-            "1.23",
-            "-123",
-            "Sheet1x",
-            "Sheet_1",
-        ]
-        self.write_metadata([(name, "visible", "worksheet") for name in names])
-        self.assertEqual(check_worksheet_names(self.path), [])
-
-    def test_req04_ac04_hidden_sheets_and_chartsheets_excluded(self):
-        self.write_metadata(
-            [
-                ("Sheet", None, "worksheet"),
-                ("Sheet1", "hidden", "worksheet"),
-                ("Sheet123", "veryHidden", "worksheet"),
-                ("2025", "hidden", "worksheet"),
-                ("123", "veryHidden", "worksheet"),
-                ("Sheet2", "visible", "chartsheet"),
-                ("Sheet001", "visible", "worksheet"),
-            ]
-        )
-        self.assertEqual(
-            [item["worksheet"] for item in check_worksheet_names(str(self.path))],
-            ["Sheet", "Sheet001"],
-        )
-
-    def test_req05_ac05_finding_contract_and_repeatability(self):
-        self.write_metadata([
-            ("sheet2", "visible", "worksheet"),
-            ("2025", "visible", "worksheet"),
-            ("Sheet 1", "visible", "worksheet"),
-        ])
+    def test_req05_ac05_schema_repeatability_and_source_preservation(self):
+        self.write_metadata([("Sheet1", None, "worksheet")])
+        before = self.path.read_bytes()
         findings = check_worksheet_names(self.path)
         self.assertEqual(findings, check_worksheet_names(self.path))
-        self.assertEqual(len({item["findingId"] for item in findings}), 3)
-        for item in findings:
-            self.assertEqual(set(item), {
-                "findingId", "ruleId", "category", "worksheet", "target",
-                "classification", "message", "recommendation",
-            })
-            self.assertTrue(all(isinstance(value, str) for value in item.values()))
-            self.assertRegex(item["findingId"], r"\A[A-Za-z0-9_-]{1,64}\Z")
-            self.assertEqual(item["ruleId"], "WORKSHEET_NAME")
-            self.assertEqual(item["category"], "WORKSHEET_NAME")
-            self.assertEqual(item["classification"], "REQUIRES_USER_INPUT")
-            self.assertEqual(item["target"], item["worksheet"])
-            for field in ("message", "recommendation"):
-                self.assertTrue(1 <= len(item[field]) <= 500)
-        self.assertEqual(findings, sorted(
-            findings, key=lambda item: (item["ruleId"], item["worksheet"], item["target"]),
-        ))
-
-    def test_req03_ac03_original_bytes_unchanged(self):
-        self.write_metadata(
-            [
-                (" Sheet 1 ", "visible", "worksheet"),
-                ("2025", "visible", "worksheet"),
-            ]
-        )
-        before = self.path.read_bytes()
-        check_worksheet_names(self.path)
         self.assertEqual(self.path.read_bytes(), before)
+        item = findings[0]
+        self.assertEqual(set(item), {"findingId", "ruleId", "category", "worksheet",
+                                    "target", "classification", "message", "recommendation"})
+        self.assertTrue(all(isinstance(value, str) and value for value in item.values()))
+        self.assertRegex(item["findingId"], r"\A[0-9a-f]{64}\Z")
+        self.assertEqual(item["ruleId"], "WORKSHEET_NAME")
+        self.assertEqual(item["category"], "WORKSHEET_NAME")
+        self.assertEqual(item["classification"], "REQUIRES_USER_INPUT")
 
 
 if __name__ == "__main__":

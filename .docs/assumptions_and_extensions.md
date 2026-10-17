@@ -3,6 +3,10 @@
 Output history in AE-001/AE-002 is superseded by AE-003; their detection scope
 and developer-only approval remain unchanged.
 
+**Current Phase 3 work:** AE-007 supersedes the active rule scope, IDs, and runner
+described in AE-001/002/003/006. Earlier verification results are historical,
+not verification of the Phase 3 changes. AE-004/005 remain inactive legacy checks.
+
 ## AE-001 — Prototype worksheet-name heuristics (2026-10-16)
 
 - **Criterion:** `2.4.2 Page Titled`; related `2.4.6 Headings and Labels`
@@ -187,3 +191,49 @@ and developer-only approval remain unchanged.
   integration on one synthetic ZIP/XML fixture, empty results, global sorting,
   unchanged findings, explicit invocation order, exceptions from each checker,
   and unchanged source bytes. No new real-Excel verification was performed.
+
+## AE-007 — Partial Section 5 alignment and required confirmations (2026-10-17)
+
+- **Authority:** The developer adopts Section 5 of the Team 9 → Team 12 guide
+  (manifest 1.4.0, ruleset/profile 1.0.0, revision `66d588c`) for this work.
+  This does not establish unverified team/pod-wide agreement.
+- **Confirmed changes:** All worksheets, excluding chartsheets; exact listed
+  Unicode White_Space. WORKSHEET_NAME trims ends only, matches ASCII Sheet plus
+  ASCII digits representing a positive number, and targets actual part#sheetId.
+  ALT_TEXT requires both accessibility title and descr on supported DrawingML
+  pictures/charts/shapes and grouped children; explicit native decorative
+  objects receive MANUAL_REVIEW. Normal missing fields receive REQUIRES_USER_INPUT.
+- **Identity/runner:** Ruleset 1.0.0; compact UTF-8 JSON SHA-256 over raw-file
+  SHA-256, ruleset, rule, original sheet name, and actual target. Runner computes
+  the source digest once and passes it to the two active checkers. Retain the
+  legacy ID helper for inactive Title/Table callers; do not break them silently.
+- **REQUIRES CONFIRMATION:** The referenced Phase 3 contract/profile and schema
+  are unavailable. Obtain limitations element schema, exact unsupported-object
+  review values, and indexed #xml= rules (namespaces, index base/counting,
+  missing/duplicate IDs). Also confirm runner transport of limitations; its
+  current return type is still a list of findings. No schema or #xml= is invented.
+  Group-level decorative inheritance and unsupported representations remain
+  deferred; only grouped children with independently interpretable metadata
+  are handled. Unsupported/ambiguous cases recognized by this partial
+  implementation raise NotImplementedError rather than return a successful
+  partial list. This is a temporary stop, not the required final review/limitation
+  behavior. Full Section 5 coverage/conformance is not claimed.
+- **Approval/status:** Developer authorizes implementing only the determined
+  subset while leaving the above decisions pending. Implemented in the two
+  active checkers, `finding_ids.py`, `phase3_policy.py`, and runner. The canonical
+  function is `make_phase3_finding_id`; the old three-argument helper is retained
+  solely for the inactive legacy checkers. No unavailable schema is fabricated.
+  Conservative stops cover recognized VML/background/control content, potential
+  IMAGE formulas, rich-data/value metadata, wrappers, and object ambiguity;
+  exhaustive unsupported-format detection is unverified.
+- **Verification:** Initially deferred by instruction; the developer subsequently
+  authorized focused tests and a push if satisfactory. All 40 tests pass with
+  `.venv/bin/python -m unittest discover -s tests -v`: Phase 3 predicates,
+  identity, targets, decorative review, grouped children, runner aggregation,
+  temporary unsupported-case failures, unchanged bytes, and retained legacy
+  checks. Updated tests: `test_worksheet_names.py`, `test_image_alt_text.py`,
+  `test_finding_ids.py`, `test_runner.py` under `tests/`. Synthetic XML fixtures
+  cannot represent literal XML 1.0-prohibited controls; the full whitespace set
+  is independently checked at policy level. Real-Excel output, escaped-string
+  handling, exhaustive unsupported detection, and final pending-contract
+  behavior remain unverified. Passing tests does not resolve the above decisions.
