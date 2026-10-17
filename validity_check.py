@@ -252,23 +252,31 @@ def validate_file(filepath):
     return errors
 
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python validity_check.py <path_to_file>")
-        sys.exit(2)
+def check_validity(filepath):
+    """Check a file, print the result, and return whether it is valid.
 
-    filepath = sys.argv[1]
+    Returns True if the file meets every requirement, or False if it violates
+    one or more of them.
+    """
     filename = os.path.basename(filepath)
     errors = validate_file(filepath)
 
     if not errors:
         print(f"'{filename}' is valid and ready to be checked for accessibility.")
-        sys.exit(0)
+        return True
 
     print(f"Error: '{filename}' is invalid. Violated requirement(s):")
     for error in errors:
         print(f"  - {error}")
-    sys.exit(1)
+    return False
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python validity_check.py <path_to_file>")
+        sys.exit(2)
+
+    sys.exit(0 if check_validity(sys.argv[1]) else 1)
 
 
 if __name__ == "__main__":
