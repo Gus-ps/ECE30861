@@ -175,8 +175,8 @@ class ApiTests(unittest.TestCase):
     def test_real_validator_valid_and_invalid_workbooks(self):
         invalid = [
             {'xl/worksheets/sheet1.xml': '<broken'},
-            {'xl/workbook.xml': '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><workbookProtection/></workbook>'},
-            {'xl/worksheets/sheet1.xml': '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetProtection/></worksheet>'},
+            {'xl/workbook.xml': '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><workbookProtection lockStructure="1"/></workbook>'},
+            {'xl/worksheets/sheet1.xml': '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetProtection sheet="1"/></worksheet>'},
         ]
         with TestClient(create_app(self.db, self.tokens)) as client:
             for parts in invalid:
