@@ -32,25 +32,26 @@ All resource endpoints require `Authorization: Bearer <token>`. Errors contain
 `code`, `message`, `requestId`, and `details`. Rejected uploads create no records.
 Upload guards: 25 MiB uploaded, 100 MiB expanded, 10,000 ZIP entries;
 unreadable ZIP archives, encrypted ZIP entries, and macro-enabled files are
-rejected. Full workbook validation (including worksheet/cell limits, XML integrity,
-and workbook/sheet protection) awaits Jonathan's integration.
+rejected. Jonathan's integrated validator checks worksheet/cell limits, XML integrity,
+and workbook/sheet protection before saving any upload.
 Request IDs are also returned in `X-Request-ID`.
 
 ## Checker integration
 
-The validity checker belongs to the `Jonathan` branch and is not included or
-modified here. `create_app(workbook_validator=...)` provides an integration point
-for its path-based `validate_file(filepath)` function when the branches are
-integrated. The service writes the uploaded bytes to an isolated temporary `.xlsx`
+The supplied `validity_check.py` is loaded automatically from the application
+directory and is included in the Docker image. Its source is unchanged.
+The service calls its path-based `validate_file(filepath)` function.
+The service writes the uploaded bytes to an isolated temporary `.xlsx`
 file and passes its absolute path as a string. The validator must read it
-synchronously; the temporary directory is removed after the call, including on
-failure. The permanent original remains unchanged in the database. The callback
-returns `True`/`1` for valid or `False`/`0` for invalid. Other return types are
-integration errors (HTTP 500). Invalid files are rejected before creating records.
-Set `VALIDATOR_PATH` to the absolute path to Jonathan's
-`validity_check.py` in the integrated checkout or provide the callback directly.
-The validator file must be available inside the deployed container when that
-environment variable is used. It is intentionally not copied into this branch.
+synchronously in an isolated process so its file handles close reliably on Windows;
+the temporary directory is removed after the call, including on
+failure. The permanent original remains unchanged in the database. The supplied
+checker currently returns error lists; the loading adapter converts an empty list
+to `True` and a nonempty list to `False`. It also supports `True`/`1` and `False`/`0`
+directly. Injected callbacks via `create_app(workbook_validator=...)` use the boolean
+contract. Other return types are integration errors (HTTP 500). Invalid files are
+rejected before creating records. Optionally set `VALIDATOR_PATH` to load a different
+validator file, available inside the container when deploying.
 Without a configured validator, uploads return HTTP 503 with
 `VALIDATOR_NOT_CONFIGURED` and create no records.
 
@@ -64,9 +65,7 @@ processing, or poll audit status. The audit database schema and authenticated
 are retained for later weeks. An audit must already exist to retrieve it; the
 current upload flow only validates and saves the original workbook.
 
-Jonathan's inspected branch previously returned a list of errors. His agreed
-new boolean contract must be implemented there before connecting that version;
-this service intentionally does not interpret a list as a boolean.
+No validator rule implementations were changed. No accessibility audits are started.
 
 ## Deploy to AWS (PowerShell)
 
