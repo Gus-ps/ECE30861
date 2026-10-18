@@ -1,7 +1,7 @@
 """WCAG 2.1 1.1.1 Non-text Content: determined Section 5 Phase 3 subset.
 
 Checks accessibility title/description, not visible captions or semantic quality.
-Pending unsupported-object/#xml=/limitations rules stop processing explicitly.
+Unsupported or ambiguous representations produce manual-review findings.
 """
 
 import posixpath
@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 from accessibility_checker.finding_ids import get_source_sha256, make_phase3_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
+from accessibility_checker.results import Findings
 
 _RULE_ID = "ALT_TEXT"
 _DECORATIVE = "{http://schemas.microsoft.com/office/drawing/2017/decorative}decorative"
@@ -85,43 +86,6 @@ def _is_decorative(properties: ET.Element) -> bool:
     return value in ("1", "true")
 
 
-def _objects(parent: ET.Element, namespace: str):
-    """Visit known anchor/group children without silently dropping other objects."""
-    parent_kind = parent.tag.rsplit("}", 1)[-1]
-    metadata = (
-        {"nvGrpSpPr", "grpSpPr"}
-        if parent_kind == "grpSp"
-        else {
-            "from",
-            "to",
-            "pos",
-            "ext",
-            "clientData",
-        }
-    )
-    for child in parent:
-        kind = child.tag.rsplit("}", 1)[-1]
-        if child.tag != f"{{{namespace}}}{kind}":
-            raise NotImplementedError(
-                "Unsupported drawing namespace requires the pending review/limitations contract."
-            )
-        if kind in metadata:
-            continue
-        if kind == "grpSp":
-            # TODO: Obtain the contract's group-level decorative inheritance rule.
-            if _is_decorative(_properties(child, namespace)):
-                raise NotImplementedError(
-                    "Decorative group inheritance is not yet defined by an available contract."
-                )
-            yield from _objects(child, namespace)
-        elif kind in ("pic", "sp", "cxnSp", "graphicFrame"):
-            yield child
-        else:
-            raise NotImplementedError(
-                f"Unsupported drawing object {kind}; review/limitations contract pending."
-            )
-
-
 def _check_chart_reference(workbook: ZipFile, part: str, element: ET.Element):
     data = element.findall("{*}graphic/{*}graphicData")
     if len(data) != 1 or len(data[0]) != 1 or data[0][0].tag not in _CHART_TAGS:
@@ -136,167 +100,173 @@ def _check_chart_reference(workbook: ZipFile, part: str, element: ET.Element):
     workbook.getinfo(_target(part, relationship))
 
 
-def _reject_unresolved_sheet_content(sheet: ET.Element):
-    # TODO: Replace conservative failures with the contract's required review
-    # findings and limitations once their exact representations are available.
-    if any(
-        sheet.find(f"{{*}}{kind}") is not None
-        for kind in (
-            "legacyDrawing",
-            "legacyDrawingHF",
-            "picture",
-            "controls",
-            "oleObjects",
-        )
-    ):
-        raise NotImplementedError(
-            "Legacy/background/control objects require the pending review/limitations contract."
-        )
-    if sheet.find(".//{*}c[@vm]") is not None:
-        raise NotImplementedError(
-            "Value-metadata/cell-image representation needs contract confirmation."
-        )
-    for formula in sheet.findall(".//{*}f"):
-        if re.search(
-            r"(?:^|[^A-Za-z0-9_])(?:_xlfn\.)?IMAGE\s*\(",
-            formula.text or "",
-            re.IGNORECASE | re.ASCII,
-        ):
-            raise NotImplementedError(
-                "Potential IMAGE formula representation needs contract confirmation."
-            )
+def _xml_locations(root):
+    """Stable, one-based, namespace-independent paths within an XML part."""
+    locations = {}
+
+    def visit(element, location):
+        locations[element] = location
+        counts = Counter()
+        for child in element:
+            local = child.tag.rsplit("}", 1)[-1]
+            counts[local] += 1
+            visit(child, f"{location}/{local}[{counts[local]}]")
+
+    visit(root, f"/{root.tag.rsplit('}', 1)[-1]}[1]")
+    return locations
 
 
-def check_image_alt_text(
-    path: str | PathLike[str], *, source_sha256: str | None = None
-) -> list[dict[str, str]]:
-    """Check supported objects on all worksheets, including hidden worksheets.
+def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None = None) -> list[dict[str, str]]:
+    """Return all supported-object issues and manual reviews for uncertain objects.
 
-    Native decorative objects get MANUAL_REVIEW; others require title and descr.
-    Group containers are traversal containers; children are assessed individually.
-    Unsupported/ambiguous cases stop without returning a successful partial list.
-    No review/limitations schema or #xml= path is invented.
+    Structural/read failures propagate. Unsupported representations do not discard
+    other objects' findings. External relationship targets are never fetched.
     """
-    if source_sha256 is None:
-        source_sha256 = get_source_sha256(path)
-    results = []
+    source_sha256 = source_sha256 or get_source_sha256(path)
+    results = Findings()
+    seen = set()
+
+    def emit(worksheet, target, classification, message, recommendation, limitation=None):
+        key = (worksheet, target)
+        if key in seen:
+            return
+        seen.add(key)
+        results.append({
+            "findingId": make_phase3_finding_id(source_sha256, _RULE_ID, worksheet, target),
+            "ruleId": _RULE_ID, "category": "NON_TEXT_CONTENT",
+            "worksheet": worksheet, "target": target,
+            "classification": classification, "message": message[:500],
+            "recommendation": recommendation[:500],
+        })
+        if limitation:
+            results.limitations.append(f"{worksheet}: {target}: {limitation}")
+
+    def review(worksheet, target, reason):
+        emit(worksheet, target, "MANUAL_REVIEW",
+             "Object requires manual accessibility review.",
+             "Inspect the object and confirm its alternative text or decorative designation.", reason)
+
     with ZipFile(path, "r") as workbook:
-        if any(
-            name.startswith("xl/richData/") or name == "xl/cellimages.xml"
-            for name in workbook.namelist()
-        ):
-            raise NotImplementedError(
-                "Rich-data/cell-image metadata requires the pending review/limitations contract."
-            )
         workbook_part = "xl/workbook.xml"
         root = ET.fromstring(workbook.read(workbook_part))
         sheet_relationships = _relationships(workbook, workbook_part)
+        for name in workbook.namelist():
+            if name.startswith("xl/richData/") or name == "xl/cellimages.xml":
+                review("__WORKBOOK__", f"{name}#xml=/", "Cell-image/rich-data representation is not automatically assessed.")
         for sheet in root.findall("{*}sheets/{*}sheet"):
             relationship = sheet_relationships[_relationship_id(sheet)]
-            if not relationship.attrib["Type"].endswith("/worksheet"):
+            if not relationship.attrib["Type"].endswith(("/worksheet", "/chartsheet")):
+                continue
+            worksheet = sheet.attrib["name"]
+            if relationship.get("TargetMode") == "External":
+                review(worksheet, f"{workbook_part}#sheetId={sheet.attrib['sheetId']}", "External sheet content is not fetched.")
                 continue
             sheet_part = _target(workbook_part, relationship)
             sheet_root = ET.fromstring(workbook.read(sheet_part))
-            _reject_unresolved_sheet_content(sheet_root)
-            drawings = sheet_root.findall("{*}drawing")
-            if not drawings:
-                continue
-            drawing_relationships = _relationships(workbook, sheet_part)
-            for drawing in drawings:
-                relationship = drawing_relationships[_relationship_id(drawing)]
-                if not relationship.attrib["Type"].endswith("/drawing"):
-                    raise NotImplementedError(
-                        "Ambiguous drawing relationship needs contract confirmation."
-                    )
+            sheet_locations = _xml_locations(sheet_root)
+            sheet_rels = None
+
+            def get_sheet_rels():
+                nonlocal sheet_rels
+                if sheet_rels is None:
+                    sheet_rels = _relationships(workbook, sheet_part)
+                return sheet_rels
+
+            for element in sheet_root.iter():
+                kind = element.tag.rsplit("}", 1)[-1]
+                if kind in ("legacyDrawing", "legacyDrawingHF", "picture", "control", "oleObject"):
+                    fallback = f"{sheet_part}#xml={sheet_locations[element]}"
+                    identifiers = [value for key, value in element.attrib.items() if key.endswith("}id")]
+                    rel = get_sheet_rels().get(identifiers[0]) if identifiers else None
+                    if rel is not None and rel.get("TargetMode") != "External":
+                        part = _target(sheet_part, rel)
+                        if part.lower().endswith(".vml"):
+                            vml = ET.fromstring(workbook.read(part))
+                            locations = _xml_locations(vml)
+                            shapes = [item for item in vml.iter() if item.tag.rsplit("}", 1)[-1] == "shape"]
+                            ids = Counter(item.get("id") for item in shapes)
+                            for shape in shapes:
+                                identifier = shape.get("id")
+                                target = f"{part}#id={identifier}" if identifier and ids[identifier] == 1 else f"{part}#xml={locations[shape]}"
+                                review(worksheet, target, "Legacy VML object requires manual review.")
+                            if shapes:
+                                continue
+                    review(worksheet, fallback, "Legacy, background, control, embedded, or external object is not automatically assessed.")
+                elif kind == "c":
+                    has_image_formula = any(re.search(r"(?:^|[^A-Za-z0-9_])(?:_xlfn\.)?IMAGE\s*\(", formula.text or "", re.IGNORECASE | re.ASCII) for formula in element.findall("{*}f"))
+                    if element.get("vm") is not None or has_image_formula:
+                        review(worksheet, f"{sheet_part}#xml={sheet_locations[element]}", "Cell-image or IMAGE-formula representation requires manual review.")
+
+            for drawing in sheet_root.findall("{*}drawing"):
+                relationship = get_sheet_rels()[_relationship_id(drawing)]
+                drawing_target = f"{sheet_part}#xml={sheet_locations[drawing]}"
+                if relationship.get("TargetMode") == "External" or not relationship.attrib["Type"].endswith("/drawing"):
+                    review(worksheet, drawing_target, "External or nonstandard drawing relationship is not automatically assessed.")
+                    continue
                 part = _target(sheet_part, relationship)
                 drawing_root = ET.fromstring(workbook.read(part))
+                locations = _xml_locations(drawing_root)
                 namespace = drawing_root.tag.removesuffix("}wsDr").removeprefix("{")
-                if (
-                    namespace not in _DRAWING_NAMESPACES
-                    or drawing_root.tag != f"{{{namespace}}}wsDr"
-                ):
-                    raise NotImplementedError(
-                        "Unsupported drawing representation requires contract confirmation."
-                    )
-                if any(
-                    item.tag.rsplit("}", 1)[-1] == "AlternateContent"
-                    for item in drawing_root.iter()
-                ):
-                    raise NotImplementedError(
-                        "AlternateContent selection requires the pending review/limitations contract."
-                    )
-                identifiers = Counter(
-                    item.get("id")
-                    for item in drawing_root.iter(f"{{{namespace}}}cNvPr")
-                    if item.get("id") is not None
-                )
-                for anchor in drawing_root:
-                    if anchor.tag not in {
-                        f"{{{namespace}}}{kind}"
-                        for kind in (
-                            "oneCellAnchor",
-                            "twoCellAnchor",
-                            "absoluteAnchor",
-                        )
-                    }:
-                        raise NotImplementedError(
-                            "Unsupported drawing anchor requires the pending review/limitations contract."
-                        )
-                    for element in _objects(anchor, namespace):
+                if namespace not in _DRAWING_NAMESPACES or drawing_root.tag != f"{{{namespace}}}wsDr":
+                    review(worksheet, f"{part}#xml={locations[drawing_root]}", "Unsupported drawing namespace or representation.")
+                    continue
+                identifiers = Counter(item.get("id") for item in drawing_root.iter(f"{{{namespace}}}cNvPr") if item.get("id"))
+
+                def inspect(element):
+                    kind = element.tag.rsplit("}", 1)[-1]
+                    fallback = f"{part}#xml={locations[element]}"
+                    if element.tag != f"{{{namespace}}}{kind}" or kind not in _PROPERTIES:
+                        review(worksheet, fallback, f"Unsupported drawing object: {kind}.")
+                        return
+                    target = fallback
+                    try:
                         properties = _properties(element, namespace)
                         identifier = properties.get("id")
                         if not identifier or identifiers[identifier] != 1:
-                            # TODO: Use the exact indexed #xml= path from the missing contract.
-                            raise NotImplementedError(
-                                f"Missing/duplicate object ID in {part}; #xml= and limitations contract pending."
-                            )
-                        if element.tag == f"{{{namespace}}}graphicFrame":
-                            _check_chart_reference(workbook, part, element)
-                        if _is_decorative(properties):
-                            classification = "MANUAL_REVIEW"
-                            message = "Object is marked decorative; confirm that it conveys no information."
-                            recommendation = "Confirm the decorative designation or provide alternative text title and description."
-                        else:
-                            missing = [
-                                label
-                                for attribute, label in (
-                                    ("title", "title"),
-                                    ("descr", "description (descr)"),
-                                )
-                                if not properties.get(attribute, "").strip(
-                                    UNICODE_WHITE_SPACE
-                                )
-                            ]
-                            if not missing:
-                                continue
-                            classification = "REQUIRES_USER_INPUT"
-                            message = (
-                                "Object is missing alternative text "
-                                + " and ".join(missing)
-                                + "."
-                            )
-                            recommendation = "Provide the missing accessibility title and/or description."
-                        worksheet = sheet.attrib["name"]
+                            review(worksheet, fallback, "Missing or duplicate drawing ID; indexed XML location used.")
+                            if kind == "grpSp":
+                                inspect_children(element, {"nvGrpSpPr", "grpSpPr"})
+                            return
                         target = f"{part}#id={identifier}"
-                        results.append(
-                            {
-                                "findingId": make_phase3_finding_id(
-                                    source_sha256, _RULE_ID, worksheet, target
-                                ),
-                                "ruleId": _RULE_ID,
-                                "category": "NON_TEXT_CONTENT",
-                                "worksheet": worksheet,
-                                "target": target,
-                                "classification": classification,
-                                "message": message,
-                                "recommendation": recommendation,
-                            }
-                        )
-    return sorted(
-        results,
-        key=lambda finding: (
-            finding["ruleId"],
-            finding["worksheet"],
-            finding["target"],
-        ),
-    )
+                        decorative = _is_decorative(properties)
+                        if kind == "grpSp":
+                            if decorative:
+                                review(worksheet, target, "Decorative group inheritance requires manual review.")
+                            inspect_children(element, {"nvGrpSpPr", "grpSpPr"})
+                            return
+                        if kind == "graphicFrame":
+                            _check_chart_reference(workbook, part, element)
+                        references = [value for item in element.iter() for key, value in item.attrib.items() if key.endswith("}link") or key.endswith("}embed")]
+                        if references:
+                            relationships_part = posixpath.join(posixpath.dirname(part), "_rels", posixpath.basename(part) + ".rels")
+                            object_rels = _relationships(workbook, part) if relationships_part in workbook.namelist() else {}
+                            if any(object_rels.get(ref) is not None and object_rels[ref].get("TargetMode") == "External" for ref in references):
+                                review(worksheet, target, "External object content is not fetched.")
+                                return
+                    except NotImplementedError as error:
+                        review(worksheet, target, str(error))
+                        return
+                    if decorative:
+                        emit(worksheet, target, "MANUAL_REVIEW",
+                             "Object is marked decorative; confirm that it conveys no information.",
+                             "Confirm the decorative designation or provide alternative text title and description.")
+                    else:
+                        missing = [label for attribute, label in (("title", "title"), ("descr", "description (descr)")) if not properties.get(attribute, "").strip(UNICODE_WHITE_SPACE)]
+                        if missing:
+                            emit(worksheet, target, "REQUIRES_USER_INPUT",
+                                 "Object is missing alternative text " + " and ".join(missing) + ".",
+                                 "Provide the missing accessibility title and/or description.")
+
+                def inspect_children(parent, metadata):
+                    for child in parent:
+                        if child.tag in {f"{{{namespace}}}{kind}" for kind in metadata}:
+                            continue
+                        inspect(child)
+
+                for anchor in drawing_root:
+                    if anchor.tag not in {f"{{{namespace}}}{kind}" for kind in ("oneCellAnchor", "twoCellAnchor", "absoluteAnchor")}:
+                        review(worksheet, f"{part}#xml={locations[anchor]}", "Unsupported drawing anchor or alternate content requires review.")
+                        continue
+                    inspect_children(anchor, {"from", "to", "pos", "ext", "clientData"})
+    results.sort(key=lambda finding: (finding["ruleId"], finding["worksheet"], finding["target"]))
+    return results

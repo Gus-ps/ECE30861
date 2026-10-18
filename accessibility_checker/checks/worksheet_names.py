@@ -18,7 +18,7 @@ _RULE_ID = "WORKSHEET_NAME"
 def check_worksheet_names(
     path: str | PathLike[str], *, source_sha256: str | None = None
 ) -> list[dict[str, str]]:
-    """Inspect all worksheets, including hidden/veryHidden, but not chartsheets.
+    """Inspect all worksheet and chartsheet tabs, including hidden/veryHidden.
 
     The optional digest is supplied by the runner to avoid repeated hashing.
     Direct callers may omit it. Never normalize or change the original name.
@@ -31,7 +31,7 @@ def check_worksheet_names(
         worksheets = {
             rel.attrib["Id"]: rel
             for rel in relationships
-            if rel.attrib["Type"].endswith("/worksheet")
+            if rel.attrib["Type"].endswith(("/worksheet", "/chartsheet"))
         }
         results = []
         for sheet in root.findall("{*}sheets/{*}sheet"):
@@ -49,10 +49,6 @@ def check_worksheet_names(
             )
             if match is None or not match.group(1).lstrip("0"):
                 continue
-            if relationship.get("TargetMode") == "External":
-                raise NotImplementedError(
-                    "External worksheet relationship needs contract confirmation."
-                )
             part = posixpath.normpath(
                 posixpath.join("xl", relationship.attrib["Target"])
             ).lstrip("/")
