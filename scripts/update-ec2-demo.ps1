@@ -36,7 +36,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Docker push failed.' }
 } finally {
     [System.IO.File]::Delete((Join-Path $configDirectory 'config.json'))
-    [System.IO.Directory]::Delete($configDirectory)
+    $resolvedConfig = [System.IO.Path]::GetFullPath($configDirectory)
+    $resolvedTemporaryRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\', '/')
+    if ([System.IO.Path]::GetDirectoryName($resolvedConfig) -ne $resolvedTemporaryRoot -or
+        -not [System.IO.Path]::GetFileName($resolvedConfig).StartsWith('workbook-update-')) {
+        throw 'Unexpected Docker configuration cleanup target.'
+    }
+    [System.IO.Directory]::Delete($resolvedConfig, $true)
 }
 $script = @'
 #!/bin/bash
