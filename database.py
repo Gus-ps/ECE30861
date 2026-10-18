@@ -1,4 +1,4 @@
-"""SQLite for local development; PostgreSQL for the AWS deployment."""
+"""SQLite locally; PostgreSQL on AWS or a host providing DATABASE_URL."""
 from contextlib import contextmanager
 import json
 import os
@@ -16,7 +16,7 @@ class PostgresConnection:
 
 class Database:
     def __init__(self, local_path=None):
-        self.postgres = local_path is None and bool(os.getenv('DB_HOST'))
+        self.postgres = local_path is None and bool(os.getenv('DB_HOST') or os.getenv('DATABASE_URL'))
         self.path = Path(local_path or os.getenv('DATABASE_PATH', 'data/workbooks.sqlite3'))
         if not self.postgres:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -26,6 +26,15 @@ class Database:
         if self.postgres:
             import psycopg
             from psycopg.rows import dict_row
+            if os.getenv('DATABASE_URL') and not os.getenv('DB_HOST'):
+                # Render's private PostgreSQL endpoint uses a self-signed TLS
+                # certificate; require encryption as its documentation specifies.
+                with psycopg.connect(
+                    os.environ['DATABASE_URL'], sslmode='require',
+                    connect_timeout=10, row_factory=dict_row,
+                ) as connection:
+                    yield PostgresConnection(connection)
+                return
             if os.getenv('DB_SECRET_ARN'):
                 import boto3
                 secret = json.loads(boto3.client('secretsmanager').get_secret_value(

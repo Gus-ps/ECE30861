@@ -218,7 +218,7 @@ class ApiTests(unittest.TestCase):
             ids = self.upload(no_title, client=client).json()
             audit = Audit.model_validate(client.get(self.audit_url(ids), headers=self.auth).json())
             self.assertIsNone(audit.error)
-            self.assertIn('WORKBOOK_TITLE', [finding.category for finding in audit.findings])
+            self.assertEqual([finding.ruleId for finding in audit.findings], ['WORKSHEET_NAME'])
             self.assertFalse(any('WORKBOOK_TITLE' in limitation for limitation in audit.limitations))
 
     def test_checker_hook_returns_schema_valid_sorted_findings(self):
