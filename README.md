@@ -33,11 +33,11 @@ The owner-authorized `/api/v1/workbooks/{workbookId}/versions/{versionId}/origin
 download supports the prompt's requirement that unchanged originals remain accessible.
 All resource endpoints require `Authorization: Bearer <token>`; health is public.
 
-The upload limit is **25,000,000 bytes**. Jonathan's validator checks the 50-sheet
-and 250,000-cell limits, readable workbook format and protection. Upload guards
-also reject macros, encrypted ZIP entries, archives over 100 MiB expanded or
-10,000 entries. Rejected uploads create no version or audit. Original bytes and
-the initial PROCESSING audit are committed in one database transaction.
+The upload limit is **25,000,000 bytes**. The validity checker enforces the
+50-worksheet and 250,000-nonempty-cell limits, readable workbook format, protection,
+and rejection of macro-containing packages. `.xlsm` and renamed macro packages
+return HTTP 422; other unsupported extensions return 415. Rejected uploads create
+no version or audit. Originals and the initial audit are created atomically.
 `contracts.py` enforces the supplied identifier, filename, hash, timestamp,
 finding and response schemas. Errors contain code, message, requestId and details.
 
@@ -49,22 +49,24 @@ messages are forwarded to the server terminal/container logs. Available rejectio
 details are also returned to the page. `VALIDATOR_PATH` optionally selects another
 validator module. Both boolean returns and older error-list modules are supported.
 
-The default accessibility callable is Haruki's
-`accessibility_checker.runner.check_workbook(path)`. It aggregates worksheet names,
-image descriptions, workbook title and table header checks. Its source is unchanged.
-`create_app(accessibility_checker=...)` can override the callable for integration
-tests. It must return a list of findings with the supplied schema's eight fields.
-The API validates them, assigns stable workbook/ruleset/location IDs, orders them
-by ruleId/worksheet/target and stores the audit result. No findings produces
-AUDIT_COMPLETE; unresolved findings produce REVIEW_REQUIRED; failures produce
-PROCESSING_FAILED. The checker must not modify the source.
+The default callable is `accessibility_checker.runner.check_workbook(path)`.
+Phase 3 enables WORKSHEET_NAME and ALT_TEXT only. Worksheet-name checks include
+chartsheets, hidden, and very-hidden tabs. Supported drawing objects require both
+alternative-text title and description; decorative or unsupported/ambiguous
+objects produce MANUAL_REVIEW findings. Ambiguous locations use an indexed XML
+path and disclosures in limitations. External object relationships are not fetched.
 
-Haruki's provisional WORKBOOK_TITLE category is not allowed by the shared schema.
-The API preserves these title issues visibly in `limitations`, marks the audit
-REVIEW_REQUIRED and returns the other findings in the supplied schema. The raw
-runner still returns all findings. Agree on a category with the team before moving
-title issues into the formal findings array. Results cover only the supported
-checks and do not establish full accessibility compliance.
+The callable returns a list-compatible result with an optional limitations list.
+The API validates the eight-field findings and assigns deterministic content,
+ruleset, rule, worksheet, and target IDs. Ruleset version is `1.0.0`. Findings
+are ordered by ruleId/worksheet/target. Empty results produce AUDIT_COMPLETE;
+findings produce REVIEW_REQUIRED; execution failures produce PROCESSING_FAILED
+without partial findings. The checker must not modify the source.
+
+Original download remains an optional extension for the shared pod tests.
+Error codes, details contents, and prose are implementation-defined; cross-team
+checks compare HTTP statuses and the shared response schemas. See
+`pod_spec_alignment.md` and the Word contract under `.docs/`.
 
 The page distinguishes invalid files from valid files with findings or an audit
 failure. Remediation/report generation is left to subsequent team integration;
