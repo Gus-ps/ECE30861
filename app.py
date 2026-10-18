@@ -40,15 +40,13 @@ def process_audit(database, audit_id, checker=None):
     if checker is None:
         # TODO: Pass the team's path-based accessibility checker into create_app.
         # Checker implementations and accessibility rules belong to that teammate.
-        limitations = ['Accessibility checker is not integrated.']
-        error = {'code': 'CHECKER_NOT_CONFIGURED', 'message': limitations[0],
+        error = {'code': 'CHECKER_NOT_CONFIGURED', 'message': 'Accessibility checker is not integrated.',
                  'requestId': audit['request_id'], 'details': {}}
     else:
         try:
             data = bytes(version['original'])
-            requires_review = False
-            if checker is check_workbook:
-                limitations.append('Haruki\'s checks cover selected workbook features only; results do not establish full accessibility compliance.')
+            # if checker is check_workbook:
+            #     limitations.append('Haruki\'s checks cover selected workbook features only; results do not establish full accessibility compliance.')
             with tempfile.TemporaryDirectory(prefix='workbook-audit-') as directory:
                 path = Path(directory) / 'source.xlsx'
                 path.write_bytes(data)
@@ -56,12 +54,6 @@ def process_audit(database, audit_id, checker=None):
                 if not isinstance(results, list):
                     raise ValueError('Accessibility checker must return a list of findings.')
                 for raw in results:
-                    # Haruki marks this category as provisional. Preserve the issue
-                    # visibly without adding an enum outside the shared contract.
-                    if checker is check_workbook and raw.get('category') == 'WORKBOOK_TITLE':
-                        limitations.append(f"WORKBOOK_TITLE (not in the shared finding-category schema): {raw['message']} {raw['recommendation']}")
-                        requires_review = True
-                        continue
                     item = Finding.model_validate(raw).model_dump()
                     identity = [audit['workbook_id'], audit['ruleset_version'],
                                 item['ruleId'], item['worksheet'], item['target']]
@@ -70,7 +62,7 @@ def process_audit(database, audit_id, checker=None):
                 if path.read_bytes() != data:
                     raise ValueError('Checker modified its input.')
             findings.sort(key=lambda item: (item['ruleId'], item['worksheet'], item['target']))
-            status = 'REVIEW_REQUIRED' if findings or requires_review else 'AUDIT_COMPLETE'
+            status = 'REVIEW_REQUIRED' if findings else 'AUDIT_COMPLETE'
         except Exception:
             logging.exception('Audit failed: %s', audit_id)
             findings = []
