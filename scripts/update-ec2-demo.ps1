@@ -35,8 +35,8 @@ try {
     & docker --config $configDirectory --host $engine push $image
     if ($LASTEXITCODE -ne 0) { throw 'Docker push failed.' }
 } finally {
-    Remove-Item -LiteralPath (Join-Path $configDirectory 'config.json') -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $configDirectory -ErrorAction SilentlyContinue
+    [System.IO.File]::Delete((Join-Path $configDirectory 'config.json'))
+    [System.IO.Directory]::Delete($configDirectory)
 }
 $script = @'
 #!/bin/bash
