@@ -4,6 +4,7 @@ __pycache__/
 *.db-shm
 *.db-wal
 .env
+deploy/*.env
 .pytest_cache/
 scripts/rehearsal/work/
 claude_id.txt

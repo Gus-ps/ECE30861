@@ -18,6 +18,7 @@ and runs Team 9's 53-case Phase 3 manifest against an approved target system.
 | `tester/fixtures/pod_profile.json` | Pod-pending defaults (Team 9 values, not pod-approved) |
 | `tester/wcag/` | WCAG 2.1 workbook checker, kept for Phase 4 remediation checks |
 | `ref/` | Instructor spec and Team 9 contract documents |
+| `deploy/` | Host-agnostic deployment files and runbook (`deploy/README.md`) |
 
 Setup (Python 3.12 via [uv](https://docs.astral.sh/uv/)):
 

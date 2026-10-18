@@ -1,0 +1,20 @@
+# Caddy: serve the tester at https://<host>/tester with an automatic certificate.
+# Replace <host> with the real DNS name; merge into an existing site block if the system shares the host.
+
+<host> {
+    redir /tester /tester/ 308
+
+    # handle_path strips /tester before forwarding; uvicorn runs with --root-path /tester.
+    handle_path /tester/* {
+        request_body {
+            max_size 64KB
+        }
+        reverse_proxy 127.0.0.1:8001 {
+            transport http {
+                # A run waits for the whole suite (600 s budget).
+                read_timeout 660s
+                write_timeout 660s
+            }
+        }
+    }
+}

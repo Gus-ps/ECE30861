@@ -1,0 +1,37 @@
+# Team 12 tester as a systemd service (no Docker). See deploy/README.md for the install steps.
+# Expects the repo at /opt/team12-tester with `uv sync --locked --no-dev` already run, and
+# settings in /etc/team12-tester/tester.env. The database goes to /var/lib/team12-tester.
+
+[Unit]
+Description=Team 12 cross-team tester
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=team12-tester
+Group=team12-tester
+WorkingDirectory=/opt/team12-tester
+EnvironmentFile=/etc/team12-tester/tester.env
+# One worker: the store and restart recovery assume one process per SQLite file.
+# --root-path must match the prefix the reverse proxy strips.
+ExecStart=/opt/team12-tester/.venv/bin/uvicorn tester.main:create_app --factory \
+    --host 127.0.0.1 --port 8001 --workers 1 --root-path /tester
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Creates /var/lib/team12-tester owned by the service user.
+StateDirectory=team12-tester
+StateDirectoryMode=0700
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

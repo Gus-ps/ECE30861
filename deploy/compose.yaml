@@ -1,0 +1,25 @@
+# Team 12 tester with Docker Compose. From the repo root:
+#   cp deploy/tester.env.example deploy/tester.env   # fill in real values; never commit it
+#   docker compose -f deploy/compose.yaml up -d --build
+# The port is bound to loopback only: put the HTTPS reverse proxy (deploy/nginx or deploy/caddy) in front.
+
+services:
+  tester:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: team12-tester
+    env_file: tester.env
+    environment:
+      # Overrides the env file's systemd path: in the container the database lives on the volume.
+      TESTER_DB_PATH: /data/tester.db
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - tester-data:/data
+    restart: unless-stopped
+    # Let an in-flight request finish; a run cut off by a stop is aborted and recovered on restart.
+    stop_grace_period: 30s
+
+volumes:
+  tester-data:
