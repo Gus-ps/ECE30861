@@ -122,7 +122,28 @@ def check_corruption(filepath):
         return [f"File is corrupted: archive member '{bad_member}' failed its "
                 "integrity check."], None
 
-    names = set(archive.namelist())
+    members = archive.namelist()
+    if len(members) != len(set(members)):
+        archive.close()
+        return ["File is corrupted: duplicate archive member names are unsupported."], None
+    if any(name.startswith("/") or "\\" in name or
+           ".." in name.split("/") for name in members):
+        archive.close()
+        return ["File is corrupted: unsafe archive member path."], None
+    # Inspect incrementally: declarations can straddle read boundaries.
+    for name in members:
+        if not name.lower().endswith((".xml", ".rels")):
+            continue
+        with archive.open(name) as stream:
+            tail = b""
+            while chunk := stream.read(65536):
+                content = tail + chunk
+                normalized = content.replace(b"\x00", b"").upper()
+                if b"<!DOCTYPE" in normalized or b"<!ENTITY" in normalized:
+                    archive.close()
+                    return ["File is corrupted: XML DTD/entity declarations are unsupported."], None
+                tail = content[-64:]
+    names = set(members)
     missing = [part for part in REQUIRED_PARTS if part not in names]
     if missing:
         archive.close()

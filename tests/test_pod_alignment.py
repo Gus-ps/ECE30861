@@ -1,6 +1,8 @@
 """Observable HTTP checks for the October 18 pod alignment decisions."""
 from contextlib import closing
 import hashlib
+import io
+import warnings
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -32,6 +34,39 @@ class PodAlignmentTests(unittest.TestCase):
     def audit(self, ids):
         base = f"/api/v1/workbooks/{ids['workbookId']}/versions/{ids['versionId']}"
         return self.client.get(f"{base}/audits/{ids['auditId']}", headers=self.headers).json()
+
+    def test_background_picture_returns_manual_review_through_api(self):
+        data = workbook({
+            'xl/worksheets/sheet1.xml': f'<worksheet xmlns="{MAIN}" xmlns:r="{DOC}"><sheetData/><picture r:id="bg"/></worksheet>',
+            'xl/worksheets/_rels/sheet1.xml.rels': f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="bg" Type="{DOC}/image" Target="../media/background.png"/></Relationships>',
+            'xl/media/background.png': b'background image',
+        })
+        response = self.upload(data)
+        self.assertEqual(response.status_code, 202, response.text)
+        result = self.audit(response.json())
+        self.assertEqual(result['status'], 'REVIEW_REQUIRED', result)
+        self.assertIsNone(result['error'])
+        backgrounds = [f for f in result['findings'] if '/picture[1]' in f['target']]
+        self.assertEqual(len(backgrounds), 1)
+        self.assertEqual(backgrounds[0]['classification'], 'MANUAL_REVIEW')
+
+    def test_unsafe_zip_and_xml_rejected_before_creating_resources(self):
+        cases = [workbook({'../outside.xml': '<outside/>'}),
+                 workbook({'xl/worksheets/sheet1.xml':
+                           '<!DOCTYPE worksheet [<!ENTITY test "hello">]><worksheet/>'})]
+        buffer = io.BytesIO(workbook())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            with ZipFile(buffer, 'a') as archive:
+                archive.writestr('xl/workbook.xml', '<workbook/>')
+        cases.append(buffer.getvalue())
+        for data in cases:
+            with self.subTest(size=len(data)):
+                response = self.upload(data)
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertEqual(response.json()['code'], 'INVALID_WORKBOOK')
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM versions').fetchone()[0], 0)
 
     def test_macro_extension_and_renamed_macro_packages_rejected_atomically(self):
         cases = [
