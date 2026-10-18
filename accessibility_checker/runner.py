@@ -27,7 +27,7 @@ def check_workbook(path: str | PathLike[str]) -> Findings:
     ):
         result = checker(path, source_sha256=source_sha256)
         findings.extend(result)
-        findings.limitations.extend(getattr(result, 'limitations', []))
+        findings.limitations.extend(getattr(result, "limitations", []))
     findings.sort(
         key=lambda finding: (
             finding["ruleId"],

@@ -42,16 +42,23 @@ class ImageAltTextTests(unittest.TestCase):
 
     def test_background_only_without_drawing_relationships(self):
         self.write_metadata([("Budget", None, None)])
-        self.rewrite_part("xl/worksheets/sheet17.xml", lambda root:
-            ET.SubElement(root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"}))
+        self.rewrite_part(
+            "xl/worksheets/sheet17.xml",
+            lambda root: ET.SubElement(
+                root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"}
+            ),
+        )
         findings = check_image_alt_text(self.path)
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["classification"], "MANUAL_REVIEW")
-        self.assertEqual(findings[0]["target"],
-                         "xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]")
+        self.assertEqual(
+            findings[0]["target"],
+            "xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]",
+        )
 
     def test_large_grid_streams_and_keeps_exact_image_formula_path(self):
         self.write_metadata([("Budget", None, None)])
+
         def add_grid(root):
             data = root.find(f"{{{MAIN}}}sheetData")
             for index in range(1, 10001):
@@ -59,10 +66,17 @@ class ImageAltTextTests(unittest.TestCase):
                 cell = ET.SubElement(row, f"{{{MAIN}}}c", {"r": f"A{index}"})
                 ET.SubElement(cell, f"{{{MAIN}}}v").text = "1"
                 if index == 10000:
-                    ET.SubElement(cell, f"{{{MAIN}}}f").text = 'IMAGE("https://example.com/image.png")'
+                    ET.SubElement(
+                        cell, f"{{{MAIN}}}f"
+                    ).text = 'IMAGE("https://example.com/image.png")'
+
         self.rewrite_part("xl/worksheets/sheet17.xml", add_grid)
         from accessibility_checker.checks.image_alt_text import _sheet_objects
-        with ZipFile(self.path) as archive, archive.open("xl/worksheets/sheet17.xml") as stream:
+
+        with (
+            ZipFile(self.path) as archive,
+            archive.open("xl/worksheets/sheet17.xml") as stream,
+        ):
             self.assertEqual(len(_sheet_objects(stream)), 1)
         findings = check_image_alt_text(self.path)
         self.assertEqual(len(findings), 1)
@@ -478,12 +492,23 @@ class ImageAltTextTests(unittest.TestCase):
                 before = self.path.read_bytes()
                 findings = check_image_alt_text(self.path)
                 self.assertEqual(self.path.read_bytes(), before)
-                reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
+                reviews = [
+                    f for f in findings if f["classification"] == "MANUAL_REVIEW"
+                ]
                 expected_targets = {
-                    "missing": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]/nvPicPr[1]/cNvPr[1]"],
-                    "duplicate": [f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]/nvPicPr[1]/cNvPr[1]" for i in (1, 2)],
-                    "unknown": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/unknownObject[1]"],
-                    "background": ["xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]"],
+                    "missing": [
+                        "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]/nvPicPr[1]/cNvPr[1]"
+                    ],
+                    "duplicate": [
+                        f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]/nvPicPr[1]/cNvPr[1]"
+                        for i in (1, 2)
+                    ],
+                    "unknown": [
+                        "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/unknownObject[1]"
+                    ],
+                    "background": [
+                        "xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]"
+                    ],
                 }
                 self.assertEqual([f["target"] for f in reviews], expected_targets[case])
                 self.assertEqual(len(findings.limitations), len(reviews))
@@ -491,23 +516,33 @@ class ImageAltTextTests(unittest.TestCase):
                     self.assertIn(item["target"], limitation)
                     self.assertIn("Budget", limitation)
                 # Other assessable objects retain their findings instead of being lost.
-                self.assertEqual(len(findings), 2 if case in ("missing", "duplicate") else 3)
+                self.assertEqual(
+                    len(findings), 2 if case in ("missing", "duplicate") else 3
+                )
                 self.assertEqual(findings, check_image_alt_text(self.path))
-                self.assertEqual(findings.limitations, check_image_alt_text(self.path).limitations)
+                self.assertEqual(
+                    findings.limitations, check_image_alt_text(self.path).limitations
+                )
 
     def test_chartsheet_drawing_is_inspected(self):
         self.write_metadata([("Chart", "hidden", [{}])])
+
         def chartsheet_relationship(root):
             root[0].set("Type", f"{DOC}/chartsheet")
+
         self.rewrite_part("xl/_rels/workbook.xml.rels", chartsheet_relationship)
         findings = check_image_alt_text(self.path)
-        self.assertEqual([(f["worksheet"], f["target"]) for f in findings],
-                         [("Chart", "xl/drawings/drawing90.xml#id=1")])
+        self.assertEqual(
+            [(f["worksheet"], f["target"]) for f in findings],
+            [("Chart", "xl/drawings/drawing90.xml#id=1")],
+        )
 
     def test_execution_failure_still_propagates(self):
         self.write_metadata([("Budget", None, [{}])])
-        self.rewrite_part("xl/worksheets/sheet17.xml",
-                          lambda root: root.find(f"{{{MAIN}}}drawing").set(f"{{{DOC}}}id", "missing"))
+        self.rewrite_part(
+            "xl/worksheets/sheet17.xml",
+            lambda root: root.find(f"{{{MAIN}}}drawing").set(f"{{{DOC}}}id", "missing"),
+        )
         before = self.path.read_bytes()
         with self.assertRaises(KeyError):
             check_image_alt_text(self.path)
@@ -517,6 +552,7 @@ class ImageAltTextTests(unittest.TestCase):
         for case in ("wrapper", "external", "decorative_group"):
             with self.subTest(case=case):
                 self.write_metadata([("Budget", None, [{}])])
+
                 def change(root):
                     anchor = root[0]
                     if case == "wrapper":
@@ -530,18 +566,35 @@ class ImageAltTextTests(unittest.TestCase):
                         group = ET.SubElement(anchor, f"{{{XDR}}}grpSp")
                         nv = ET.SubElement(group, f"{{{XDR}}}nvGrpSpPr")
                         props = ET.SubElement(nv, f"{{{XDR}}}cNvPr", {"id": "99"})
-                        ext = ET.SubElement(ET.SubElement(props, f"{{{DRAW}}}extLst"), f"{{{DRAW}}}ext")
-                        ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": "true"})
+                        ext = ET.SubElement(
+                            ET.SubElement(props, f"{{{DRAW}}}extLst"), f"{{{DRAW}}}ext"
+                        )
+                        ET.SubElement(
+                            ext, f"{{{DECORATIVE}}}decorative", {"val": "true"}
+                        )
                         group.append(child)
+
                 self.rewrite_part("xl/drawings/drawing90.xml", change)
                 if case == "external":
-                    rels = relationships([("externalImage", "image", "https://example.invalid/picture.png")])
+                    rels = relationships(
+                        [
+                            (
+                                "externalImage",
+                                "image",
+                                "https://example.invalid/picture.png",
+                            )
+                        ]
+                    )
                     rels[0].set("TargetMode", "External")
                     with ZipFile(self.path, "a") as archive:
-                        archive.writestr("xl/drawings/_rels/drawing90.xml.rels", ET.tostring(rels))
+                        archive.writestr(
+                            "xl/drawings/_rels/drawing90.xml.rels", ET.tostring(rels)
+                        )
                 before = self.path.read_bytes()
                 findings = check_image_alt_text(self.path)
-                reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
+                reviews = [
+                    f for f in findings if f["classification"] == "MANUAL_REVIEW"
+                ]
                 self.assertEqual(len(reviews), 1)
                 self.assertEqual(len(findings.limitations), 1)
                 expected = {

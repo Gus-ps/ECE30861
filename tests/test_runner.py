@@ -162,8 +162,10 @@ class RunnerTests(unittest.TestCase):
 
     def test_runner_preserves_limitations_alongside_sorted_findings(self):
         from accessibility_checker.results import Findings
+
         self.write_metadata(issues=True)
         from xml.etree import ElementTree as ET
+
         with ZipFile(self.path) as archive:
             parts = {name: archive.read(name) for name in archive.namelist()}
         part = "xl/drawings/drawing90.xml"
@@ -178,7 +180,9 @@ class RunnerTests(unittest.TestCase):
         findings = check_workbook(self.path)
         self.assertIsInstance(findings, Findings)
         self.assertIsInstance(findings, list)
-        self.assertEqual([f["ruleId"] for f in findings], ["ALT_TEXT", "WORKSHEET_NAME"])
+        self.assertEqual(
+            [f["ruleId"] for f in findings], ["ALT_TEXT", "WORKSHEET_NAME"]
+        )
         self.assertEqual(findings[0]["classification"], "MANUAL_REVIEW")
         self.assertEqual(len(findings.limitations), 1)
         self.assertIn(findings[0]["target"], findings.limitations[0])
