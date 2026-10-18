@@ -1,0 +1,52 @@
+{
+  "profile_version": "team9-defaults-1.0.0",
+  "pod_approved": false,
+  "note": "Team 9 contract-profile defaults (ref/phase3.md). None are pod-approved yet; change values here, bump profile_version, and start a new tester session.",
+  "session_transport": {
+    "header": "X-Test-Session",
+    "send_on_health": true,
+    "unknown_session_status": 400
+  },
+  "unsupported_types": {
+    "status": 415,
+    "cases": ["csv", "xls", "missing_extension"]
+  },
+  "xlsm": {
+    "status": 422,
+    "code": "MACRO_ENABLED_WORKBOOK_UNSUPPORTED"
+  },
+  "assert_other_error_codes": false,
+  "limits": {
+    "max_file_bytes": 25000000,
+    "max_worksheets": 50,
+    "max_nonempty_cells": 250000
+  },
+  "protected_workbook_status": 422,
+  "alt_text": {
+    "require_title": true,
+    "require_description": true,
+    "decorative_classification": "MANUAL_REVIEW"
+  },
+  "worksheet_name": {
+    "pattern": "(?i)^Sheet[0-9]+$",
+    "suffix_must_exceed_zero": true
+  },
+  "coverage": {
+    "components": ["C1", "C2", "C3", "C4", "C5", "C6"],
+    "acceptance": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-14", "AC-15", "AC-18"]
+  },
+  "timing": {
+    "system_setup_seconds": 30,
+    "tester_setup_seconds": 45,
+    "upload_seconds": 35,
+    "get_seconds": 10,
+    "audit_poll_seconds": 75,
+    "poll_interval_seconds": 1,
+    "suite_seconds": 600,
+    "get_retries": 3
+  },
+  "max_response_bytes": 2097152,
+  "cleanup": {
+    "send_failed_setup_ids": true
+  }
+}

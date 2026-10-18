@@ -1,0 +1,94 @@
+{
+  "ruleset_version": "1.0.0",
+  "pod_profile": "team9-defaults-1.0.0",
+  "manual_review": "Pending. Expectations were hand-authored by Team 12 from the object definitions in scripts/build_shared_fixtures.py and the audit policy in ref/phase3.md, then cross-checked against tester/suite/pod_rules.py. No two-member pod review and no Excel open/repair check has been performed yet.",
+  "fixtures": {
+    "clean": {
+      "kind": "accepted",
+      "file": "shared/clean.xlsx",
+      "sha256": "20feed4783615c2ef5f5579a53b25524fc75a7316c108e1fc25bf1b5278aeca2",
+      "origin": "team12",
+      "upload_name": "clean.xlsx",
+      "notes": "Sheets Budget (sheetId 1, sheet1.xml) and Notes (sheetId 2, sheet2.xml). Budget's drawing1.xml holds Picture 1 (id 2), Rectangle 2 (id 3) and Chart 3 (id 4), each with a nonblank title and description and no decorative marker.",
+      "expected_status": "AUDIT_COMPLETE",
+      "findings": []
+    },
+    "seeded_issues": {
+      "kind": "accepted",
+      "file": "shared/seeded_issues.xlsx",
+      "sha256": "24dd6a6da19f4676d3bce27f3d5b4b8d285369beecb3926454c71f2ed0ea692c",
+      "origin": "team12",
+      "upload_name": "seeded_issues.xlsx",
+      "notes": "Sheet names do not match part numbers: Expenses (sheetId 1) is sheet1.xml, Sheet1 (sheetId 2) is sheet2.xml, hidden ' Sheet03 ' (sheetId 5) is sheet3.xml, Sheet0 (sheetId 4) is sheet4.xml. Shapes carry visible labels and the chart a visible title; these do not substitute for alt text. Per-object intent is listed in tester/fixtures/shared/README.md.",
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": " Sheet03 ",
+          "target": "xl/drawings/drawing3.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing2.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing2.xml#id=4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing2.xml#id=5",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing2.xml#id=8",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": " Sheet03 ",
+          "target": "xl/worksheets/sheet3.xml#sheetId=5",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet2.xml#sheetId=2",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ]
+    },
+    "corrupt": {
+      "kind": "rejected",
+      "file": "shared/corrupt.xlsx",
+      "sha256": "9cf891ba569c9de0a6b006bca6f481c9e3c17e3eb53342691ecea9f253e2dd09",
+      "origin": "team12",
+      "upload_name": "corrupt.xlsx",
+      "notes": "A ZIP local-file signature followed by plain text; not a readable package. Only status and error envelope are asserted because no error code is agreed.",
+      "http_status": 422,
+      "error_code": null
+    }
+  }
+}
