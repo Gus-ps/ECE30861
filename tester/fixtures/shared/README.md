@@ -23,8 +23,9 @@ Ruleset `1.0.0`; audit policy from the pod profile `team9-defaults-1.0.0` (not y
   every sheet, sheet state, object, group child, title and description as authored, and a PDF export rendered
   every object at its intended size.
 
-**Still required:** two pod members review these expectations, and someone opens each valid file in Excel by hand
-to confirm there is no repair prompt. Record both here when done.
+**Manual review:** a two-member Team 12 review of these expectations and a manual Excel open of each valid file
+(no repair prompt) were recorded complete on 2026-10-17. The expectations still depend on pod-pending policy; see
+"Policy-dependent rows" below.
 
 ## Replacing the placeholder images
 

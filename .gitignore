@@ -5,6 +5,7 @@ __pycache__/
 *.db-wal
 .env
 deploy/*.env
+dist/
 .pytest_cache/
 scripts/rehearsal/work/
 claude_id.txt

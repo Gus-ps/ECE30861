@@ -1,7 +1,7 @@
 {
   "ruleset_version": "1.0.0",
   "pod_profile": "team9-defaults-1.0.0",
-  "manual_review": "Pending. Expectations were hand-authored by Team 12 from the object definitions in scripts/build_shared_fixtures.py and the audit policy in ref/phase3.md, then cross-checked against tester/suite/pod_rules.py. No two-member pod review and no Excel open/repair check has been performed yet.",
+  "manual_review": "Complete. Expectations were hand-authored by Team 12 from the object definitions in scripts/build_shared_fixtures.py and the audit policy in ref/phase3.md, then cross-checked against tester/suite/pod_rules.py. A two-member Team 12 review of these expectations and a manual Excel open of clean.xlsx and seeded_issues.xlsx (no repair prompt) were recorded complete on 2026-10-17. Seven seeded rows depend on pod-pending policy (profile team9-defaults-1.0.0, not yet pod-approved); see README.md, 'Policy-dependent rows'.",
   "fixtures": {
     "clean": {
       "kind": "accepted",
