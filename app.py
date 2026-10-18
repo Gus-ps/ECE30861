@@ -16,10 +16,12 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException
+from fastapi.security import HTTPBearer
 
 from contracts import Audit, Error, Finding, Health, Identifier, UploadResponse, WorkbookVersion
 from database import Database
 from accessibility_checker.runner import check_workbook
+from test_interface import SystemTests, TestSessionError
 
 ROOT = Path(__file__).parent
 MAX_UPLOAD = 25_000_000
@@ -124,7 +126,9 @@ class ApiError(Exception):
         self.details = details or {}
 
 
-def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility_checker=None):
+def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility_checker=None,
+               enable_test_interface=None, test_admin_tokens=None, test_session_users=None,
+               reviewer_grants=None):
     if workbook_validator is None:
         workbook_validator = load_workbook_validator()
     checker = accessibility_checker if accessibility_checker is not None else check_workbook
@@ -137,10 +141,18 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     database = Database(db_path)
     database.initialize()
     connect = database.connect
+    system_tests = SystemTests(
+        database,
+        enable_test_interface if enable_test_interface is not None else os.getenv('ENABLE_TEST_INTERFACE', '').lower() == 'true',
+        test_admin_tokens if test_admin_tokens is not None else json.loads(os.getenv('TEST_ADMIN_TOKENS_JSON', '{}')),
+        test_session_users if test_session_users is not None else json.loads(os.getenv('TEST_SESSION_USERS_JSON', '{}')),
+    )
+    reviewers = reviewer_grants if reviewer_grants is not None else json.loads(os.getenv('REVIEWER_GRANTS_JSON', '{}'))
 
     app = FastAPI(title='Workbook accessibility service', version='1.0',
                   responses={status: {'model': Error} for status in (400, 401, 403, 404, 409, 413, 415, 422, 500, 503)})
     app.state.database = database
+    system_tests.install(app, credentials)
 
     def error_response(request, status, code, message, details=None):
         body = Error(code=code, message=message, requestId=request.state.request_id, details=details or {})
@@ -153,7 +165,10 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             response = await call_next(request)
         except Exception:
             logging.exception('Unhandled request failure: %s', request.state.request_id)
-            response = error_response(request, 500, 'INTERNAL_ERROR', 'An internal failure occurred.')
+            if request.url.path.startswith('/test/'):
+                response = JSONResponse(status_code=500, content={'message': 'Test session operation failed.', 'source': 'system'})
+            else:
+                response = error_response(request, 500, 'INTERNAL_ERROR', 'An internal failure occurred.')
         response.headers['X-Request-ID'] = request.state.request_id
         response.headers['Cache-Control'] = 'no-store'
         return response
@@ -164,26 +179,36 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @app.exception_handler(RequestValidationError)
     async def malformed(request, exc):
+        if request.url.path.startswith('/test/'):
+            return JSONResponse(status_code=400, content={'message': 'Missing or malformed test request data.', 'source': 'system'})
         return error_response(request, 400, 'INVALID_REQUEST', 'Missing or malformed request data.')
 
     @app.exception_handler(HTTPException)
     async def http_error(request, exc):
+        if request.url.path.startswith('/test/'):
+            return JSONResponse(status_code=exc.status_code, content={'message': str(exc.detail), 'source': 'system'})
         return error_response(request, exc.status_code, 'HTTP_ERROR', str(exc.detail))
 
-    def user(request: Request):
+    def user(request: Request, credentials_header=Depends(HTTPBearer(auto_error=False))):
         scheme, _, token = request.headers.get('authorization', '').partition(' ')
         if scheme.lower() == 'bearer' and token:
             for expected, identity in credentials.items():
                 if secrets.compare_digest(token.encode(), expected.encode()):
+                    with connect() as db:
+                        request.state.test_session_id = system_tests.check(
+                            db, request.headers.get('x-test-session'), identity)
                     return identity
         raise ApiError(401, 'UNAUTHORIZED', 'A valid bearer token is required.')
 
-    def version(db, workbook_id, version_id, identity):
+    def version(db, workbook_id, version_id, identity, session_id=None):
         row = db.execute('SELECT * FROM versions WHERE workbook_id=? AND version_id=?',
                          (workbook_id, version_id)).fetchone()
         if row is None:
             raise ApiError(404, 'NOT_FOUND', 'Workbook version does not exist.')
-        if row['owner'] != identity:
+        tagged = db.execute('SELECT session_id FROM test_workbooks WHERE workbook_id=?', (workbook_id,)).fetchone()
+        if (tagged['session_id'] if tagged else None) != session_id:
+            raise ApiError(403, 'FORBIDDEN', 'Workbook is outside this test session.')
+        if row['owner'] != identity and row['owner'] not in reviewers.get(identity, []):
             raise ApiError(403, 'FORBIDDEN', 'You cannot access this workbook.')
         return row
 
@@ -199,7 +224,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         return FileResponse(ROOT / 'static' / 'index.html')
 
     @app.get('/api/v1/health', response_model=Health)
-    def health():
+    def health(request: Request):
+        if request.headers.get('x-test-session') is not None:
+            user(request)
         if workbook_validator is None or checker is None:
             raise ApiError(503, 'SERVICE_UNAVAILABLE', 'Processing dependencies are unavailable.')
         try:
@@ -212,6 +239,8 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     @app.post('/api/v1/workbooks', status_code=202, response_model=UploadResponse)
     async def upload(request: Request, background: BackgroundTasks, identity=Depends(user), file: UploadFile = File(...)):
         try:
+            if identity in reviewers:
+                raise ApiError(403, 'FORBIDDEN', 'Reviewers cannot upload workbooks.')
             filename = (file.filename or '').replace('\\', '/').rsplit('/', 1)[-1]
             if not 1 <= len(filename) <= 255:
                 raise ApiError(400, 'INVALID_FILENAME', 'File name must contain 1–255 characters.')
@@ -238,18 +267,21 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             workbook_id, version_id = 'workbook-' + uuid4().hex, 'version-' + uuid4().hex
             # Source and initial audit commit atomically; rejected uploads leave no records.
             with connect(write=True) as db:
+                session_id = system_tests.check(db, request.state.test_session_id, identity, lock=True)
                 db.execute('INSERT INTO versions VALUES (?, ?, ?, ?, ?, ?, ?)',
                            (workbook_id, version_id, identity, filename, hashlib.sha256(data).hexdigest(), utc_now(), bytes(data)))
                 audit_id = insert_audit(db, workbook_id, version_id, request.state.request_id)
+                if session_id is not None:
+                    db.execute('INSERT INTO test_workbooks VALUES (?, ?)', (workbook_id, session_id))
             background.add_task(process_audit, database, audit_id, checker)
             return {'workbookId': workbook_id, 'versionId': version_id, 'auditId': audit_id, 'status': 'PROCESSING'}
         finally:
             await file.close()
 
     @app.get('/api/v1/workbooks/{workbook_id}/versions/{version_id}', response_model=WorkbookVersion)
-    def metadata(workbook_id: Identifier, version_id: Identifier, identity=Depends(user)):
+    def metadata(request: Request, workbook_id: Identifier, version_id: Identifier, identity=Depends(user)):
         with connect() as db:
-            row = version(db, workbook_id, version_id, identity)
+            row = version(db, workbook_id, version_id, identity, request.state.test_session_id)
             latest = db.execute('SELECT * FROM audits WHERE version_id=? ORDER BY started_at DESC, audit_id DESC LIMIT 1',
                                 (version_id,)).fetchone()
         return {'workbookId': workbook_id, 'versionId': version_id, 'fileName': row['filename'],
@@ -258,9 +290,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 'latestAuditId': latest['audit_id'] if latest else None, 'sourceVersionId': None}
 
     @app.get('/api/v1/workbooks/{workbook_id}/versions/{version_id}/audits/{audit_id}', response_model=Audit)
-    def audit(workbook_id: Identifier, version_id: Identifier, audit_id: Identifier, identity=Depends(user)):
+    def audit(request: Request, workbook_id: Identifier, version_id: Identifier, audit_id: Identifier, identity=Depends(user)):
         with connect() as db:
-            version(db, workbook_id, version_id, identity)
+            version(db, workbook_id, version_id, identity, request.state.test_session_id)
             row = db.execute('SELECT * FROM audits WHERE version_id=? AND audit_id=?', (version_id, audit_id)).fetchone()
         if row is None:
             raise ApiError(404, 'NOT_FOUND', 'Audit does not exist.')
@@ -276,10 +308,10 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 'error': error}
 
     @app.get('/api/v1/workbooks/{workbook_id}/versions/{version_id}/original')
-    def original(workbook_id: Identifier, version_id: Identifier, identity=Depends(user)):
+    def original(request: Request, workbook_id: Identifier, version_id: Identifier, identity=Depends(user)):
         from urllib.parse import quote
         with connect() as db:
-            row = version(db, workbook_id, version_id, identity)
+            row = version(db, workbook_id, version_id, identity, request.state.test_session_id)
         return Response(bytes(row['original']), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         headers={'Content-Disposition': "attachment; filename*=UTF-8''" + quote(row['filename'], safe='')})
     return app

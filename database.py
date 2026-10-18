@@ -75,6 +75,11 @@ class Database:
                 audit_id TEXT PRIMARY KEY, workbook_id TEXT NOT NULL REFERENCES versions(workbook_id),
                 status TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT,
                 findings TEXT NOT NULL DEFAULT '[]', limitations TEXT NOT NULL DEFAULT '[]', error TEXT)''')
+            db.execute('''CREATE TABLE IF NOT EXISTS test_sessions (
+                session_id TEXT PRIMARY KEY, owner TEXT NOT NULL, state TEXT NOT NULL)''')
+            db.execute('''CREATE TABLE IF NOT EXISTS test_workbooks (
+                workbook_id TEXT PRIMARY KEY REFERENCES versions(workbook_id),
+                session_id TEXT NOT NULL REFERENCES test_sessions(session_id))''')
             # Additive migration of the earlier validation-only database.
             if self.postgres:
                 columns = {row['column_name'] for row in db.execute(
