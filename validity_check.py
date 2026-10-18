@@ -254,6 +254,13 @@ def validate_file(filepath):
         return errors
 
     with archive:
+        names = [name.lower() for name in archive.namelist()]
+        content_types = archive.read('[Content_Types].xml').lower()
+        if (any('vbaproject' in name or name.startswith('xl/macrosheets/')
+                or name.startswith('xl/intlmacrosheets/') for name in names)
+                or any(marker in content_types for marker in
+                       (b'macroenabled', b'vbaproject', b'macrosheet'))):
+            errors.append('Macro-enabled workbooks are unsupported.')
         try:
             errors += check_protection(archive)
             errors += check_worksheet_count(archive)

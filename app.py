@@ -23,7 +23,7 @@ from accessibility_checker.runner import check_workbook
 
 ROOT = Path(__file__).parent
 MAX_UPLOAD = 25_000_000
-RULESET_VERSION = '1.0'
+RULESET_VERSION = '1.0.0'
 
 
 def utc_now():
@@ -45,19 +45,19 @@ def process_audit(database, audit_id, checker=None):
     else:
         try:
             data = bytes(version['original'])
-            # if checker is check_workbook:
-            #     limitations.append('Haruki\'s checks cover selected workbook features only; results do not establish full accessibility compliance.')
+            source_sha256 = hashlib.sha256(data).hexdigest()
             with tempfile.TemporaryDirectory(prefix='workbook-audit-') as directory:
                 path = Path(directory) / 'source.xlsx'
                 path.write_bytes(data)
                 results = checker(str(path))
                 if not isinstance(results, list):
                     raise ValueError('Accessibility checker must return a list of findings.')
+                limitations = list(getattr(results, 'limitations', []))
                 for raw in results:
                     item = Finding.model_validate(raw).model_dump()
-                    identity = [audit['workbook_id'], audit['ruleset_version'],
+                    identity = [source_sha256, audit['ruleset_version'],
                                 item['ruleId'], item['worksheet'], item['target']]
-                    item['findingId'] = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
+                    item['findingId'] = hashlib.sha256(json.dumps(identity, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
                     findings.append(item)
                 if path.read_bytes() != data:
                     raise ValueError('Checker modified its input.')
@@ -66,6 +66,7 @@ def process_audit(database, audit_id, checker=None):
         except Exception:
             logging.exception('Audit failed: %s', audit_id)
             findings = []
+            limitations = []
             error = {'code': 'AUDIT_FAILED', 'message': 'Accessibility audit could not be completed.',
                      'requestId': audit['request_id'], 'details': {}}
     with database.connect(write=True) as db:
@@ -199,6 +200,8 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @app.get('/api/v1/health', response_model=Health)
     def health():
+        if workbook_validator is None or checker is None:
+            raise ApiError(503, 'SERVICE_UNAVAILABLE', 'Processing dependencies are unavailable.')
         try:
             with connect() as db:
                 db.execute('SELECT 1').fetchone()
@@ -212,6 +215,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             filename = (file.filename or '').replace('\\', '/').rsplit('/', 1)[-1]
             if not 1 <= len(filename) <= 255:
                 raise ApiError(400, 'INVALID_FILENAME', 'File name must contain 1–255 characters.')
+            if filename.lower().endswith('.xlsm'):
+                raise ApiError(422, 'MACRO_ENABLED_WORKBOOK_UNSUPPORTED', 'Macro-enabled workbooks are unsupported.',
+                               {'valid': False, 'errors': ['Macro-enabled workbooks are unsupported.']})
             if not filename.lower().endswith('.xlsx'):
                 raise ApiError(415, 'UNSUPPORTED_FILE_TYPE', 'Only .xlsx workbooks are supported.')
             data = bytearray()

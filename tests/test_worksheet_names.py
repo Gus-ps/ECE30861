@@ -104,7 +104,7 @@ class WorksheetNameTests(unittest.TestCase):
                     [f["worksheet"] for f in check_worksheet_names(self.path)], [name]
                 )
 
-    def test_hidden_worksheets_included_chartsheet_excluded(self):
+    def test_hidden_worksheets_and_chartsheets_included(self):
         self.write_metadata(
             [
                 ("Sheet1", "hidden", "worksheet"),
@@ -114,7 +114,7 @@ class WorksheetNameTests(unittest.TestCase):
         )
         self.assertEqual(
             [f["worksheet"] for f in check_worksheet_names(self.path)],
-            ["Sheet1", "Sheet2"],
+            ["Sheet1", "Sheet2", "Sheet3"],
         )
 
     def test_req05_ac05_schema_repeatability_and_source_preservation(self):

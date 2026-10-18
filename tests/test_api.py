@@ -58,7 +58,7 @@ class ApiTests(unittest.TestCase):
 
     def test_health_auth_and_error_shape(self):
         self.assertEqual(self.client.get('/api/v1/health').json(),
-                         {'status': 'AVAILABLE', 'apiVersion': '1.0', 'rulesetVersion': '1.0'})
+                         {'status': 'AVAILABLE', 'apiVersion': '1.0', 'rulesetVersion': '1.0.0'})
         for headers in ({}, {'Authorization': 'Bearer wrong'}):
             response = self.client.post('/api/v1/workbooks', headers=headers, files={'file': ('a.xlsx', workbook())})
             self.assertEqual(response.status_code, 401)

@@ -9,28 +9,30 @@ from os import PathLike
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.finding_ids import get_source_sha256
+from accessibility_checker.results import Findings
 
 
 def check_workbook(path: str | PathLike[str]) -> list[dict[str, str]]:
     """Aggregate WORKSHEET_NAME and ALT_TEXT for a valid local .xlsx.
 
-    Compute the raw-file digest once. Exceptions propagate; no partial result
-    is returned on failure. Title/Table checks are retained but not called.
-    TODO: Confirm the contract's limitations transport before changing this
-    list return type. Unsupported cases currently stop with NotImplementedError.
+    Compute the digest once. Unsupported objects produce manual-review findings;
+    genuine execution failures propagate without a successful partial result.
+    Title/Table checks are retained but not called.
     """
     source_sha256 = get_source_sha256(path)
-    findings = []
+    findings = Findings()
     for checker in (
         check_worksheet_names,
         check_image_alt_text,
     ):
-        findings.extend(checker(path, source_sha256=source_sha256))
-    return sorted(
-        findings,
+        result = checker(path, source_sha256=source_sha256)
+        findings.extend(result)
+        findings.limitations.extend(getattr(result, 'limitations', []))
+    findings.sort(
         key=lambda finding: (
             finding["ruleId"],
             finding["worksheet"],
             finding["target"],
         ),
     )
+    return findings

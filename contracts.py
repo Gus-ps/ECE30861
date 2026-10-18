@@ -48,7 +48,7 @@ class WorkbookVersion(Contract):
 class Finding(Contract):
     findingId: Identifier
     ruleId: str = Field(min_length=1)
-    category: Literal['NON_TEXT_CONTENT', 'TABLE_STRUCTURE', 'MERGED_CELLS', 'WORKSHEET_NAME', 'LINK_TEXT', 'COLOR_OR_CONTRAST', 'WORKBOOK_TITLE']
+    category: Literal['NON_TEXT_CONTENT', 'TABLE_STRUCTURE', 'MERGED_CELLS', 'WORKSHEET_NAME', 'LINK_TEXT', 'COLOR_OR_CONTRAST']
     worksheet: str
     target: str
     classification: Literal['AUTOMATICALLY_REMEDIABLE', 'REQUIRES_USER_INPUT', 'MANUAL_REVIEW']
@@ -60,7 +60,7 @@ class Audit(Contract):
     auditId: Identifier
     workbookId: Identifier
     versionId: Identifier
-    rulesetVersion: str = Field(pattern=r'^\d+\.\d+(?:\.\d+)?$')
+    rulesetVersion: str = Field(pattern=r'^\d+\.\d+\.\d+$')
     status: AuditStatus
     startedAt: Timestamp
     completedAt: Timestamp | None = None

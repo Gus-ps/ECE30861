@@ -423,7 +423,7 @@ class ImageAltTextTests(unittest.TestCase):
             ["xl/drawings/drawing90.xml#id=1", "xl/drawings/drawing90.xml#id=2"],
         )
 
-    def test_missing_duplicate_ids_and_unsupported_objects_stop_processing(self):
+    def test_missing_duplicate_ids_and_unsupported_objects_require_review(self):
         for case in ("missing", "duplicate", "unknown", "background"):
             with self.subTest(case=case):
                 self.write_metadata([("Budget", None, [{}, {}])])
@@ -448,8 +448,11 @@ class ImageAltTextTests(unittest.TestCase):
                 )
                 self.rewrite_part(part, change)
                 before = self.path.read_bytes()
-                with self.assertRaises(NotImplementedError):
-                    check_image_alt_text(self.path)
+                findings = check_image_alt_text(self.path)
+                self.assertTrue(any(f['classification'] == 'MANUAL_REVIEW' for f in findings))
+                self.assertTrue(findings.limitations)
+                self.assertEqual(findings, check_image_alt_text(self.path))
+                self.assertGreaterEqual(len(findings), 2)
                 self.assertEqual(self.path.read_bytes(), before)
 
 
