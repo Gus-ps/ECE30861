@@ -77,6 +77,7 @@ trap - ERR
 echo "Update succeeded; existing token, database, HTTPS proxy, and instance preserved."
 '@
 $script = $script.Replace('__REGION__',$Region).Replace('__REGISTRY__',$registry).Replace('__IMAGE__',$image).Replace('__REVISION__',$revision.Substring(0,12))
+$script = $script.Replace("`r`n", "`n")
 $deployDirectory = Join-Path $projectRoot 'data/deploy'
 New-Item -ItemType Directory -Path $deployDirectory -Force | Out-Null
 $parametersPath = Join-Path $deployDirectory 'update-command.json'
