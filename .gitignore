@@ -5,3 +5,4 @@ __pycache__/
 *.db-wal
 .env
 .pytest_cache/
+scripts/rehearsal/work/

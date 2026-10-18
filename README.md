@@ -28,6 +28,33 @@ uv run uvicorn tester.main:create_app --factory --port 8001
 uv run pytest
 ```
 
+### Local rehearsal over real HTTP
+
+`scripts/rehearsal/` exercises the deployed shape on one machine: the tester and a
+rehearsal-only stand-in system (`stand_in_system.py`, never deployed) run as separate
+uvicorn processes on 127.0.0.1, and `rehearse.py` drives the instructor interface. No
+`.env` is needed; it supplies its own throwaway tokens and a fresh SQLite file.
+
+```sh
+uv run python scripts/rehearsal/rehearse.py
+```
+
+It needs free ports 8100–8102 (nothing may listen on 8199), takes about a minute, prints
+one PASS/FAIL line per check and exits 0 when all 29 pass. Logs and the happy-path report
+are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
+
+| Scenario | Checks |
+| --- | --- |
+| A. Happy path | 401/400 rejections, setup 201, system setup body and token, 409 before and after run, 53 valid results (2 pass, 51 skip), code coverage, stored report identical to the run body |
+| B. Setup failures | system error forwarded unchanged, invalid 5xx body, unreachable system, failed IDs sent as `cleanup_session_ids` |
+| C. Timeout | a stalled system report is cut off at 10 s as error/communication |
+| D. Base path | `--root-path /tester` works when the proxy strips `/tester`; an unstripped path is 404 |
+| E. Crash | tester killed mid-run; after restart the report is aborted with the interrupted case as error/tester |
+
+Deployment note from scenario D: the reverse proxy must strip `/tester` before
+forwarding (nginx: `location /tester/ { proxy_pass http://127.0.0.1:8001/; }`) and
+uvicorn runs with `--root-path /tester`.
+
 Only the session-interface checks (`P3-SESSION-DUPLICATE`, `P3-CODE-REPORT`)
 are implemented so far; every other case reports `skip` with
 "not implemented in this tester build" until its check is added.
