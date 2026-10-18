@@ -12,7 +12,7 @@ from accessibility_checker.finding_ids import get_source_sha256
 from accessibility_checker.results import Findings
 
 
-def check_workbook(path: str | PathLike[str]) -> list[dict[str, str]]:
+def check_workbook(path: str | PathLike[str]) -> Findings:
     """Aggregate WORKSHEET_NAME and ALT_TEXT for a valid local .xlsx.
 
     Compute the digest once. Unsupported objects produce manual-review findings;

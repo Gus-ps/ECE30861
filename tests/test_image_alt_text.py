@@ -40,6 +40,34 @@ class ImageAltTextTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.path = Path(directory.name) / "images.xlsx"
 
+    def test_background_only_without_drawing_relationships(self):
+        self.write_metadata([("Budget", None, None)])
+        self.rewrite_part("xl/worksheets/sheet17.xml", lambda root:
+            ET.SubElement(root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"}))
+        findings = check_image_alt_text(self.path)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["classification"], "MANUAL_REVIEW")
+        self.assertEqual(findings[0]["target"],
+                         "xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]")
+
+    def test_large_grid_streams_and_keeps_exact_image_formula_path(self):
+        self.write_metadata([("Budget", None, None)])
+        def add_grid(root):
+            data = root.find(f"{{{MAIN}}}sheetData")
+            for index in range(1, 10001):
+                row = ET.SubElement(data, f"{{{MAIN}}}row", {"r": str(index)})
+                cell = ET.SubElement(row, f"{{{MAIN}}}c", {"r": f"A{index}"})
+                ET.SubElement(cell, f"{{{MAIN}}}v").text = "1"
+                if index == 10000:
+                    ET.SubElement(cell, f"{{{MAIN}}}f").text = 'IMAGE("https://example.com/image.png")'
+        self.rewrite_part("xl/worksheets/sheet17.xml", add_grid)
+        from accessibility_checker.checks.image_alt_text import _sheet_objects
+        with ZipFile(self.path) as archive, archive.open("xl/worksheets/sheet17.xml") as stream:
+            self.assertEqual(len(_sheet_objects(stream)), 1)
+        findings = check_image_alt_text(self.path)
+        self.assertEqual(len(findings), 1)
+        self.assertTrue(findings[0]["target"].endswith("/row[10000]/c[1]"))
+
     def write_metadata(self, sheets):
         """Build only parts read by the checker, not an Excel-created sample.
 
@@ -452,8 +480,8 @@ class ImageAltTextTests(unittest.TestCase):
                 self.assertEqual(self.path.read_bytes(), before)
                 reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
                 expected_targets = {
-                    "missing": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]"],
-                    "duplicate": [f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]" for i in (1, 2)],
+                    "missing": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]/nvPicPr[1]/cNvPr[1]"],
+                    "duplicate": [f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]/nvPicPr[1]/cNvPr[1]" for i in (1, 2)],
                     "unknown": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/unknownObject[1]"],
                     "background": ["xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]"],
                 }

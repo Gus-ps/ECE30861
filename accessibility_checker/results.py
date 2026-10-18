@@ -1,7 +1,7 @@
 """List-compatible checker results with disclosures for manual-review locations."""
 
 
-class Findings(list):
+class Findings(list[dict[str, str]]):
     def __init__(self, values=(), limitations=()):
         super().__init__(values)
-        self.limitations = list(limitations)
+        self.limitations: list[str] = list(limitations)

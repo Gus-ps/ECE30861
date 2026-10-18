@@ -47,7 +47,7 @@ def _relationships(workbook: ZipFile, part: str) -> dict[str, ET.Element]:
 def _target(part: str, relationship: ET.Element) -> str:
     if relationship.get("TargetMode") == "External":
         raise NotImplementedError(
-            "External object relationships require the pending review/limitations contract."
+            "External object content is not fetched; manual review is required."
         )
     return posixpath.normpath(
         posixpath.join(posixpath.dirname(part), relationship.attrib["Target"])
@@ -61,7 +61,7 @@ def _properties(element: ET.Element, namespace: str) -> ET.Element:
     )
     if len(properties) != 1:
         raise NotImplementedError(
-            "Missing/ambiguous nonvisual properties require the pending #xml= contract."
+            "Missing or ambiguous nonvisual properties require manual review."
         )
     return properties[0]
 
@@ -76,12 +76,12 @@ def _is_decorative(properties: ET.Element) -> bool:
         return False
     if len(markers) != 1 or markers[0].tag != _DECORATIVE:
         raise NotImplementedError(
-            "Ambiguous decorative metadata requires the pending review/limitations contract."
+            "Ambiguous decorative metadata requires manual review."
         )
     value = markers[0].get("val")
     if value not in ("0", "1", "false", "true"):
         raise NotImplementedError(
-            "Unspecified decorative flag value requires contract confirmation."
+            "Unspecified decorative flag value requires manual review."
         )
     return value in ("1", "true")
 
@@ -90,12 +90,12 @@ def _check_chart_reference(workbook: ZipFile, part: str, element: ET.Element):
     data = element.findall("{*}graphic/{*}graphicData")
     if len(data) != 1 or len(data[0]) != 1 or data[0][0].tag not in _CHART_TAGS:
         raise NotImplementedError(
-            "Nonstandard graphicFrame requires the pending review/limitations contract."
+            "Nonstandard graphicFrame requires manual review."
         )
     relationship = _relationships(workbook, part)[_relationship_id(data[0][0])]
     if not relationship.attrib["Type"].endswith("/chart"):
         raise NotImplementedError(
-            "Ambiguous chart relationship requires contract confirmation."
+            "Ambiguous chart relationship requires manual review."
         )
     workbook.getinfo(_target(part, relationship))
 
@@ -116,7 +116,47 @@ def _xml_locations(root):
     return locations
 
 
-def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None = None) -> list[dict[str, str]]:
+
+def _sheet_objects(stream):
+    """Stream cells without retaining the grid or a path string for every cell."""
+    selected = {"legacyDrawing", "legacyDrawingHF", "picture", "control", "oleObject", "drawing"}
+    stack = []
+    objects = []
+    cell_depth = None
+    for event, element in ET.iterparse(stream, events=("start", "end")):
+        local = element.tag.rsplit("}", 1)[-1]
+        if event == "start":
+            if stack:
+                counts = stack[-1][2]
+                counts[local] += 1
+                location = f"{stack[-1][1]}/{local}[{counts[local]}]"
+            else:
+                location = f"/{local}[1]"
+            stack.append((element, location, Counter()))
+            if local == "c":
+                cell_depth = len(stack)
+            continue
+        location = stack[-1][1]
+        keep = local in selected
+        if local == "c":
+            keep = element.get("vm") is not None or any(
+                re.search(r"(?:^|[^A-Za-z0-9_])(?:_xlfn\.)?IMAGE\s*\(",
+                          formula.text or "", re.IGNORECASE | re.ASCII)
+                for formula in element.findall("{*}f"))
+            cell_depth = None
+        inside_cell = cell_depth is not None
+        stack.pop()
+        if keep:
+            objects.append((element, location))
+        if not inside_cell:
+            if stack:
+                stack[-1][0].remove(element)
+            if not keep:
+                element.clear()
+    return objects
+
+
+def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None = None) -> Findings:
     """Return all supported-object issues and manual reviews for uncertain objects.
 
     Structural/read failures propagate. Unsupported representations do not discard
@@ -162,8 +202,9 @@ def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None
                 review(worksheet, f"{workbook_part}#sheetId={sheet.attrib['sheetId']}", "External sheet content is not fetched.")
                 continue
             sheet_part = _target(workbook_part, relationship)
-            sheet_root = ET.fromstring(workbook.read(sheet_part))
-            sheet_locations = _xml_locations(sheet_root)
+            with workbook.open(sheet_part) as stream:
+                sheet_objects = _sheet_objects(stream)
+            sheet_locations = dict(sheet_objects)
             sheet_rels = None
 
             def get_sheet_rels():
@@ -172,11 +213,14 @@ def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None
                     sheet_rels = _relationships(workbook, sheet_part)
                 return sheet_rels
 
-            for element in sheet_root.iter():
+            for element, _ in sheet_objects:
                 kind = element.tag.rsplit("}", 1)[-1]
                 if kind in ("legacyDrawing", "legacyDrawingHF", "picture", "control", "oleObject"):
                     fallback = f"{sheet_part}#xml={sheet_locations[element]}"
                     identifiers = [value for key, value in element.attrib.items() if key.endswith("}id")]
+                    if kind == "picture":
+                        review(worksheet, fallback, "Worksheet background picture requires manual accessibility review.")
+                        continue
                     rel = get_sheet_rels().get(identifiers[0]) if identifiers else None
                     if rel is not None and rel.get("TargetMode") != "External":
                         part = _target(sheet_part, rel)
@@ -197,7 +241,9 @@ def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None
                     if element.get("vm") is not None or has_image_formula:
                         review(worksheet, f"{sheet_part}#xml={sheet_locations[element]}", "Cell-image or IMAGE-formula representation requires manual review.")
 
-            for drawing in sheet_root.findall("{*}drawing"):
+            for drawing, _ in sheet_objects:
+                if drawing.tag.rsplit("}", 1)[-1] != "drawing":
+                    continue
                 relationship = get_sheet_rels()[_relationship_id(drawing)]
                 drawing_target = f"{sheet_part}#xml={sheet_locations[drawing]}"
                 if relationship.get("TargetMode") == "External" or not relationship.attrib["Type"].endswith("/drawing"):
@@ -223,7 +269,7 @@ def check_image_alt_text(path: str | PathLike[str], *, source_sha256: str | None
                         properties = _properties(element, namespace)
                         identifier = properties.get("id")
                         if not identifier or identifiers[identifier] != 1:
-                            review(worksheet, fallback, "Missing or duplicate drawing ID; indexed XML location used.")
+                            review(worksheet, f"{part}#xml={locations[properties]}", "Missing or duplicate drawing ID; indexed XML location used.")
                             if kind == "grpSp":
                                 inspect_children(element, {"nvGrpSpPr", "grpSpPr"})
                             return
