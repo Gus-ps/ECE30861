@@ -9,8 +9,8 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from accessibility_checker.finding_ids import make_finding_id
 from accessibility_checker.checks.workbook_title import check_workbook_title
+from accessibility_checker.finding_ids import make_finding_id
 
 
 class WorkbookTitleTests(unittest.TestCase):
@@ -26,12 +26,20 @@ class WorkbookTitleTests(unittest.TestCase):
             "{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}coreProperties"
         )
         if title is not None:
-            ET.SubElement(properties, "{http://purl.org/dc/elements/1.1/}title").text = title
+            ET.SubElement(
+                properties, "{http://purl.org/dc/elements/1.1/}title"
+            ).text = title
         relationships = ET.Element(f"{{{pkg}}}Relationships")
         if core:
-            ET.SubElement(relationships, f"{{{pkg}}}Relationship", {
-                "Id": "rId2", "Type": f"{pkg}/metadata/core-properties", "Target": part,
-            })
+            ET.SubElement(
+                relationships,
+                f"{{{pkg}}}Relationship",
+                {
+                    "Id": "rId2",
+                    "Type": f"{pkg}/metadata/core-properties",
+                    "Target": part,
+                },
+            )
         with ZipFile(self.path, "w") as archive:
             archive.writestr("_rels/.rels", ET.tostring(relationships))
             if core:
@@ -67,20 +75,34 @@ class WorkbookTitleTests(unittest.TestCase):
 
     def test_req05_ac05_finding_shape_and_temporary_values(self):
         self.write_metadata()
-        finding, = check_workbook_title(self.path)
-        self.assertEqual(set(finding), {
-            "findingId", "ruleId", "category", "worksheet", "target",
-            "classification", "message", "recommendation",
-        })
+        (finding,) = check_workbook_title(self.path)
+        self.assertEqual(
+            set(finding),
+            {
+                "findingId",
+                "ruleId",
+                "category",
+                "worksheet",
+                "target",
+                "classification",
+                "message",
+                "recommendation",
+            },
+        )
         self.assertTrue(all(isinstance(value, str) for value in finding.values()))
         self.assertEqual(finding["ruleId"], "WORKBOOK_TITLE")
         self.assertEqual(finding["category"], "WORKBOOK_TITLE")
         self.assertEqual(finding["worksheet"], "__WORKBOOK__")
         self.assertEqual(finding["target"], "__WORKBOOK__")
         self.assertEqual(finding["classification"], "REQUIRES_USER_INPUT")
-        self.assertEqual(finding["findingId"], make_finding_id(
-            "WORKBOOK_TITLE", "__WORKBOOK__", "__WORKBOOK__",
-        ))
+        self.assertEqual(
+            finding["findingId"],
+            make_finding_id(
+                "WORKBOOK_TITLE",
+                "__WORKBOOK__",
+                "__WORKBOOK__",
+            ),
+        )
         self.assertRegex(finding["findingId"], r"\A[A-Za-z0-9_-]{1,64}\Z")
         for field in ("message", "recommendation"):
             self.assertTrue(1 <= len(finding[field]) <= 500)

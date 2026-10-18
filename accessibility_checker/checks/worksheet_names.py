@@ -1,65 +1,76 @@
-"""WCAG 2.1 2.4.2 Page Titled: prototype worksheet-name heuristics only.
+"""WCAG 2.1 2.4.2 Page Titled: Section 5 Phase 3 worksheet-name rule only.
 
-Related: 2.4.6 Headings and Labels reuses sheet-name results in the mapping guide.
-Does not assess either full criterion; not a team/pod-approved common rule.
+Related: 2.4.6 Headings and Labels. This does not assess full criterion coverage.
 """
 
+import posixpath
 import re
 from os import PathLike
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from accessibility_checker.finding_ids import make_finding_id
+from accessibility_checker.finding_ids import get_source_sha256, make_phase3_finding_id
+from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 
-# TODO: Replace this temporary rule ID with the approved shared catalog ID.
 _RULE_ID = "WORKSHEET_NAME"
 
 
-def check_worksheet_names(path: str | PathLike[str]) -> list[dict[str, str]]:
-    """Return findings for visible worksheet names, sorted by rule/sheet/target.
+def check_worksheet_names(
+    path: str | PathLike[str], *, source_sha256: str | None = None
+) -> list[dict[str, str]]:
+    """Inspect all worksheets, including hidden/veryHidden, but not chartsheets.
 
-    Numeric names may be meaningful; request review rather than declaring them
-    inappropriate. Rule and finding IDs are temporary (see accessibility_checker/finding_ids.py).
-    Assume a valid, readable .xlsx. Never save it or assess content accessibility.
+    The optional digest is supplied by the runner to avoid repeated hashing.
+    Direct callers may omit it. Never normalize or change the original name.
     """
+    if source_sha256 is None:
+        source_sha256 = get_source_sha256(path)
     with ZipFile(path, "r") as workbook:
         root = ET.fromstring(workbook.read("xl/workbook.xml"))
         relationships = ET.fromstring(workbook.read("xl/_rels/workbook.xml.rels"))
-
-    worksheet_ids = {
-        rel.attrib["Id"]
-        for rel in relationships
-        if rel.attrib["Type"].endswith("/worksheet")
-    }
-    results = []
-    for sheet in root.findall("{*}sheets/{*}sheet"):
-        if sheet.get("state", "visible") != "visible":
-            continue
-        relationship_id = next(
-            value for key, value in sheet.attrib.items() if key.endswith("}id")
-        )
-        if relationship_id not in worksheet_ids:
-            continue
-        name = sheet.attrib["name"]
-        normalized = "".join(name.split()).lower()
-        if re.fullmatch(r"sheet[0-9]*", normalized):
-            message = "Worksheet name resembles a default name."
-        elif re.fullmatch(r"[0-9]+", normalized):
-            message = "Worksheet name contains only digits; confirm whether it is descriptive."
-        else:
-            continue
-        results.append(
-            {
-                "findingId": make_finding_id(_RULE_ID, name, name),
-                "ruleId": _RULE_ID,
-                "category": "WORKSHEET_NAME",
-                "worksheet": name,
-                "target": name,
-                "classification": "REQUIRES_USER_INPUT",
-                "message": message,
-                "recommendation": "Confirm the worksheet's meaning and provide a descriptive name if needed.",
-            }
-        )
+        worksheets = {
+            rel.attrib["Id"]: rel
+            for rel in relationships
+            if rel.attrib["Type"].endswith("/worksheet")
+        }
+        results = []
+        for sheet in root.findall("{*}sheets/{*}sheet"):
+            relationship_id = next(
+                value for key, value in sheet.attrib.items() if key.endswith("}id")
+            )
+            relationship = worksheets.get(relationship_id)
+            if relationship is None:
+                continue
+            name = sheet.attrib["name"]
+            match = re.fullmatch(
+                r"sheet([0-9]+)",
+                name.strip(UNICODE_WHITE_SPACE),
+                flags=re.IGNORECASE | re.ASCII,
+            )
+            if match is None or not match.group(1).lstrip("0"):
+                continue
+            if relationship.get("TargetMode") == "External":
+                raise NotImplementedError(
+                    "External worksheet relationship needs contract confirmation."
+                )
+            part = posixpath.normpath(
+                posixpath.join("xl", relationship.attrib["Target"])
+            ).lstrip("/")
+            target = f"{part}#sheetId={sheet.attrib['sheetId']}"
+            results.append(
+                {
+                    "findingId": make_phase3_finding_id(
+                        source_sha256, _RULE_ID, name, target
+                    ),
+                    "ruleId": _RULE_ID,
+                    "category": "WORKSHEET_NAME",
+                    "worksheet": name,
+                    "target": target,
+                    "classification": "REQUIRES_USER_INPUT",
+                    "message": "Worksheet name is a default Sheet name with a positive numeric suffix.",
+                    "recommendation": "Provide a descriptive worksheet name based on its purpose.",
+                }
+            )
     return sorted(
         results,
         key=lambda finding: (
