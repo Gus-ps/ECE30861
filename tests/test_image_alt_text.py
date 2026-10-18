@@ -423,7 +423,7 @@ class ImageAltTextTests(unittest.TestCase):
             ["xl/drawings/drawing90.xml#id=1", "xl/drawings/drawing90.xml#id=2"],
         )
 
-    def test_missing_duplicate_ids_and_unsupported_objects_stop_processing(self):
+    def test_missing_duplicate_ids_and_unsupported_objects_produce_reviews(self):
         for case in ("missing", "duplicate", "unknown", "background"):
             with self.subTest(case=case):
                 self.write_metadata([("Budget", None, [{}, {}])])
@@ -448,8 +448,81 @@ class ImageAltTextTests(unittest.TestCase):
                 )
                 self.rewrite_part(part, change)
                 before = self.path.read_bytes()
-                with self.assertRaises(NotImplementedError):
-                    check_image_alt_text(self.path)
+                findings = check_image_alt_text(self.path)
+                self.assertEqual(self.path.read_bytes(), before)
+                reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
+                expected_targets = {
+                    "missing": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]"],
+                    "duplicate": [f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]" for i in (1, 2)],
+                    "unknown": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/unknownObject[1]"],
+                    "background": ["xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]"],
+                }
+                self.assertEqual([f["target"] for f in reviews], expected_targets[case])
+                self.assertEqual(len(findings.limitations), len(reviews))
+                for item, limitation in zip(reviews, findings.limitations):
+                    self.assertIn(item["target"], limitation)
+                    self.assertIn("Budget", limitation)
+                # Other assessable objects retain their findings instead of being lost.
+                self.assertEqual(len(findings), 2 if case in ("missing", "duplicate") else 3)
+                self.assertEqual(findings, check_image_alt_text(self.path))
+                self.assertEqual(findings.limitations, check_image_alt_text(self.path).limitations)
+
+    def test_chartsheet_drawing_is_inspected(self):
+        self.write_metadata([("Chart", "hidden", [{}])])
+        def chartsheet_relationship(root):
+            root[0].set("Type", f"{DOC}/chartsheet")
+        self.rewrite_part("xl/_rels/workbook.xml.rels", chartsheet_relationship)
+        findings = check_image_alt_text(self.path)
+        self.assertEqual([(f["worksheet"], f["target"]) for f in findings],
+                         [("Chart", "xl/drawings/drawing90.xml#id=1")])
+
+    def test_execution_failure_still_propagates(self):
+        self.write_metadata([("Budget", None, [{}])])
+        self.rewrite_part("xl/worksheets/sheet17.xml",
+                          lambda root: root.find(f"{{{MAIN}}}drawing").set(f"{{{DOC}}}id", "missing"))
+        before = self.path.read_bytes()
+        with self.assertRaises(KeyError):
+            check_image_alt_text(self.path)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_wrapped_external_and_decorative_group_reviews(self):
+        for case in ("wrapper", "external", "decorative_group"):
+            with self.subTest(case=case):
+                self.write_metadata([("Budget", None, [{}])])
+                def change(root):
+                    anchor = root[0]
+                    if case == "wrapper":
+                        anchor.tag = "{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent"
+                    elif case == "external":
+                        blip = ET.SubElement(anchor[0], f"{{{DRAW}}}blip")
+                        blip.set(f"{{{DOC}}}link", "externalImage")
+                    else:
+                        child = anchor[0]
+                        anchor.remove(child)
+                        group = ET.SubElement(anchor, f"{{{XDR}}}grpSp")
+                        nv = ET.SubElement(group, f"{{{XDR}}}nvGrpSpPr")
+                        props = ET.SubElement(nv, f"{{{XDR}}}cNvPr", {"id": "99"})
+                        ext = ET.SubElement(ET.SubElement(props, f"{{{DRAW}}}extLst"), f"{{{DRAW}}}ext")
+                        ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": "true"})
+                        group.append(child)
+                self.rewrite_part("xl/drawings/drawing90.xml", change)
+                if case == "external":
+                    rels = relationships([("externalImage", "image", "https://example.invalid/picture.png")])
+                    rels[0].set("TargetMode", "External")
+                    with ZipFile(self.path, "a") as archive:
+                        archive.writestr("xl/drawings/_rels/drawing90.xml.rels", ET.tostring(rels))
+                before = self.path.read_bytes()
+                findings = check_image_alt_text(self.path)
+                reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
+                self.assertEqual(len(reviews), 1)
+                self.assertEqual(len(findings.limitations), 1)
+                expected = {
+                    "wrapper": "xl/drawings/drawing90.xml#xml=/wsDr[1]/AlternateContent[1]",
+                    "external": "xl/drawings/drawing90.xml#id=1",
+                    "decorative_group": "xl/drawings/drawing90.xml#id=99",
+                }
+                self.assertEqual(reviews[0]["target"], expected[case])
+                self.assertEqual(len(findings), 2 if case == "decorative_group" else 1)
                 self.assertEqual(self.path.read_bytes(), before)
 
 

@@ -5,7 +5,9 @@ and developer-only approval remain unchanged.
 
 **Current Phase 3 work:** AE-007 supersedes the active rule scope, IDs, and runner
 described in AE-001/002/003/006. Earlier verification results are historical,
-not verification of the Phase 3 changes. AE-004/005 remain inactive legacy checks.
+not verification of the Phase 3 changes. AE-008 supersedes AE-007
+for chartsheets, unsupported reviews, XML locations, and result disclosures.
+AE-004/005 remain inactive legacy checks.
 
 ## AE-001 — Prototype worksheet-name heuristics (2026-10-16)
 
@@ -237,3 +239,40 @@ not verification of the Phase 3 changes. AE-004/005 remain inactive legacy check
   is independently checked at policy level. Real-Excel output, escaped-string
   handling, exhaustive unsupported detection, and final pending-contract
   behavior remain unverified. Passing tests does not resolve the above decisions.
+
+
+## AE-008 — Imported review results and chartsheets (2026-10-18)
+
+- **Source/scope:** Developer requested the exact four checker/result/runner
+  files from Gustavo commit `bda038354c4ec1d65178edc44b0a1d1d13ca4e5b`, then
+  authorized related documentation/tests and push after verification. Criteria:
+  `1.1.1 Non-text Content`, `2.4.2 Page Titled` (related `2.4.6`). The shared
+  suite guide Section 5 requires unsupported-object reviews and limitations,
+  but does not establish the detailed forms below or chartsheet inclusion.
+- **Imported behavior:** Include chartsheets and hidden tabs. Recognized
+  unsupported/ambiguous objects return MANUAL_REVIEW plus a string limitation,
+  preserving other findings instead of stopping. Missing/duplicate IDs use
+  one-based XML paths counted by sibling local name, ignoring namespaces.
+  Decorative groups receive a review and children remain independently checked.
+  External content is not fetched. Rich-data/cell-image parts use workbook
+  reviews with `__WORKBOOK__` and `<part>#xml=/`; the sentinel can collide with
+  an actual sheet name. Existing ordinary-object predicates/identity remain.
+- **Result/rationale:** `results.Findings` is list-compatible with a separate
+  `limitations` list; runner combines these disclosures and sorts findings.
+  This carries imported review evidence without discarding supported findings.
+  Plain list/JSON serialization loses the attribute; consumers must explicitly
+  transport it. Actual execution failures still propagate. No HTTP changes.
+- **Approval/confirmation:** Import and dependent updates are developer-authorized,
+  not evidence of team/pod approval. Confirm exact review values, limitation
+  schema/transport, #xml= conventions, chartsheet scope, group policy, and
+  workbook sentinel/targets against the actual Phase 3 contract. These replace
+  the prior temporary NotImplementedError behavior, not the need for confirmation.
+- **Implementation/verification:** The four imported files remain byte-identical
+  to the specified commit. Updated name/image/runner tests and added
+  `tests/test_results.py`; shared notes and private Japanese notes updated.
+  All 46 tests pass via `.venv/bin/python -m unittest discover -s tests -q`.
+  Synthetic fixtures cover chartsheets, exact fallback targets, limitations,
+  retained findings, wrappers/external references/decorative groups, container
+  behavior, repeatability, and unchanged bytes. No new real-Excel/HTTP run;
+  exhaustive unsupported coverage, VML/rich-data variants, and Excel escaped
+  strings remain unverified. Passing tests is not shared-contract approval.

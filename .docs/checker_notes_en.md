@@ -1,181 +1,144 @@
-# Accessibility Checker Notes — Phase 3 Work in Progress
+# Accessibility Checker Notes — Phase 3
 
-## Authority and current status
+## Implementation basis and limits
 
-The developer adopted Section 5 of
-[the shared suite guide](team12-shared-test-suite-guide.md) for this increment:
-suite manifest **1.4.0**, ruleset **1.0.0**, Team 9 profile **1.0.0**, source
-revision `66d588c`. This is not confirmation of wider team/pod agreement.
+The current local implementation incorporates four files from Gustavo commit
+`bda038354c4ec1d65178edc44b0a1d1d13ca4e5b`, at the developer's request.
+[The shared suite guide](team12-shared-test-suite-guide.md), Section 5
+(manifest 1.4.0, ruleset/profile 1.0.0, source revision `66d588c`), remains a
+reference. Importing code does not establish team/pod approval or full contract
+conformance. Chartsheet inclusion and the exact review/limitations/location
+representations below describe the imported implementation; independent
+confirmation against the referenced Phase 3 contract remains pending.
 
-Only the determined subset has been implemented. Full Section 5 conformance is
-**not claimed**: the referenced contract/profile and schema are not available.
-Unsupported cases currently stop with `NotImplementedError`; they do not yet
-produce the guide's required review finding and limitation.
+## Usage and returned results
 
-## Usage and runner
-
-Use Python 3.10+ from the repository root; only the standard library is needed.
-Input is an already validated, readable local `.xlsx`. Files are never saved.
+Use Python 3.10+ and the standard library. Input is an already validated,
+readable local `.xlsx`; the original file is never modified or saved.
 
 ```python
 from accessibility_checker.runner import check_workbook
 
 findings = check_workbook("/path/to/workbook.xlsx")
+for finding in findings:
+    print(finding)
+print(findings.limitations)
 ```
 
-The Phase 3 runner explicitly calls `check_worksheet_names`, then
-`check_image_alt_text`. It computes the source SHA-256 once and passes that
-value to both functions. Each still reads the workbook independently. Findings
-are combined and sorted by `(ruleId, worksheet, target)` in Unicode code-point
-order. Exceptions propagate; no successful partial result is returned.
+The runner explicitly calls worksheet names, then ALT_TEXT, computing the
+source SHA-256 once. Each checker still opens the workbook independently.
+Results are sorted by `(ruleId, worksheet, target)` in Unicode code-point order.
+Actual read/XML/relationship failures propagate without a successful partial
+result. Recognized unsupported representations instead produce manual reviews.
 
-The current return type remains `list[dict[str, str]]` with eight fields:
-`findingId`, `ruleId`, `category`, `worksheet`, `target`, `classification`,
-`message`, `recommendation`. No limitations container is invented. This return
-shape needs confirmation before the required limitations can be transported.
-An empty list means no findings in the handled subset, not an overall PASS.
+`check_workbook` and `check_image_alt_text` return `accessibility_checker.results.Findings`,
+a `list` subclass with a separate `limitations: list[str]` attribute.
+`check_worksheet_names` returns an ordinary list. All findings retain eight
+string fields: `findingId`, `ruleId`, `category`, `worksheet`, `target`,
+`classification`, `message`, `recommendation`. Current limitation strings use
+`<worksheet>: <target>: <reason>`. This is a local representation, not proof of
+an approved shared schema.
 
-Direct calls are also available. They hash the file themselves when the runner
-has not supplied the optional keyword-only `source_sha256` context:
+**Serialization:** `json.dumps(findings)` serializes only list entries.
+Consumers must explicitly transfer `findings.limitations` to their report or
+HTTP response; copying/sorting as an ordinary list also loses that attribute.
+HTTP integration is outside this change. No findings is not an overall PASS.
+
+Direct imports remain available:
 
 ```python
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
-
-names = check_worksheet_names("/path/to/workbook.xlsx")
-objects = check_image_alt_text("/path/to/workbook.xlsx")
 ```
+
+Direct calls compute their own digest unless `source_sha256` is provided.
 
 ## WORKSHEET_NAME — 2.4.2 Page Titled
 
-Related reference: `2.4.6 Headings and Labels`.
+Related criterion: **2.4.6 Headings and Labels**. Both worksheets and chartsheet
+tabs, including hidden/veryHidden, are inspected in the imported code.
 
-- Inspect all worksheets, including hidden/veryHidden. Exclude chartsheets.
-- Trim only leading/trailing characters in the exact White_Space list below.
-  Do not remove internal whitespace or normalize Unicode.
-- Fully match case-insensitive **ASCII** `Sheet` plus one or more ASCII digits,
-  with numeric value greater than zero. Leading zeroes are allowed.
+- Trim leading/trailing characters in the exact White_Space set below only.
+- Fully match case-insensitive ASCII `Sheet` plus ASCII digits representing a
+  positive number. Preserve original spelling; do not remove internal spaces.
 - `Sheet1`, `sheet2`, `Sheet01`, and whitespace-surrounded `Sheet3` trigger.
-  `Sheet0`, `Sheet000`, `Sheet`, `Sheet 1`, numeric-only names, and non-ASCII
-  letter/digit substitutes do not.
-- Preserve the original name in `worksheet` and in finding-ID input.
+  `Sheet0`, `Sheet`, `Sheet 1`, numeric-only names, and non-ASCII substitutes do not.
 - Rule/category: `WORKSHEET_NAME`; classification: `REQUIRES_USER_INPUT`.
-- Target: actual worksheet part plus `#sheetId=<stored-sheetId>`, resolved from
-  the workbook relationship, not guessed from part numbers.
-- No name generation, renaming, or evaluation of meaning/content relevance.
+- Target: actual relationship-resolved sheet part plus `#sheetId=<stored-id>`.
+
+No name generation, renaming, or meaning/content evaluation occurs. External
+sheet relationships are not fetched; the name checker uses their stored target
+for location construction, which still requires contract confirmation.
 
 ## ALT_TEXT — 1.1.1 Non-text Content
 
-The determined implementation handles standard DrawingML pictures, shapes,
-connection shapes, chart graphicFrames, and recursively grouped children on all
-worksheets, including hidden/veryHidden. Group containers are traversed; their
-children are assessed individually. Chartsheets are excluded.
+Standard DrawingML pictures, shapes, connectors, chart graphicFrames, and grouped
+children on worksheets and chartsheets are inspected, including hidden tabs.
+Accessibility `cNvPr/@title` and `@descr` are both required for non-decorative
+objects. Either/both missing, empty, or White_Space-only produces one
+`REQUIRES_USER_INPUT` finding identifying the missing fields. Visible chart
+titles, captions, object names, and filenames do not substitute. Existing text
+quality is not evaluated; no text is generated or written.
 
-Read accessibility `title` and `descr` from each object's nonvisual `cNvPr`.
-Visible chart titles, captions, object names, and filenames do not substitute.
-For a non-decorative object, either field absent/empty/White_Space-only yields
-**one** finding, even when both fields are missing. The message explicitly
-identifies `title` and/or `description (descr)`. Classification is
-`REQUIRES_USER_INPUT`.
+A native `adec:decorative` marker with `val="1"` or `"true"` produces one
+`MANUAL_REVIEW` finding, even with complete text. `0`/`false` is not decorative.
+Decorative groups receive a review and limitation; children are still checked
+individually, without inheriting the designation. Rule/category:
+`ALT_TEXT` / `NON_TEXT_CONTENT`.
 
-A native `adec:decorative` flag with `val="1"` or `"true"` yields one
-`MANUAL_REVIEW` finding asking to confirm the decorative designation, even if
-both text attributes are present. Explicit `0`/`false` is not decorative.
-Rule/category: `ALT_TEXT` / `NON_TEXT_CONTENT`.
+Relationship-resolved targets use actual parts plus `#id=<stored-object-id>`.
+Missing/duplicate IDs receive review findings with `#xml=` locations, rather
+than invented IDs. Paths start at `/root[1]` and use one-based counts of siblings
+with the same local name, ignoring namespaces, for example:
+`xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]`.
+These exact path conventions still need shared-contract confirmation.
 
-Targets are actual drawing part paths plus `#id=<stored-object-id>`.
-Worksheet/drawing/chart relationships are followed rather than matched by
-filename numbering. IDs must be available and unambiguous in the handled
-representation. No descriptions are generated or written; no semantic quality
-or visible text is evaluated.
+Recognized unsupported/ambiguous objects receive `MANUAL_REVIEW` and a separate
+limitation while other findings are retained: unknown objects/anchors,
+compatibility wrappers, ambiguous nonvisual/decorative metadata, nonstandard
+chart frames, external object references, VML/background/control/embedded
+objects, and potential cell-image/IMAGE-formula representations. Wrapper content
+is disclosed rather than automatically selected. VML shapes are located
+individually where available. External content is never fetched.
 
-### Unresolved/unsupported cases
+Rich-data/cell-image package parts receive workbook-level reviews using
+`worksheet="__WORKBOOK__"` and `<part>#xml=/`; that sentinel can collide with a
+real sheet name. Rich-data/value metadata and IMAGE-formula detection are
+conservative, not proof of an image. Coverage of every representation is not
+guaranteed; unsupported content is not certified as passed.
 
-**TODO — obtain the contract before implementing these cases:**
+## Whitespace, identity, and inactive checkers
 
-1. Exact review-finding values for unsupported/ambiguous representations.
-2. `limitations` element fields/types and how the runner returns them alongside
-   findings; the guide only specifies that limitations is an array.
-3. Exact indexed `#xml=` grammar for missing/duplicate object IDs: namespaces,
-   index base, sibling-counting rules, and duplicate-ID handling.
-4. Group-level decorative designation/inheritance and treatment of unsupported
-   DrawingML, VML, compatibility wrappers, controls, cell images, and other
-   representations.
+`phase3_policy.py` explicitly defines Unicode White_Space: U+0009–000D, 0020,
+0085, 00A0, 1680, 2000–200A, 2028, 2029, 202F, 205F, 3000. U+200B and
+U+001C–001F are excluded. No argument-free `strip()` substitution is used.
 
-Currently, recognized ambiguity stops processing instead of being silently
-ignored: missing/duplicate object IDs, unexpected anchors/object namespaces,
-nonstandard graphicFrames, AlternateContent, and ambiguous decorative metadata.
-Group-level decoration also stops because inheritance is undefined.
-Conservative stops also cover legacy/background/control objects, value metadata,
-rich-data/cell-image package parts, and potential IMAGE formulas. Some may be
-unrelated to a covered image; that uncertainty is deliberately not resolved by
-inventing a review schema. Detection of every possible unsupported representation
-is not verified. These stops are **not** final contract-compliant reporting.
+Shared identity utilities hash original source bytes and then compact UTF-8 JSON:
+`[sourceSha256,"1.0.0",ruleId,originalWorksheetName,target]`, with
+`ensure_ascii=False`, `separators=(",", ":")`. The resulting ID is lowercase
+SHA-256, with no Unicode normalization, BOM, newline, randomness, or timestamp.
+Stable wording is preserved for repeated input.
 
-## Exact whitespace and identity
+Workbook Title (**2.4.2**) and table headers (**1.3.1 Info and Relationships**)
+remain callable but inactive in the Phase 3 runner. Their behavior and legacy
+three-argument ID helper are unchanged.
 
-`accessibility_checker/phase3_policy.py` defines the guide's Unicode White_Space
-set explicitly: U+0009–000D, 0020, 0085, 00A0, 1680, 2000–200A, 2028, 2029,
-202F, 205F, 3000. U+200B is not whitespace. No-argument `strip()`/`isspace()`
-are not used as substitutes for this set.
+## Verification and remaining confirmations
 
-`accessibility_checker/finding_ids.py` provides shared `get_source_sha256` and
-`make_phase3_finding_id` utilities. `sourceSha256` is lowercase SHA-256 of the
-original file bytes. The finding digest is lowercase SHA-256 of UTF-8 JSON:
+On 2026-10-18, `.venv/bin/python -m unittest discover -s tests -q` passed
+**46 tests**. Updated tests cover chartsheet inclusion, exact XML locations,
+review-plus-limitation results, preservation of other findings, grouped children,
+decorative groups, external references, wrappers, runner propagation, list
+serialization, isolation of limitation lists, stable IDs, and unchanged bytes.
+The existing Title/table tests also pass.
 
-```text
-[sourceSha256, "1.0.0", ruleId, originalWorksheetName, target]
-```
+Fixtures are synthetic ZIP/XML metadata, not complete Excel-created workbooks.
+No new real-Excel or shared HTTP suite verification was performed. XML 1.0
+prohibits some listed control characters; their policy-set membership is tested,
+but Excel escaped-string handling remains unverified. VML, rich-data, and all
+unsupported variants are not exhaustively tested.
 
-JSON uses `ensure_ascii=False`, `separators=(",", ":")`, with no normalization,
-BOM, newline, random value, or timestamp. Messages and recommendations use
-stable wording. Runner and checkers do not independently rehash the same input
-when called through the runner.
-
-## Retained inactive checkers
-
-`checks/workbook_title.py` (`2.4.2 Page Titled`) and `checks/table_headers.py`
-(`1.3.1 Info and Relationships`) remain available but are not run in Phase 3.
-Their detection and legacy ID policy are unchanged. The old three-argument
-`make_finding_id` is retained only for these callers; it lacks workbook/ruleset
-identity. Do not treat those legacy values as the Phase 3 identity format.
-
-## Verification and remaining handoff
-
-After the initial no-test increment, the developer authorized focused tests.
-On 2026-10-17, `.venv/bin/python -m unittest discover -s tests -v` passed all
-**40 tests** (4 identity, 11 ALT_TEXT, 5 runner, 4 worksheet-name, 8 Title,
-8 table-header tests). Fixtures are synthetic ZIP/XML metadata, not complete
-Excel-created workbooks; real-Excel serialization remains unverified.
-
-Tests cover the Phase 3 predicates, hidden sheets, pictures/shapes/charts,
-group children, decorative review, original targets/names, stable eight-field
-findings, literal compact-JSON identity, one source hash per runner call,
-sorting, source preservation, and exception propagation. Missing/duplicate IDs,
-unknown objects, and backgrounds confirm temporary failure behavior only,
-not final contract-compliant review/limitations reporting.
-
-The whitespace policy is checked against all 25 listed code points and excludes
-U+001C–001F and U+200B. XML fixtures omit U+000B/U+000C and U+001C–001F because
-XML 1.0 cannot contain those literal characters; policy checks are not proof of
-Excel's escaped-string serialization handling.
-
-The verification owner should independently check:
-
-- All listed White_Space characters versus U+200B and U+001C–001F; prefix/suffix
-  trimming only, internal spaces, ASCII-only case/digits, positive/zero suffixes.
-- Hidden/veryHidden worksheets and chartsheet exclusion; renamed/absolute and
-  relative worksheet/drawing parts; original spelling and sheetId targets.
-- Pictures, charts, shapes, nested groups; title-only, description-only, neither,
-  blank fields, U+200B content; visible captions/names not used as replacements.
-- Native decorative true/false, one review per object, and stable prose.
-- Missing/duplicate IDs, group decoration, wrappers, legacy/cell-image formats,
-  and every conservative stop: errors must not return a successful partial list.
-- Independently calculated source/digest bytes and compact JSON, non-ASCII and
-  canonically distinct Unicode names, repeatability, changed source bytes, and
-  global code-point sorting. Runner must execute only the two Phase 3 rules.
-- Original bytes remain unchanged on successful and failed processing; inactive
-  checkers remain callable with their previous behavior.
-
-See `AE-007` in [the assumptions log](assumptions_and_extensions.md) for the
-confirmed developer scope and outstanding contract questions.
+Still confirm against the actual shared contract: chartsheet scope; exact
+`#xml=` namespace/index rules; unsupported review values and limitation schema;
+workbook sentinel/targets; group decoration; and transport of limitations by
+HTTP consumers. See **AE-008** in [the assumptions log](assumptions_and_extensions.md).

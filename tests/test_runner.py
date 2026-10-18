@@ -160,6 +160,32 @@ class RunnerTests(unittest.TestCase):
                     else:
                         checkers[key].assert_not_called()
 
+    def test_runner_preserves_limitations_alongside_sorted_findings(self):
+        from accessibility_checker.results import Findings
+        self.write_metadata(issues=True)
+        from xml.etree import ElementTree as ET
+        with ZipFile(self.path) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        part = "xl/drawings/drawing90.xml"
+        root = ET.fromstring(parts[part])
+        props = root.find(".//{*}cNvPr")
+        del props.attrib["id"]
+        parts[part] = ET.tostring(root)
+        with ZipFile(self.path, "w") as archive:
+            for name, data in parts.items():
+                archive.writestr(name, data)
+        before = self.path.read_bytes()
+        findings = check_workbook(self.path)
+        self.assertIsInstance(findings, Findings)
+        self.assertIsInstance(findings, list)
+        self.assertEqual([f["ruleId"] for f in findings], ["ALT_TEXT", "WORKSHEET_NAME"])
+        self.assertEqual(findings[0]["classification"], "MANUAL_REVIEW")
+        self.assertEqual(len(findings.limitations), 1)
+        self.assertIn(findings[0]["target"], findings.limitations[0])
+        self.assertEqual(findings, check_workbook(self.path))
+        self.assertEqual(findings.limitations, check_workbook(self.path).limitations)
+        self.assertEqual(self.path.read_bytes(), before)
+
 
 if __name__ == "__main__":
     unittest.main()
