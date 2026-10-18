@@ -262,11 +262,12 @@ AE-004/005 remain inactive legacy checks.
   This carries imported review evidence without discarding supported findings.
   Plain list/JSON serialization loses the attribute; consumers must explicitly
   transport it. Actual execution failures still propagate. No HTTP changes.
-- **Approval/confirmation:** Import and dependent updates are developer-authorized,
-  not evidence of team/pod approval. Confirm exact review values, limitation
-  schema/transport, #xml= conventions, chartsheet scope, group policy, and
-  workbook sentinel/targets against the actual Phase 3 contract. These replace
-  the prior temporary NotImplementedError behavior, not the need for confirmation.
+- **Approval:** On 2026-10-18, the developer confirmed that this import aligns
+  with the pod implementation and was mutually agreed by both sides. This
+  supersedes the earlier developer-only/confirmation-pending status for the
+  imported chartsheet scope, review/limitation representation, #xml= conventions,
+  group handling, workbook sentinel/targets, and runner behavior. It does not
+  approve unrelated legacy rules or establish completed integration verification.
 - **Implementation/verification:** The four imported files remain byte-identical
   to the specified commit. Updated name/image/runner tests and added
   `tests/test_results.py`; shared notes and private Japanese notes updated.
@@ -275,4 +276,6 @@ AE-004/005 remain inactive legacy checks.
   retained findings, wrappers/external references/decorative groups, container
   behavior, repeatability, and unchanged bytes. No new real-Excel/HTTP run;
   exhaustive unsupported coverage, VML/rich-data variants, and Excel escaped
-  strings remain unverified. Passing tests is not shared-contract approval.
+  strings remain unverified. Mutual agreement is established by the developer
+  confirmation above, independently of test results; complete contract and
+  end-to-end conformance have not been verified.

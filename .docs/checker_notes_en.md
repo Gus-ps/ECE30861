@@ -6,10 +6,10 @@ The current local implementation incorporates four files from Gustavo commit
 `bda038354c4ec1d65178edc44b0a1d1d13ca4e5b`, at the developer's request.
 [The shared suite guide](team12-shared-test-suite-guide.md), Section 5
 (manifest 1.4.0, ruleset/profile 1.0.0, source revision `66d588c`), remains a
-reference. Importing code does not establish team/pod approval or full contract
-conformance. Chartsheet inclusion and the exact review/limitations/location
-representations below describe the imported implementation; independent
-confirmation against the referenced Phase 3 contract remains pending.
+reference. On 2026-10-18, the developer confirmed that these changes align
+with the pod implementation and were mutually agreed. This agreement covers
+the imported chartsheet scope, review/limitations/location representations,
+and runner behavior described below; it does not establish full verification.
 
 ## Usage and returned results
 
@@ -36,8 +36,8 @@ a `list` subclass with a separate `limitations: list[str]` attribute.
 `check_worksheet_names` returns an ordinary list. All findings retain eight
 string fields: `findingId`, `ruleId`, `category`, `worksheet`, `target`,
 `classification`, `message`, `recommendation`. Current limitation strings use
-`<worksheet>: <target>: <reason>`. This is a local representation, not proof of
-an approved shared schema.
+`<worksheet>: <target>: <reason>`. This is the mutually agreed representation used to align with the pod
+implementation; end-to-end transport still needs verification.
 
 **Serialization:** `json.dumps(findings)` serializes only list entries.
 Consumers must explicitly transfer `findings.limitations` to their report or
@@ -68,7 +68,7 @@ tabs, including hidden/veryHidden, are inspected in the imported code.
 
 No name generation, renaming, or meaning/content evaluation occurs. External
 sheet relationships are not fetched; the name checker uses their stored target
-for location construction, which still requires contract confirmation.
+for location construction, as in the agreed imported implementation.
 
 ## ALT_TEXT — 1.1.1 Non-text Content
 
@@ -91,7 +91,7 @@ Missing/duplicate IDs receive review findings with `#xml=` locations, rather
 than invented IDs. Paths start at `/root[1]` and use one-based counts of siblings
 with the same local name, ignoring namespaces, for example:
 `xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]`.
-These exact path conventions still need shared-contract confirmation.
+These path conventions are part of the mutually agreed pod alignment.
 
 Recognized unsupported/ambiguous objects receive `MANUAL_REVIEW` and a separate
 limitation while other findings are retained: unknown objects/anchors,
@@ -123,7 +123,7 @@ Workbook Title (**2.4.2**) and table headers (**1.3.1 Info and Relationships**)
 remain callable but inactive in the Phase 3 runner. Their behavior and legacy
 three-argument ID helper are unchanged.
 
-## Verification and remaining confirmations
+## Verification and remaining checks
 
 On 2026-10-18, `.venv/bin/python -m unittest discover -s tests -q` passed
 **46 tests**. Updated tests cover chartsheet inclusion, exact XML locations,
@@ -138,7 +138,7 @@ prohibits some listed control characters; their policy-set membership is tested,
 but Excel escaped-string handling remains unverified. VML, rich-data, and all
 unsupported variants are not exhaustively tested.
 
-Still confirm against the actual shared contract: chartsheet scope; exact
-`#xml=` namespace/index rules; unsupported review values and limitation schema;
-workbook sentinel/targets; group decoration; and transport of limitations by
-HTTP consumers. See **AE-008** in [the assumptions log](assumptions_and_extensions.md).
+The imported behavior is mutually agreed; remaining work is verification,
+including real-Excel inputs and end-to-end transport of limitations by HTTP
+consumers. Earlier approval-pending statements for this import are superseded
+by the 2026-10-18 confirmation. See **AE-008** in [the assumptions log](assumptions_and_extensions.md).
