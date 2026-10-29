@@ -6,9 +6,10 @@ Related: 2.4.6 Headings and Labels. This does not assess full criterion coverage
 import posixpath
 import re
 from os import PathLike
-from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from accessibility_checker import safe_xml as ET
+from accessibility_checker.excel_metadata import sheet_attributes
 from accessibility_checker.finding_ids import get_source_sha256, make_phase3_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 
@@ -35,13 +36,14 @@ def check_worksheet_names(
         }
         results = []
         for sheet in root.findall("{*}sheets/{*}sheet"):
+            attributes = sheet_attributes(sheet)
             relationship_id = next(
-                value for key, value in sheet.attrib.items() if key.endswith("}id")
+                value for key, value in attributes.items() if key.endswith("}id")
             )
             relationship = worksheets.get(relationship_id)
             if relationship is None:
                 continue
-            name = sheet.attrib["name"]
+            name = attributes["name"]
             match = re.fullmatch(
                 r"sheet([0-9]+)",
                 name.strip(UNICODE_WHITE_SPACE),
@@ -52,7 +54,7 @@ def check_worksheet_names(
             part = posixpath.normpath(
                 posixpath.join("xl", relationship.attrib["Target"])
             ).lstrip("/")
-            target = f"{part}#sheetId={sheet.attrib['sheetId']}"
+            target = f"{part}#sheetId={attributes['sheetId']}"
             results.append(
                 {
                     "findingId": make_phase3_finding_id(

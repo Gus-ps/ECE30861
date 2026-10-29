@@ -1,0 +1,92 @@
+{
+  "sha256": "df8f84204221f063f83353999e70b88e3991761ace75017b19190618a984279d",
+  "findings": [
+    {
+      "findingId": "5d22ef2c8bfde4257929951ae97992b0dbf4fb26881feb6dcba89e1865cb4cba",
+      "ruleId": "ALT_TEXT",
+      "category": "NON_TEXT_CONTENT",
+      "worksheet": "Sheet01",
+      "target": "xl/drawings/drawing1.xml#id=1",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Object is missing alternative text title and description (descr).",
+      "recommendation": "Provide the missing accessibility title and/or description."
+    },
+    {
+      "findingId": "61ab6c3f00a622212d0d9b371c83b3d68b4b833c36dba539d7186ae0d6a45cb5",
+      "ruleId": "ALT_TEXT",
+      "category": "NON_TEXT_CONTENT",
+      "worksheet": "Sheet01",
+      "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[2]/c[3]",
+      "classification": "MANUAL_REVIEW",
+      "message": "Object requires manual accessibility review.",
+      "recommendation": "Inspect the object and confirm its alternative text or decorative designation."
+    },
+    {
+      "findingId": "778382bf38040f116283423525e49121c49f6593e3d536e1627238126a4f05e9",
+      "ruleId": "ALT_TEXT",
+      "category": "NON_TEXT_CONTENT",
+      "worksheet": "Sheet3",
+      "target": "xl/drawings/drawing2.xml#id=1",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Object is missing alternative text title and description (descr).",
+      "recommendation": "Provide the missing accessibility title and/or description."
+    },
+    {
+      "findingId": "6d68c70017e701f7375d55199a4d343815f16320d42c7fe338013a6ce7030386",
+      "ruleId": "WORKSHEET_NAME",
+      "category": "WORKSHEET_NAME",
+      "worksheet": "Sheet01",
+      "target": "xl/worksheets/sheet1.xml#sheetId=1",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Worksheet name is a default Sheet name with a positive numeric suffix.",
+      "recommendation": "Provide a descriptive worksheet name based on its purpose."
+    },
+    {
+      "findingId": "5935b5bfe1d32b118ad43f8b0cc175082d059f818de8254e4c16035b21c7e80a",
+      "ruleId": "WORKSHEET_NAME",
+      "category": "WORKSHEET_NAME",
+      "worksheet": "Sheet3",
+      "target": "xl/chartsheets/sheet1.xml#sheetId=3",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Worksheet name is a default Sheet name with a positive numeric suffix.",
+      "recommendation": "Provide a descriptive worksheet name based on its purpose."
+    },
+    {
+      "findingId": "f6f2d50a563c52d0fdebc81e1bfe00aa66f33d002662009af6a4b2bd9b8ac389",
+      "ruleId": "WORKSHEET_NAME",
+      "category": "WORKSHEET_NAME",
+      "worksheet": "sheet2",
+      "target": "xl/worksheets/sheet2.xml#sheetId=2",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Worksheet name is a default Sheet name with a positive numeric suffix.",
+      "recommendation": "Provide a descriptive worksheet name based on its purpose."
+    }
+  ],
+  "limitations": [
+    "Sheet01: xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[2]/c[3]: Cell-image or IMAGE-formula representation requires manual review."
+  ],
+  "workbook_title": [
+    {
+      "findingId": "166d7f7991a06c6e619a6a70f71d8d011e14c378fada7b9b33d9b215ba53b584",
+      "ruleId": "WORKBOOK_TITLE",
+      "category": "WORKBOOK_TITLE",
+      "worksheet": "__WORKBOOK__",
+      "target": "__WORKBOOK__",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Workbook Title is missing, empty, or contains only whitespace.",
+      "recommendation": "Provide a title that describes the workbook's topic or purpose."
+    }
+  ],
+  "table_headers": [
+    {
+      "findingId": "350570bd4b703d5dd28098f1e834c77bf98a45360fbb8a285e8cd4103dc0a987",
+      "ruleId": "1.3.1-TABLE-NO-HEADER",
+      "category": "TABLE_STRUCTURE",
+      "worksheet": "Sheet01",
+      "target": "A1:B3",
+      "classification": "REQUIRES_USER_INPUT",
+      "message": "Excel Table has no header row (headerRowCount=0).",
+      "recommendation": "Enable the table header row and provide meaningful column names."
+    }
+  ]
+}

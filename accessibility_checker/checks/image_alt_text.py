@@ -8,9 +8,10 @@ import posixpath
 import re
 from collections import Counter
 from os import PathLike
-from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from accessibility_checker import safe_xml as ET
+from accessibility_checker.excel_metadata import sheet_attributes
 from accessibility_checker.finding_ids import get_source_sha256, make_phase3_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 from accessibility_checker.results import Findings
@@ -225,7 +226,7 @@ def check_image_alt_text(
             relationship = sheet_relationships[_relationship_id(sheet)]
             if not relationship.attrib["Type"].endswith(("/worksheet", "/chartsheet")):
                 continue
-            worksheet = sheet.attrib["name"]
+            worksheet = sheet_attributes(sheet)["name"]
             if relationship.get("TargetMode") == "External":
                 review(
                     worksheet,

@@ -1,5 +1,51 @@
 # Assumptions and Extensions
 
+## AE-010 — Library migration with preserved Phase 3 behavior (2026-10-29)
+
+- **Source/scope:** Developer authorizes openpyxl plus defusedxml migration,
+  preserving the existing Phase 3 rules and public interfaces. Partial
+  `1.1.1 Non-text Content`, `2.4.2 Page Titled` (related `2.4.6 Headings and
+  Labels`), and inactive `1.3.1 Info and Relationships`. AE-004/005/008/009
+  remain the behavioral reference. This is not adoption of Phase 4 policies.
+- **Approval:** Developer approved the proposed library plan on 2026-10-29.
+  No new shared rule, HTTP contract, or ruleset is approved by this migration.
+- **Rule/design:** Parse original parts with defusedxml, explicitly forbidding
+  DTDs, entity declarations and external XML resources. OOXML external
+  relationships remain unfetched and receive the existing reviews. Reuse
+  openpyxl's sheet, core-property and table models on already parsed elements;
+  retain original lexical IDs, paths, names and table counts where needed.
+  Model TypeError/ValueError/OverflowError triggers original-XML interpretation,
+  not file rejection or a clean result. Other processing errors still propagate.
+- **Rationale/limits:** defusedxml retains ElementTree and streaming APIs.
+  lxml adds facilities not needed here and needs additional DTD rejection logic.
+  Whole-workbook loading would parse unrelated features and reject existing
+  minimal fixtures; model-level reuse avoids that dependency and double XML
+  parsing. No cells need Excel value interpretation for the current rules:
+  IMAGE formula/value-metadata screening needs raw cells and indexed locations.
+  This is not an upload validator or a claim about all unexamined package parts.
+  Performance, real Excel round-tripping and unsupported formats remain limited.
+- **Phase 4 differences:** Keep ruleset 1.0.0, two active rules, cNvPr targets
+  for missing/duplicate IDs, existing limitation ordering, and inactive legacy
+  checks/IDs. Future six-rule coverage, object-element fallback targets, new
+  table targets and limitation normalization are outside this increment.
+- **Implementation/verification:** `safe_xml.py`, `excel_metadata.py`, four
+  checker modules and pinned `requirements.txt` implemented. Baseline run on
+  2026-10-29: 48 tests passed on Python 3.14.0. After migration, all 61 tests
+  passed, including `tests/test_library_migration.py`. Existing tests unchanged.
+  Complete-package outputs match snapshots captured before checker edits,
+  including findings, limitations, IDs, text, ordering and inactive checks.
+  Repeatability/source bytes, model rejection/coercion, foreign-title namespace
+  isolation, original hidden
+  chartsheet metadata, malformed XML/missing parts, and UTF-8/UTF-16 unsafe XML
+  rejection are covered. A local workbook's four checker outputs and source
+  bytes also match the baseline (zero active findings/limitations). Snapshots
+  are compatibility evidence, not independent rule oracles. Full openpyxl
+  workbook loading lost hidden chartsheet state in an initial integration test;
+  raw ChildSheet reading preserved it, and the test now verifies the stored
+  state directly. Excel UI, actual Excel escape serialization, Python 3.10,
+  performance and HTTP integration remain unverified. Fixture provenance and
+  limits: `tests/fixtures/README.md`.
+
 Current decisions and verification are recorded separately. The developer
 confirmed pod alignment for the specific imports in AE-008/AE-009 on 2026-10-18.
 This does not automatically approve future Gustavo-branch changes or establish

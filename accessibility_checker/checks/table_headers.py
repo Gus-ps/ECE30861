@@ -2,9 +2,10 @@
 
 import posixpath
 from os import PathLike
-from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from accessibility_checker import safe_xml as ET
+from accessibility_checker.excel_metadata import sheet_attributes, table_header
 from accessibility_checker.finding_ids import make_finding_id
 
 # TODO: Replace this provisional rule ID after agreement with the other team.
@@ -41,7 +42,8 @@ def check_table_headers(path: str | PathLike[str]) -> list[dict[str, str]]:
         root = ET.fromstring(workbook.read(workbook_part))
         sheet_relationships = _relationships(workbook, workbook_part)
         for sheet in root.findall("{*}sheets/{*}sheet"):
-            if sheet.get("state", "visible") != "visible":
+            attributes = sheet_attributes(sheet)
+            if attributes.get("state", "visible") != "visible":
                 continue
             relationship = sheet_relationships[_relationship_id(sheet)]
             if not relationship.attrib["Type"].endswith("/worksheet"):
@@ -55,10 +57,12 @@ def check_table_headers(path: str | PathLike[str]) -> list[dict[str, str]]:
             for table_part in table_parts:
                 relationship = table_relationships[_relationship_id(table_part)]
                 table = ET.fromstring(workbook.read(_target(sheet_part, relationship)))
-                if table.get("headerRowCount") != "0":
+                header_count, target = table_header(table)
+                if header_count != "0":
                     continue
-                worksheet = sheet.attrib["name"]
-                target = table.attrib["ref"]
+                worksheet = attributes["name"]
+                if target is None:
+                    target = table.attrib["ref"]  # Preserve the existing KeyError.
                 results.append(
                     {
                         "findingId": make_finding_id(_RULE_ID, worksheet, target),
