@@ -11,19 +11,18 @@ from openpyxl.utils.cell import column_index_from_string
 
 from accessibility_checker import safe_xml
 from accessibility_checker.coordinates import (
-    cell_position,
-    CoordinateError,
-    MAX_ROW,
     MAX_COLUMN,
+    MAX_ROW,
+    CoordinateError,
+    cell_position,
 )
 from accessibility_checker.part_ownership import (
     drawing_owners,
     internal_target,
+    referenced_part_owners,
     relationships,
     sheet_owners,
-    referenced_part_owners,
 )
-
 
 # Finite structural profiles. Unknown constructs are disclosed, not guessed.
 SHEET_TAGS = set(
