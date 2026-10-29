@@ -1,5 +1,58 @@
 # Assumptions and Extensions
 
+## AE-011 — Authorized Phase 4 common foundation (2026-10-29)
+
+- **Source/approval:** Developer explicitly authorizes only versioned finding
+  identity, aggregation and sparse cell-reading infrastructure for specification
+  2.1.0/ruleset 2.0.0. This is not evidence of team-wide adoption or completed
+  Phase 4 coverage. Partial `1.1.1 Non-text Content` and `2.4.2 Page Titled`
+  (related `2.4.6 Headings and Labels`) remain the only active checks.
+  Cell data will support future `1.3.1 Info and Relationships`,
+  `2.4.4 Link Purpose (In Context)`, `1.4.1 Use of Color` and
+  `1.4.3 Contrast (Minimum)` checks; none is added here.
+- **Authorized changes:** New runs of the two active checks use ruleset 2.0.0
+  identity. Preserve the Phase 3 helper, stored snapshots and inactive legacy
+  helpers. Execute implemented checks in ALT_TEXT, WORKSHEET_NAME order, with
+  later order reserved for TABLE_HEADER, MERGED_CELLS, LINK_TEXT, COLOR_CONTRAST.
+  Sort findings, retain distinct targets and normalize only exact duplicate
+  limitation strings. Exceptions remain failures. No unimplemented check is
+  registered or reported as performed.
+- **Reader contract:** Resolve actual internal workbook/sheet/shared-string
+  relationships, preserve hidden/chart metadata, read stored cells sparsely,
+  resolve body text in document order excluding phonetics, and distinguish
+  formula metadata from stored cached values. Reuse the exact existing Unicode
+  White_Space set for populated strings; intake uses stored values instead.
+  Canonicalize bounded coordinates, infer omitted rows/columns from previous
+  stored positions and fail explicitly on inconsistent/duplicate addresses.
+  No formula evaluation, rewriting, findings or HTTP responses are generated.
+- **Rationale/limits:** Reuse installed openpyxl coordinate conversion and
+  defusedxml tree/stream parsing. Preserve raw cell values alongside typed
+  values to avoid float precision loss and text normalization. The reader is
+  independent of existing rules, avoiding unrelated parsing or scope changes.
+  It is not a full intake validator or a six-rule audit implementation.
+- **Implementation/verification:** `finding_ids.py`, `results.py`, `runner.py`
+  and the two active checker call sites updated; `coordinates.py` and
+  `cell_reader.py` added. Baseline 61 tests passed. After implementation,
+  82 tests pass using Python 3.14.0 and the project .venv with openpyxl 3.1.5/
+  defusedxml 0.7.1/et-xmlfile 2.0.0; no new dependency required.
+  `test_finding_ids.py` retains the historical recipe and verifies three
+  independent supplied 2.0.0 vectors. Runner/result tests cover execution vs
+  result order, exact limitation normalization, duplicate record retention and
+  failures. `test_cell_reader.py` covers sparse/inferred coordinates and errors,
+  shared/inline/rich/phonetic text, formulas/caches, 0/false, whitespace, hidden
+  and chart tabs, complete-package reading and unchanged input bytes.
+  Historical snapshot bytes remain unchanged; regression comparisons independently
+  apply only the authorized new identity and limitation normalization in memory.
+  No new individual check, safe editor, currentValue or HTTP feature exists.
+  Detailed reader fields/limits are in `phase4_common_foundation.md`. Unknown
+  string wrappers raise instead of being interpreted as empty text; run/style
+  rendering remains unassessed. Excel UI, Python 3.10, six-rule integration and
+  performance remain unverified.
+
+AE-010/008/009 below describe historical increments. AE-011 supersedes only
+their current-version identity, execution order and limitation normalization;
+their detection rules and cNvPr targets remain unchanged in this increment.
+
 ## AE-010 — Library migration with preserved Phase 3 behavior (2026-10-29)
 
 - **Source/scope:** Developer authorizes openpyxl plus defusedxml migration,

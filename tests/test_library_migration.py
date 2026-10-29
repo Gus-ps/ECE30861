@@ -32,13 +32,34 @@ DOC = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 DC = "http://purl.org/dc/elements/1.1/"
 
 
+def current_expected():
+    """Keep the saved 1.0.0 observations; apply only authorized common changes.
+
+    Identity is calculated independently of production ID helpers. All other
+    finding fields and legacy checker expectations remain exact comparisons.
+    """
+    expected = json.loads((FIXTURES / "migration_complete.expected.json").read_text())
+    for finding in expected["findings"]:
+        identity = [expected["sha256"], "1.0.0", finding["ruleId"],
+                    finding["worksheet"], finding["target"]]
+        original_id = hashlib.sha256(json.dumps(
+            identity, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
+        if original_id != finding["findingId"]:
+            raise AssertionError("Historical snapshot was changed")
+        identity[1] = "2.0.0"
+        finding["findingId"] = hashlib.sha256(json.dumps(
+            identity, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
+    expected["limitations"] = sorted(set(expected["limitations"]))
+    return expected
+
+
 class CompleteWorkbookTests(unittest.TestCase):
     def test_pre_migration_exact_outputs_repeatability_and_source_bytes(self):
         path = FIXTURES / "migration_complete.xlsx"
         before = path.read_bytes()
-        expected = json.loads(
-            (FIXTURES / "migration_complete.expected.json").read_text()
-        )
+        expected = current_expected()
         self.assertEqual(hashlib.sha256(before).hexdigest(), expected["sha256"])
         for _ in range(2):
             findings = check_workbook(path)
@@ -109,9 +130,7 @@ class MetadataCompatibilityTests(unittest.TestCase):
 
     def test_model_rejection_uses_original_xml_not_a_clean_result(self):
         path = FIXTURES / "migration_complete.xlsx"
-        expected = json.loads(
-            (FIXTURES / "migration_complete.expected.json").read_text()
-        )
+        expected = current_expected()
         for model in ("ChildSheet", "DocumentProperties", "Table"):
             for error in (TypeError, ValueError, OverflowError):
                 with self.subTest(model=model, error=error), patch.object(

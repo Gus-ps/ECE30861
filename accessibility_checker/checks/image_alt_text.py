@@ -2,6 +2,7 @@
 
 Checks accessibility title/description, not visible captions or semantic quality.
 Unsupported or ambiguous representations produce manual-review findings.
+Detection is retained from Phase 3; new finding identity uses ruleset 2.0.0.
 """
 
 import posixpath
@@ -12,9 +13,9 @@ from zipfile import ZipFile
 
 from accessibility_checker import safe_xml as ET
 from accessibility_checker.excel_metadata import sheet_attributes
-from accessibility_checker.finding_ids import get_source_sha256, make_phase3_finding_id
+from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
-from accessibility_checker.results import Findings
+from accessibility_checker.results import Findings, finalize_findings
 
 _RULE_ID = "ALT_TEXT"
 _DECORATIVE = "{http://schemas.microsoft.com/office/drawing/2017/decorative}decorative"
@@ -186,7 +187,7 @@ def check_image_alt_text(
         seen.add(key)
         results.append(
             {
-                "findingId": make_phase3_finding_id(
+                "findingId": make_phase4_finding_id(
                     source_sha256, _RULE_ID, worksheet, target
                 ),
                 "ruleId": _RULE_ID,
@@ -465,7 +466,4 @@ def check_image_alt_text(
                         )
                         continue
                     inspect_children(anchor, {"from", "to", "pos", "ext", "clientData"})
-    results.sort(
-        key=lambda finding: (finding["ruleId"], finding["worksheet"], finding["target"])
-    )
-    return results
+    return finalize_findings(results)

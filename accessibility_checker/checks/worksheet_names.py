@@ -1,6 +1,7 @@
 """WCAG 2.1 2.4.2 Page Titled: Section 5 Phase 3 worksheet-name rule only.
 
 Related: 2.4.6 Headings and Labels. This does not assess full criterion coverage.
+Detection is retained from Phase 3; new finding identity uses ruleset 2.0.0.
 """
 
 import posixpath
@@ -10,7 +11,7 @@ from zipfile import ZipFile
 
 from accessibility_checker import safe_xml as ET
 from accessibility_checker.excel_metadata import sheet_attributes
-from accessibility_checker.finding_ids import get_source_sha256, make_phase3_finding_id
+from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 
 _RULE_ID = "WORKSHEET_NAME"
@@ -57,7 +58,7 @@ def check_worksheet_names(
             target = f"{part}#sheetId={attributes['sheetId']}"
             results.append(
                 {
-                    "findingId": make_phase3_finding_id(
+                    "findingId": make_phase4_finding_id(
                         source_sha256, _RULE_ID, name, target
                     ),
                     "ruleId": _RULE_ID,

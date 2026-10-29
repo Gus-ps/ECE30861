@@ -1,6 +1,12 @@
-# Accessibility Checker Notes — Phase 3
+# Accessibility Checker Notes — Phase 4 Common Foundation
 
 ## Current decisions and usage
+
+The developer authorized the Phase 4 common foundation on 2026-10-29:
+new ruleset 2.0.0 identity, deterministic aggregation and sparse cell input.
+Only ALT_TEXT and WORKSHEET_NAME run. This is not six-rule completion or shared
+adoption of the whole specification. See [the foundation contract](phase4_common_foundation.md)
+and AE-011; the earlier decisions below still govern detector behavior.
 
 The pod-alignment changes imported from Gustavo `bda0383` and the subsequent
 streaming/background/cNvPr-target update from
@@ -27,11 +33,14 @@ print(findings.limitations)
 
 ## Results and runner
 
-The runner explicitly calls worksheet names, then ALT_TEXT. It computes the
+The runner explicitly calls ALT_TEXT, then worksheet names. It computes the
 source SHA-256 once; each checker opens the workbook independently. Results
 are sorted by `(ruleId, worksheet, target)` in Unicode code-point order.
 Read/XML/relationship failures propagate without a successful partial result.
 Recognized unsupported representations instead produce manual reviews.
+Both runner and direct ALT_TEXT results deduplicate exactly identical limitation
+strings and sort them in Unicode code-point order. Findings are never collapsed
+by aggregation. The remaining four rules have no implementation or success stub.
 
 `check_workbook` and `check_image_alt_text` return `results.Findings`, a
 `list[dict[str, str]]` subclass with `limitations: list[str]`.
@@ -88,10 +97,12 @@ loading all cells only to look for original formulas would duplicate work.
 ZIP access, hashing, JSON identity, regular expressions and runner policy remain
 standard-library code. Table/Title checks remain inactive in the runner.
 
-Phase 4 is a future compatibility reference: its ruleset 2.0.0, six active
-rules, object-element targets for missing/duplicate IDs, new table targets and
-limitation sorting/deduplication are not adopted. Current ruleset is 1.0.0,
-with the existing cNvPr targets and limitation order preserved.
+The common foundation now uses ruleset 2.0.0, ALT_TEXT-first execution and
+limitation sorting/deduplication. Six-rule coverage, object-element targets
+for missing/duplicate IDs, new table rules and rename safety are outside this
+increment. Existing cNvPr targets remain. `cell_reader.py` and `coordinates.py`
+provide independently tested input for future checks, not additional findings;
+the existing detectors have not been rewritten to use them.
 
 Direct imports remain available from `accessibility_checker.checks.worksheet_names`
 and `accessibility_checker.checks.image_alt_text`. Direct calls hash the input
@@ -141,7 +152,8 @@ XML paths start at `/root[1]` and count siblings of the same local name from one
 ignoring namespaces. Other unsupported fallback targets identify the relevant
 object or XML element. Changing a missing/duplicate-ID target from its former
 parent-object location changes the affected findingId, even for identical source
-bytes; the identity recipe, ruleset, and ordinary `#id=` targets are unchanged.
+bytes. That historical target change is separate from the current ruleset 2.0.0
+identity update; ordinary `#id=` locations remain unchanged.
 
 Unsupported/ambiguous representations yield `MANUAL_REVIEW` and a limitation
 while retaining other findings: unknown objects/anchors, wrappers, ambiguous
@@ -175,11 +187,13 @@ The background image's text or meaning is not automatically assessed.
 U+001C–001F are excluded; argument-free `strip()` is not a substitute.
 
 Finding IDs are lowercase SHA-256 of compact UTF-8 JSON:
-`[sourceSha256,"1.0.0",ruleId,originalWorksheetName,target]`, with
+`[sourceSha256,"2.0.0",ruleId,originalWorksheetName,target]`, with
 `ensure_ascii=False`, `separators=(",", ":")`. Source SHA-256 hashes original
 bytes. No Unicode normalization, BOM, newline, randomness, or timestamp is added.
 Messages/recommendations are stable. Unsupported-case diagnostic text describes
 manual-review reasons rather than claiming that agreed policies are pending.
+Historical `make_phase3_finding_id` and saved snapshots retain 1.0.0; new runs
+use `make_phase4_finding_id`. Stored results are not rewritten.
 
 Workbook Title (**2.4.2**) and table headers (**1.3.1 Info and Relationships**)
 remain callable but inactive in the runner. Their detection and legacy ID helper
@@ -188,7 +202,8 @@ are unchanged; see the assumptions log for their provisional values.
 ## Verification and limits
 
 On 2026-10-29, `.venv/bin/python -m unittest discover -s tests -q` passed
-**61 tests** on Python 3.14.0, following a fresh **48-test** pre-migration run.
+**82 tests** on Python 3.14.0. The prior library migration passed 61 tests;
+that increment's fresh pre-migration baseline was 48 tests.
 Coverage includes the background-only/no-relationships case, 10,000-row
 grid/IMAGE path, and exact missing/duplicate-ID cNvPr targets. Existing tests
 cover names, hidden/chart tabs, supported objects/groups, reviews/limitations,
@@ -196,8 +211,9 @@ runner behavior, stable identity, source preservation, and inactive checkers.
 
 The original synthetic ZIP/XML fixtures are unchanged. A complete generated
 workbook is now included with pre-migration regression snapshots; see
-`tests/fixtures/README.md` and `tests/test_library_migration.py`. Exact output,
-limitations, determinism and source bytes match. Tests also cover model
+`tests/fixtures/README.md` and `tests/test_library_migration.py`. Historical
+findings match apart from the explicitly authorized new IDs and normalized
+limitations; determinism and source preservation also pass. Tests cover model
 rejections/coercion, malformed XML/missing parts, and DTD/entity/external-resource
 rejection in tree/stream parsing with UTF-8 and UTF-16 inputs. A local existing
 workbook was compared with its pre-migration snapshot: all four callable
@@ -210,4 +226,4 @@ is checked separately. VML/rich-data and all unsupported variants are not
 exhaustively tested. Performance has not been benchmarked.
 
 Decision status and remaining limits are recorded in
-[the assumptions log](assumptions_and_extensions.md), especially **AE-008/AE-009/AE-010**.
+[the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-011**.

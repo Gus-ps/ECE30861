@@ -20,6 +20,12 @@ accessibility oracle or evidence of full requirements conformance. Exact
 comparison includes messages, IDs, targets, ordering and limitations.
 Do not regenerate expectations using the implementation under test.
 
+The Phase 4 common foundation does not rewrite this 1.0.0 snapshot.
+`tests/test_library_migration.py` verifies the stored historical identities,
+then independently computes the authorized 2.0.0 IDs and normalizes expected
+limitations in memory. All other finding fields and inactive-check results
+remain exact comparisons.
+
 The file is read successfully with openpyxl, but has not been opened in the
 Excel UI to check for repair warnings. openpyxl's full workbook loader drops
 the hidden chartsheet state; the original XML and ChildSheet model preserve it.
