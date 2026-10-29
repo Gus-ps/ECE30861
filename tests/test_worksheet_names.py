@@ -20,7 +20,7 @@ class WorksheetNameTests(unittest.TestCase):
         self.path = Path(directory.name) / "workbook.xlsx"
 
     def write_metadata(self, sheets):
-        """Create only the OOXML metadata parts read by this check."""
+        """Minimal metadata plus real empty parts required by rename preflight."""
         main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
         doc = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
         pkg = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -48,6 +48,11 @@ class WorksheetNameTests(unittest.TestCase):
         with ZipFile(self.path, "w") as archive:
             archive.writestr("xl/workbook.xml", ET.tostring(workbook))
             archive.writestr("xl/_rels/workbook.xml.rels", ET.tostring(relationships))
+            for index, (_, _, kind) in enumerate(sheets, 1):
+                part = ET.Element(f"{{{main}}}{kind}")
+                if kind == "worksheet":
+                    ET.SubElement(part, f"{{{main}}}sheetData")
+                archive.writestr(f"xl/{kind}s/sheet{index}.xml", ET.tostring(part))
 
     def test_req04_ac04_matching_and_nonmatching_names(self):
         matches = ["Sheet1", "sheet2", "SHEET3", "Sheet01", " \u3000Sheet3\u0085"]

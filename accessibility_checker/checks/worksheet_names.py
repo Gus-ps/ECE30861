@@ -2,6 +2,7 @@
 
 Related: 2.4.6 Headings and Labels. This does not assess full criterion coverage.
 Detection is retained from Phase 3; new finding identity uses ruleset 2.0.0.
+Whole-workbook reference preflight classifies rename support; no editing occurs.
 """
 
 import posixpath
@@ -13,13 +14,15 @@ from accessibility_checker import safe_xml as ET
 from accessibility_checker.excel_metadata import sheet_attributes
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
+from accessibility_checker.rename_safety import rename_limitations
+from accessibility_checker.results import Findings, finalize_findings
 
 _RULE_ID = "WORKSHEET_NAME"
 
 
 def check_worksheet_names(
     path: str | PathLike[str], *, source_sha256: str | None = None
-) -> list[dict[str, str]]:
+) -> Findings:
     """Inspect all worksheet and chartsheet tabs, including hidden/veryHidden.
 
     The optional digest is supplied by the runner to avoid repeated hashing.
@@ -35,7 +38,7 @@ def check_worksheet_names(
             for rel in relationships
             if rel.attrib["Type"].endswith(("/worksheet", "/chartsheet"))
         }
-        results = []
+        results = Findings()
         for sheet in root.findall("{*}sheets/{*}sheet"):
             attributes = sheet_attributes(sheet)
             relationship_id = next(
@@ -70,11 +73,15 @@ def check_worksheet_names(
                     "recommendation": "Provide a descriptive worksheet name based on its purpose.",
                 }
             )
-    return sorted(
-        results,
-        key=lambda finding: (
-            finding["ruleId"],
-            finding["worksheet"],
-            finding["target"],
-        ),
-    )
+        if results:
+            # Preflight the whole workbook once, including other/hidden sheets.
+            limitations = rename_limitations(workbook, root, {r.attrib["Id"]: r for r in relationships})
+            if limitations:
+                for finding in results:
+                    finding["classification"] = "MANUAL_REVIEW"
+                    finding["recommendation"] = "Review workbook reference safety before renaming this worksheet."
+                    results.limitations.extend(
+                        f"{finding['worksheet']}: {finding['target']}: {reason}"
+                        for reason in limitations
+                    )
+    return finalize_findings(results)

@@ -59,7 +59,11 @@ def sheet_owners(root, relations, workbook_part="xl/workbook.xml"):
 
 
 def drawing_owners(archive, owners):
-    """Map actually referenced internal drawing parts to distinct owning sheets.
+    return referenced_part_owners(archive, owners, "drawing", "drawing")
+
+
+def referenced_part_owners(archive, owners, element_name, relationship_kind):
+    """Map actually referenced internal parts to distinct owning sheets.
 
     Repeated references from one sheet do not create additional owners; distinct
     sheet definitions sharing a sheet part still are distinct owners. Unused
@@ -78,7 +82,7 @@ def drawing_owners(archive, owners):
                     if event == "start":
                         stack.append(element)
                         continue
-                    if element.tag.rsplit("}", 1)[-1] == "drawing":
+                    if element.tag.rsplit("}", 1)[-1] == element_name:
                         identifiers.add(relationship_id(element))
                     stack.pop()
                     if stack:
@@ -89,7 +93,7 @@ def drawing_owners(archive, owners):
             references[owner.part] = {
                 internal_target(owner.part, rels[identifier]) for identifier in identifiers
                 if rels[identifier].get("TargetMode") != "External"
-                and rels[identifier].attrib["Type"].endswith("/drawing")
+                and rels[identifier].attrib["Type"].endswith("/" + relationship_kind)
             }
         for part in references[owner.part]:
             result.setdefault(part, set()).add(owner)

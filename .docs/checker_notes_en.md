@@ -2,6 +2,14 @@
 
 ## Current decisions and usage
 
+Readiness stage 3 (AE-015) classifies matched names using the whole-workbook
+reference inventory. Supported ordinary formulas/names/chart series/validation/
+formatting/internal links remain REQUIRES_USER_INPUT; unsafe/unknown profiles
+are manual with reasons. Targets and IDs are unchanged. See the self-contained
+[rename profile](rename_safety_profile.md) for grammar/schema limits. No rewrite
+or output preservation is claimed. Validation: 4 name tests, 14 preflight tests
+and all 104 tests pass (2026-10-29).
+
 Readiness stage 2 (AE-014) inventories actual drawing owners before checking
 alt fields. Missing fields in a drawing shared by multiple sheet definitions
 are manual with an ownership limitation; complete objects acquire no new defect.
@@ -63,7 +71,8 @@ by aggregation. The remaining four rules have no implementation or success stub.
 
 `check_workbook` and `check_image_alt_text` return `results.Findings`, a
 `list[dict[str, str]]` subclass with `limitations: list[str]`.
-`check_worksheet_names` returns an ordinary list. Each finding has eight string
+`check_worksheet_names` now also returns Findings to carry rename limitations;
+ordinary list consumers remain compatible. Each finding has eight string
 fields: `findingId`, `ruleId`, `category`, `worksheet`, `target`, `classification`,
 `message`, `recommendation`. Limitations use `<worksheet>: <target>: <reason>`.
 
@@ -118,8 +127,9 @@ standard-library code. Table/Title checks remain inactive in the runner.
 
 The common foundation now uses ruleset 2.0.0, ALT_TEXT-first execution and
 limitation sorting/deduplication. A subsequent target-only update uses object
-elements for missing/duplicate DrawingML IDs (AE-012). Six-rule coverage,
-new table rules and rename safety remain outside these increments.
+elements for missing/duplicate DrawingML IDs (AE-012). Rename classification
+is implemented under AE-015; an editor, six-rule coverage and new table rules
+remain absent.
 `cell_reader.py` and `coordinates.py`
 provide independently tested input for future checks, not additional findings;
 the existing detectors have not been rewritten to use them.
@@ -138,7 +148,9 @@ Related criterion: **2.4.6 Headings and Labels**.
   numeric value. Leading zeroes are allowed; preserve the original name.
 - `Sheet1`, `sheet2`, `Sheet01`, and whitespace-surrounded `Sheet3` trigger.
   `Sheet0`, `Sheet`, `Sheet 1`, numeric-only names, and non-ASCII substitutes do not.
-- Rule/category: `WORKSHEET_NAME`; classification: `REQUIRES_USER_INPUT`.
+- Rule/category: `WORKSHEET_NAME`; classification: `REQUIRES_USER_INPUT` for
+  supported whole-workbook rename profiles, otherwise `MANUAL_REVIEW` with
+  limitations.
 - Target: relationship-resolved sheet part plus `#sheetId=<stored-id>`.
 
 No names are generated or changed; content relevance is not assessed.

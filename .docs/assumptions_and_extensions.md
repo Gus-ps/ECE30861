@@ -1,5 +1,34 @@
 # Assumptions and Extensions
 
+## AE-015 — Whole-workbook rename classification (2026-10-29)
+
+- **Source/approval:** Developer authorizes readiness stage 3 under 7.3/8.4/11.
+  Partial `2.4.2 Page Titled`, related `2.4.6 Headings and Labels`; not whole-spec
+  adoption, an editor or a new name-detection heuristic.
+- **Rule:** Preserve matching, original names, targets and IDs. Classify matched
+  names from the whole-workbook inventory: supported profiles yield
+  REQUIRES_USER_INPUT; blockers yield MANUAL_REVIEW with deterministic limitations.
+  List-compatible Findings now carries those limitations without new fields or
+  arguments. Shared worksheet/drawing/table ownership is a blocker.
+- **Implementation/rationale:** `rename_safety.py` uses installed Tokenizer plus
+  a checked token grammar and quote-aware sheet/address/scoped-name parsing.
+  Cell formulas, names, charts, validation, conditional formatting, table formulas
+  and internal links are recognized. Strings remain literals. 3D/external/dynamic
+  references, unsupported extensions, shared/array formulas, signed/opaque/
+  pivot/cache/query/slicer structures and unknown markup are disclosed blockers.
+  `part_ownership.py` now also reads actual table ownership.
+- **Limits:** Tokenization is not proof of rewriting. Structured-reference
+  operands, intersections, unknown functions/attribute profiles remain manual.
+  Builtin catalog names plus IMAGE are recognized; INDIRECT/EVALUATE/HYPERLINK
+  are not safe. `rename_safety_profile.md` records the self-contained contract.
+  No rewrite, output, review context or preservation guarantee is implemented.
+- **Verification:** Stage 2 baseline 90 tests. Name suite 4 pass, preflight suite
+  14 pass, full suite 104 pass on Python 3.14.0/.venv. Coverage includes mandatory
+  ordinary families, quotes/apostrophes/literals, manual families, other/hidden/
+  chart sheets, target/ID stability and source preservation. Minimal name fixtures
+  gained actual empty sheet parts; matching assertions and historical snapshots
+  are unchanged. Excel UI, Python 3.10, performance and rewriting are unverified.
+
 ## AE-014 — Drawing ownership gates user-input findings (2026-10-29)
 
 - **Source/approval:** Developer authorizes readiness stage 2 under 7.2/8.3,
