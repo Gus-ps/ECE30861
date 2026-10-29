@@ -1,5 +1,12 @@
 # Phase 4 common checker foundation
 
+Current readiness: the two existing checks now include safe group traversal,
+drawing ownership and whole-workbook rename classification (AE-013–AE-015).
+See [the final readiness evidence](checker_readiness.md) and
+[rename profile](rename_safety_profile.md). The increment history below is
+retained; its earlier exclusions are not current claims of missing rename
+classification. No additional active rule or editor has been introduced.
+
 This increment is developer-authorized infrastructure for specification 2.1.0,
 ruleset 2.0.0. It does not establish cross-team adoption, six-rule completion,
 WCAG compliance or a whole-workbook PASS/FAIL. Source bytes are never saved or
@@ -20,11 +27,14 @@ The future execution order is ALT_TEXT, WORKSHEET_NAME, TABLE_HEADER,
 MERGED_CELLS, LINK_TEXT, COLOR_CONTRAST. **Only the first two are registered and
 executed**; the remaining names reserve order and have no success/empty stubs.
 The existing provisional table check is not enabled. Existing detector scopes,
-classifications and prose are unchanged. The original common-foundation
+classifications and prose were unchanged in the original foundation. Later
+readiness increments gate classifications on ownership/reference safety.
+The original common-foundation
 increment retained cNvPr fallback targets; the subsequent, separately authorized
 AE-012 update now uses owning object paths for missing/duplicate DrawingML IDs.
-Unique `#id=` targets and ruleset 2.0.0 remain unchanged. Rename safety is outside
-both increments. Historical snapshots and audit results are not rewritten.
+Unique `#id=` targets and ruleset 2.0.0 remain unchanged. Rename classification
+was outside those increments and is now covered by AE-015. Historical snapshots
+and audit results are not rewritten.
 
 `finalize_findings` sorts findings by `(ruleId, worksheet, target)` in Unicode
 code-point order, independently of execution order. It never deduplicates
@@ -143,7 +153,8 @@ The later target-only increment passes 85 tests (19 image-checker tests), using
 object paths for missing/duplicate IDs as recorded in AE-012. It does not change
 the reader or the foundation's original 82-test verification record above.
 
-Table/merge/link/color checks, rename safety,
+Current verification is 106 passing tests; see `checker_readiness.md`.
+Table/merge/link/color checks, reference rewriting,
 remediation, HTTP/storage/UI and six-rule integration remain unimplemented in
 this increment. Excel UI validation, exhaustive unsupported-format handling,
 minimum-Python-version execution and performance benchmarks remain unverified.

@@ -1,5 +1,13 @@
 # Assumptions and Extensions
 
+Readiness stage 4 verification (2026-10-29): all 106 tests pass, including
+24 ALT_TEXT, 14 rename-preflight and 2 new generated/complete-package integration
+tests. No new production behavior was added in stage 4. Historical XLSX/JSON
+snapshots and dependencies match task-starting commit 52274c8. See
+`checker_readiness.md` for exact scope, commands and per-stage evidence.
+This verifies AE-013–AE-015 without declaring an editor, six-rule completion,
+whole-spec team adoption or unperformed Microsoft Excel UI validation.
+
 ## AE-015 — Whole-workbook rename classification (2026-10-29)
 
 - **Source/approval:** Developer authorizes readiness stage 3 under 7.3/8.4/11.

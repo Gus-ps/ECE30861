@@ -2,6 +2,12 @@
 
 ## Current decisions and usage
 
+All four readiness increments are verified: **106 tests pass**, including
+automated complete-XLSX integration (2026-10-29, Python 3.14.0). The runner still
+executes only ALT_TEXT and WORKSHEET_NAME; no new rule/editor is present. See
+[the readiness report](checker_readiness.md) for per-stage commits/evidence and
+the remaining manual profiles. Excel UI validation remains unperformed.
+
 Readiness stage 3 (AE-015) classifies matched names using the whole-workbook
 reference inventory. Supported ordinary formulas/names/chart series/validation/
 formatting/internal links remain REQUIRES_USER_INPUT; unsafe/unknown profiles
@@ -240,8 +246,11 @@ are unchanged; see the assumptions log for their provisional values.
 ## Verification and limits
 
 On 2026-10-29, `.venv/bin/python -m unittest discover -s tests -q` passed
-**85 tests** on Python 3.14.0, after a fresh 82-test target-change baseline.
-The related image-checker module passed 19 tests, including the exact drawing1
+**106 tests** on Python 3.14.0 after all four readiness increments. Related suites
+pass 24 ALT_TEXT, 14 rename-preflight and 2 integration tests. Full generated
+XLSX integration covers required ordinary reference families and ownership, in
+addition to synthetic XML cases. The historical target-only increment passed
+85 tests (19 ALT_TEXT tests), after a fresh 82-test baseline, including drawing1
 duplicate-pic example, all five supported object kinds, nested groups,
 unique-ID locations, independently calculated 2.0.0 IDs, determinism and unchanged
 source bytes. These added cases are synthetic ZIP/XML, not Excel UI validation.
@@ -252,7 +261,9 @@ grid/IMAGE path, and exact missing/duplicate-ID object targets. Existing tests
 cover names, hidden/chart tabs, supported objects/groups, reviews/limitations,
 runner behavior, stable identity, source preservation, and inactive checkers.
 
-The original synthetic ZIP/XML fixtures are unchanged. A complete generated
+Historical XLSX/JSON fixture bytes are unchanged. The minimal name-test builder
+now supplies actual empty sheet parts for reference preflight; matching
+assertions are unchanged. A complete generated
 workbook is now included with pre-migration regression snapshots; see
 `tests/fixtures/README.md` and `tests/test_library_migration.py`. Historical
 findings match apart from the explicitly authorized new IDs and normalized
@@ -269,4 +280,4 @@ is checked separately. VML/rich-data and all unsupported variants are not
 exhaustively tested. Performance has not been benchmarked.
 
 Decision status and remaining limits are recorded in
-[the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-012**.
+[the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-015**.
