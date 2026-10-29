@@ -468,6 +468,69 @@ class ImageAltTextTests(unittest.TestCase):
             ["xl/drawings/drawing90.xml#id=1", "xl/drawings/drawing90.xml#id=2"],
         )
 
+    def test_shared_drawing_ownership_is_manual_including_hidden_and_chart_tabs(self):
+        for kind, state in (("worksheet", "hidden"), ("worksheet", "veryHidden"), ("chartsheet", "hidden")):
+            with self.subTest(kind=kind, state=state):
+                self.write_metadata([("Visible", None, [
+                    {}, {"title": "Present"}, {"descr": "Present"},
+                    {"title": "Complete", "descr": "Present"},
+                ]), ("Other", state, None)])
+                self.rewrite_part("xl/worksheets/sheet16.xml", lambda root: ET.SubElement(
+                    root, f"{{{MAIN}}}drawing", {f"{{{DOC}}}id": "shared"},
+                ))
+                self.rewrite_part("xl/_rels/workbook.xml.rels", lambda root: root[1].set("Type", f"{DOC}/{kind}"))
+                with ZipFile(self.path, "a") as archive:
+                    archive.writestr("xl/worksheets/_rels/sheet16.xml.rels", ET.tostring(
+                        relationships([("shared", "drawing", "/xl/drawings/drawing90.xml")])
+                    ))
+                before = self.path.read_bytes()
+                result = check_image_alt_text(self.path)
+                self.assertEqual(len(result), 6)
+                self.assertEqual({f["worksheet"] for f in result}, {"Visible", "Other"})
+                self.assertTrue(all(f["classification"] == "MANUAL_REVIEW" for f in result))
+                self.assertEqual({f["target"] for f in result}, {
+                    f"xl/drawings/drawing90.xml#id={i}" for i in (1, 2, 3)
+                })
+                self.assertEqual(len(result.limitations), 6)
+                self.assertTrue(all("multiple owning sheets" in text for text in result.limitations))
+                self.assertEqual(result, check_image_alt_text(self.path))
+                self.assertEqual(result.limitations, check_image_alt_text(self.path).limitations)
+                self.assertEqual(before, self.path.read_bytes())
+
+    def test_repeat_or_unused_drawing_relationships_do_not_invent_shared_ownership(self):
+        for case in ("repeat", "unused"):
+            with self.subTest(case=case):
+                self.write_metadata([("Budget", None, [{}]), ("Other", None, None)])
+                if case == "repeat":
+                    self.rewrite_part("xl/worksheets/sheet17.xml", lambda root: ET.SubElement(
+                        root, f"{{{MAIN}}}drawing", {f"{{{DOC}}}id": "alias"},
+                    ))
+                    self.rewrite_part("xl/worksheets/_rels/sheet17.xml.rels", lambda root: ET.SubElement(
+                        root, f"{{{PKG}}}Relationship", {
+                            "Id": "alias", "Type": f"{DOC}/drawing",
+                            "Target": "/xl/drawings/drawing90.xml",
+                        },
+                    ))
+                else:
+                    with ZipFile(self.path, "a") as archive:
+                        archive.writestr("xl/worksheets/_rels/sheet16.xml.rels", ET.tostring(
+                            relationships([("unused", "drawing", "../drawings/drawing90.xml")])
+                        ))
+                result = check_image_alt_text(self.path)
+                self.assertEqual(len(result), 1)
+                self.assertEqual(result[0]["classification"], "REQUIRES_USER_INPUT")
+                self.assertEqual(result.limitations, [])
+
+    def test_shared_sheet_part_also_makes_drawing_ownership_ambiguous(self):
+        self.write_metadata([("First", None, [{}]), ("Second", "veryHidden", None)])
+        self.rewrite_part("xl/_rels/workbook.xml.rels", lambda root: root[1].set(
+            "Target", "worksheets/sheet17.xml",
+        ))
+        result = check_image_alt_text(self.path)
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(f["classification"] == "MANUAL_REVIEW" for f in result))
+        self.assertEqual(len(result.limitations), 2)
+
     def test_ambiguous_parent_group_preserves_safe_nested_children(self):
         for case in ("missing_properties", "duplicate_properties", "multiple_markers",
                      "invalid_marker", "foreign_marker"):

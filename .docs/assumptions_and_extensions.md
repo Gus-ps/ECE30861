@@ -1,5 +1,29 @@
 # Assumptions and Extensions
 
+## AE-014 — Drawing ownership gates user-input findings (2026-10-29)
+
+- **Source/approval:** Developer authorizes readiness stage 2 under 7.2/8.3,
+  partial `1.1.1 Non-text Content`. No cross-team adoption or editor is implied.
+- **Rule:** Missing alt fields on a drawing part actually referenced by multiple
+  sheet definitions yield MANUAL_REVIEW with an ownership limitation, retaining
+  target/ID. Complete alt fields do not acquire a new defect solely because of
+  sharing. Repeated references from one owner and unreferenced relationships do
+  not invent additional owners. Different sheets sharing the same worksheet
+  part are distinct owners, including hidden/veryHidden/chart tabs.
+- **Implementation/rationale:** `part_ownership.py` exposes sheet owners and a
+  drawing-part-to-owner map, resolving actual internal relationships and scanning
+  sheet drawing references without retaining grids. The preflight scans each
+  distinct sheet part once; existing ALT_TEXT reading remains independent.
+  External parts are never fetched. This is read-only evidence for future
+  processing, not review context or an editing engine. Existing unsupported
+  representations, group traversal, title/description conditions and unique/ID
+  fallback locations remain intact.
+- **Verification:** ALT_TEXT suite: 24 pass; full suite: 90 pass, following stage
+  1's 87-test baseline. Added cases cover actual shared ownership versus repeat/
+  unused references, shared sheet parts, hidden/chart tabs, field combinations,
+  no invented complete-object defect, deterministic results and source bytes.
+  Tests remain synthetic; Excel UI and performance are unverified.
+
 ## AE-013 — Group ambiguity must not hide safe children (2026-10-29)
 
 - **Source/approval:** Developer authorizes readiness stage 1 under specification

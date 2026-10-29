@@ -2,6 +2,14 @@
 
 ## Current decisions and usage
 
+Readiness stage 2 (AE-014) inventories actual drawing owners before checking
+alt fields. Missing fields in a drawing shared by multiple sheet definitions
+are manual with an ownership limitation; complete objects acquire no new defect.
+Repeated references from one sheet and unused relationships do not imply shared
+ownership. Hidden/chart tabs and shared worksheet parts are included. The small
+read-only helper is `part_ownership.py`; no editor/currentValue is implemented.
+Validation: 24 ALT_TEXT tests and all 90 tests pass (2026-10-29).
+
 Readiness stage 1 (AE-013) preserves safe child traversal when group nonvisual
 properties or decorative markers are ambiguous. The parent retains its review
 and limitation; children do not inherit decorative flags. Unknown wrappers stay
@@ -145,6 +153,8 @@ objects require both accessibility `cNvPr/@title` and `@descr`. Either/both
 missing, empty, or White_Space-only yields one `REQUIRES_USER_INPUT` finding
 identifying the missing fields. Visible chart titles, captions, object names,
 and filenames do not substitute. Text quality is not assessed or corrected.
+The REQUIRES_USER_INPUT classification also requires an unambiguous single
+owning sheet; shared drawing parts instead receive MANUAL_REVIEW and a limitation.
 
 A native `adec:decorative` marker with `val="1"` or `"true"` produces
 `MANUAL_REVIEW`, even with complete text; `0`/`false` is not decorative.

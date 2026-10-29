@@ -16,6 +16,7 @@ from accessibility_checker import safe_xml as ET
 from accessibility_checker.excel_metadata import sheet_attributes
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
+from accessibility_checker.part_ownership import drawing_owners, sheet_owners
 from accessibility_checker.results import Findings, finalize_findings
 
 _RULE_ID = "ALT_TEXT"
@@ -217,6 +218,7 @@ def check_image_alt_text(
         workbook_part = "xl/workbook.xml"
         root = ET.fromstring(workbook.read(workbook_part))
         sheet_relationships = _relationships(workbook, workbook_part)
+        ownership = drawing_owners(workbook, sheet_owners(root, sheet_relationships))
         for name in workbook.namelist():
             if name.startswith("xl/richData/") or name == "xl/cellimages.xml":
                 review(
@@ -441,15 +443,21 @@ def check_image_alt_text(
                             )
                         ]
                         if missing:
-                            emit(
-                                worksheet,
-                                target,
-                                "REQUIRES_USER_INPUT",
-                                "Object is missing alternative text "
-                                + " and ".join(missing)
-                                + ".",
-                                "Provide the missing accessibility title and/or description.",
-                            )
+                            if len(ownership.get(part, ())) > 1:
+                                review(
+                                    worksheet, target,
+                                    "Drawing part is shared by multiple owning sheets; alternative-text editing is ambiguous.",
+                                )
+                            else:
+                                emit(
+                                    worksheet,
+                                    target,
+                                    "REQUIRES_USER_INPUT",
+                                    "Object is missing alternative text "
+                                    + " and ".join(missing)
+                                    + ".",
+                                    "Provide the missing accessibility title and/or description.",
+                                )
 
                 def inspect_children(parent, metadata):
                     for child in parent:
