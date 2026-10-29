@@ -31,7 +31,9 @@ def internal_target(part, relationship):
     url = urlsplit(target)
     if relationship.get("TargetMode") == "External" or url.scheme or url.netloc:
         raise ValueError("External relationships are not internal package parts")
-    result = posixpath.normpath(posixpath.join(posixpath.dirname(part), target)).lstrip("/")
+    result = posixpath.normpath(posixpath.join(posixpath.dirname(part), target)).lstrip(
+        "/"
+    )
     if result == ".." or result.startswith("../"):
         raise ValueError("Relationship target escapes package")
     return result
@@ -53,8 +55,14 @@ def sheet_owners(root, relations, workbook_part="xl/workbook.xml"):
         kind = rel.attrib["Type"].rsplit("/", 1)[-1]
         if kind not in ("worksheet", "chartsheet"):
             continue
-        part = None if rel.get("TargetMode") == "External" else internal_target(workbook_part, rel)
-        owners.append(SheetOwner(index, sheet.attrib["name"], sheet.attrib["sheetId"], kind, part))
+        part = (
+            None
+            if rel.get("TargetMode") == "External"
+            else internal_target(workbook_part, rel)
+        )
+        owners.append(
+            SheetOwner(index, sheet.attrib["name"], sheet.attrib["sheetId"], kind, part)
+        )
     return tuple(owners)
 
 
@@ -91,7 +99,8 @@ def referenced_part_owners(archive, owners, element_name, relationship_kind):
             # No drawing means no drawing relationship file is required.
             rels = relationships(archive, owner.part) if identifiers else {}
             references[owner.part] = {
-                internal_target(owner.part, rels[identifier]) for identifier in identifiers
+                internal_target(owner.part, rels[identifier])
+                for identifier in identifiers
                 if rels[identifier].get("TargetMode") != "External"
                 and rels[identifier].attrib["Type"].endswith("/" + relationship_kind)
             }

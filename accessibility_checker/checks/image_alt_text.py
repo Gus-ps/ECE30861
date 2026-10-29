@@ -15,8 +15,8 @@ from zipfile import ZipFile
 from accessibility_checker import safe_xml as ET
 from accessibility_checker.excel_metadata import sheet_attributes
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
-from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 from accessibility_checker.part_ownership import drawing_owners, sheet_owners
+from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 from accessibility_checker.results import Findings, finalize_findings
 
 _RULE_ID = "ALT_TEXT"
@@ -445,7 +445,8 @@ def check_image_alt_text(
                         if missing:
                             if len(ownership.get(part, ())) > 1:
                                 review(
-                                    worksheet, target,
+                                    worksheet,
+                                    target,
                                     "Drawing part is shared by multiple owning sheets; alternative-text editing is ambiguous.",
                                 )
                             else:

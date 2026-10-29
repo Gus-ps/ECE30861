@@ -75,11 +75,15 @@ def check_worksheet_names(
             )
         if results:
             # Preflight the whole workbook once, including other/hidden sheets.
-            limitations = rename_limitations(workbook, root, {r.attrib["Id"]: r for r in relationships})
+            limitations = rename_limitations(
+                workbook, root, {r.attrib["Id"]: r for r in relationships}
+            )
             if limitations:
                 for finding in results:
                     finding["classification"] = "MANUAL_REVIEW"
-                    finding["recommendation"] = "Review workbook reference safety before renaming this worksheet."
+                    finding["recommendation"] = (
+                        "Review workbook reference safety before renaming this worksheet."
+                    )
                     results.limitations.extend(
                         f"{finding['worksheet']}: {finding['target']}: {reason}"
                         for reason in limitations

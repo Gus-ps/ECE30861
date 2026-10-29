@@ -10,14 +10,24 @@ from openpyxl.utils import FORMULAE
 from openpyxl.utils.cell import column_index_from_string
 
 from accessibility_checker import safe_xml
-from accessibility_checker.coordinates import cell_position, CoordinateError, MAX_ROW, MAX_COLUMN
+from accessibility_checker.coordinates import (
+    cell_position,
+    CoordinateError,
+    MAX_ROW,
+    MAX_COLUMN,
+)
 from accessibility_checker.part_ownership import (
-    drawing_owners, internal_target, relationships, sheet_owners, referenced_part_owners,
+    drawing_owners,
+    internal_target,
+    relationships,
+    sheet_owners,
+    referenced_part_owners,
 )
 
 
 # Finite structural profiles. Unknown constructs are disclosed, not guessed.
-SHEET_TAGS = set("""worksheet chartsheet sheetPr tabColor outlinePr pageSetUpPr
+SHEET_TAGS = set(
+    """worksheet chartsheet sheetPr tabColor outlinePr pageSetUpPr
 dimension sheetViews sheetView selection pane sheetFormatPr cols col sheetData row
 c f v is t r rPr rFont charset family b i strike outline shadow condense extend
 color sz u vertAlign scheme rPh phoneticPr sheetCalcPr sheetProtection
@@ -28,15 +38,21 @@ formula colorScale cfvo dataBar iconSet dataValidations dataValidation formula1
 formula2 hyperlinks hyperlink printOptions pageMargins pageSetup headerFooter
 oddHeader oddFooter evenHeader evenFooter firstHeader firstFooter rowBreaks
 colBreaks brk drawing picture tableParts tablePart webPublishItems webPublishItem
-sheetProtection sheetCalcPr""".split())
-WORKBOOK_TAGS = set("""workbook fileVersion fileSharing workbookPr workbookProtection
+sheetProtection sheetCalcPr""".split()
+)
+WORKBOOK_TAGS = set(
+    """workbook fileVersion fileSharing workbookPr workbookProtection
 bookViews workbookView sheets sheet definedNames definedName calcPr oleSize
-customWorkbookViews customWorkbookView webPublishing fileRecoveryPr""".split())
-DRAWING_TAGS = set("""wsDr twoCellAnchor oneCellAnchor absoluteAnchor from to pos ext
+customWorkbookViews customWorkbookView webPublishing fileRecoveryPr""".split()
+)
+DRAWING_TAGS = set(
+    """wsDr twoCellAnchor oneCellAnchor absoluteAnchor from to pos ext
 col colOff row rowOff pic sp cxnSp graphicFrame grpSp nvPicPr nvSpPr nvCxnSpPr
 nvGraphicFramePr nvGrpSpPr cNvPr cNvPicPr cNvSpPr cNvCxnSpPr cNvGraphicFramePr
-cNvGrpSpPr spPr grpSpPr xfrm blipFill style txBody clientData""".split())
-CHART_TAGS = set("""chartSpace date1904 lang roundedCorners style chart title autoTitleDeleted
+cNvGrpSpPr spPr grpSpPr xfrm blipFill style txBody clientData""".split()
+)
+CHART_TAGS = set(
+    """chartSpace date1904 lang roundedCorners style chart title autoTitleDeleted
 tx rich strRef strCache numRef numCache f v pt ptCount idx order ser cat val xVal
 yVal bubbleSize multiLvlStrRef multiLvlStrCache lvl formatCode plotArea layout
 manualLayout layoutTarget xMode yMode wMode hMode x y w h spPr txPr legend
@@ -57,11 +73,15 @@ hPercent floor sideWall backWall thickness upDownBars upBars downBars dropLines
 hiLowLines serLines bubbleScale showNegBubbles sizeRepresents numLit strLit
 baseTimeUnit majorUnit minorUnit majorTimeUnit minorTimeUnit dispUnits builtInUnit
 custUnit dispUnitsLbl pivotSource name fmtId protection chartObject data formatting
-selection userInterface pivotFmts pivotFmt""".split())
-TABLE_TAGS = set("""table tableColumns tableColumn tableStyleInfo calculatedColumnFormula
+selection userInterface pivotFmts pivotFmt""".split()
+)
+TABLE_TAGS = set(
+    """table tableColumns tableColumn tableStyleInfo calculatedColumnFormula
 totalsRowFormula autoFilter filterColumn filters filter customFilters customFilter
-sortState sortCondition""".split())
-A_TAGS = set("""graphic graphicData xfrm off ext chOff chExt ln solidFill noFill
+sortState sortCondition""".split()
+)
+A_TAGS = set(
+    """graphic graphicData xfrm off ext chOff chExt ln solidFill noFill
 gradFill gsLst gs schemeClr srgbClr sysClr scrgbClr prstClr hslClr tint shade
 alpha alphaMod alphaOff lumMod lumOff satMod satOff hueMod hueOff comp inv gray
 prstDash custDash ds round bevel miter headEnd tailEnd blip stretch fillRect tile
@@ -70,27 +90,38 @@ scene3d sp3d camera lightRig rot prstGeom avLst gd custGeom gdLst ahLst cxnLst
 rect pathLst path moveTo lnTo cubicBezTo quadBezTo arcTo close pt
 bodyPr lstStyle p pPr defRPr r rPr t endParaRPr latin ea cs sym hlinkClick hlinkMouseOver
 fontRef lnRef fillRef effectRef style picLocks spLocks graphicFrameLocks grpSpLocks
-cxnSpLocks stCxn endCxn extLst ext""".split())
+cxnSpLocks stCxn endCxn extLst ext""".split()
+)
 METADATA_TAGS = {
-    "styles": set("""styleSheet numFmts numFmt fonts font name rFont charset family
+    "styles": set(
+        """styleSheet numFmts numFmt fonts font name rFont charset family
         b i u sz scheme strike outline shadow condense extend vertAlign color
         fills fill patternFill fgColor bgColor gradientFill stop borders border
         left right top bottom diagonal start end vertical horizontal cellStyleXfs
         xf alignment protection cellXfs cellStyles cellStyle dxfs dxf tableStyles
-        tableStyle tableStyleElement colors indexedColors rgbColor mruColors""".split()),
-    "sharedStrings": set("sst si t r rPr rFont charset family b i u sz scheme strike outline shadow condense extend vertAlign color rPh phoneticPr".split()),
-    "comments": set("comments authors author commentList comment text t r rPr rFont charset family b i u sz scheme strike outline shadow condense extend vertAlign color rPh phoneticPr".split()),
+        tableStyle tableStyleElement colors indexedColors rgbColor mruColors""".split()
+    ),
+    "sharedStrings": set(
+        "sst si t r rPr rFont charset family b i u sz scheme strike outline shadow condense extend vertAlign color rPh phoneticPr".split()
+    ),
+    "comments": set(
+        "comments authors author commentList comment text t r rPr rFont charset family b i u sz scheme strike outline shadow condense extend vertAlign color rPh phoneticPr".split()
+    ),
     "calcChain": {"calcChain", "c"},
-    "theme": A_TAGS | set("""theme themeElements clrScheme dk1 lt1 dk2 lt2 accent1
+    "theme": A_TAGS
+    | set(
+        """theme themeElements clrScheme dk1 lt1 dk2 lt2 accent1
         accent2 accent3 accent4 accent5 accent6 hlink folHlink fontScheme majorFont
         minorFont font fmtScheme fillStyleLst lnStyleLst effectStyleLst effectStyle
         bgFillStyleLst objectDefaults extraClrSchemeLst extraClrScheme clrMap
         custClrLst custClr bevelT bevelB alphaModFix sat lum hue invGamma gamma
         alphaBiLevel alphaCeiling alphaFloor grayscl biLevel duotone blur fillOverlay
         softEdge fillToRect lin path prstMaterial contourClr extrusionClr
-        themeFamily""".split()),
+        themeFamily""".split()
+    ),
 }
-KNOWN_ATTRIBUTES = set("""name sheetId state id r s t ref sqref type val localSheetId
+KNOWN_ATTRIBUTES = set(
+    """name sheetId state id r s t ref sqref type val localSheetId
 hidden title descr uri embed link space idx order si ca bx count showDropDown zoomToFit
 allowBlank showErrorMessage showInputMessage errorStyle error errorTitle prompt
 promptTitle imeMode operator priority dxfId stopIfTrue aboveAverage percent
@@ -132,13 +163,38 @@ defaultThemeVersion filterPrivacy showInkAnnotation showPivotChartFilter
 manualLayout showLegendKey showVal showCatName showSerName showPercent
 formatCode sourceLinked xmlDataType dataDxfId headerRowDxfId totalsRowDxfId
 connectionId published allowRefresh applyNumberFormats applyBorderFormats
-ContentType PartName Extension""".split())
-MAIN_NS = {"http://schemas.openxmlformats.org/spreadsheetml/2006/main", "http://purl.oclc.org/ooxml/spreadsheetml/main"}
-CHART_NS = {"http://schemas.openxmlformats.org/drawingml/2006/chart", "http://purl.oclc.org/ooxml/drawingml/chart"}
-DRAW_NS = {"http://schemas.openxmlformats.org/drawingml/2006/main", "http://purl.oclc.org/ooxml/drawingml/main"}
-XDR_NS = {"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing", "http://purl.oclc.org/ooxml/drawingml/spreadsheetDrawing"}
+ContentType PartName Extension""".split()
+)
+MAIN_NS = {
+    "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "http://purl.oclc.org/ooxml/spreadsheetml/main",
+}
+CHART_NS = {
+    "http://schemas.openxmlformats.org/drawingml/2006/chart",
+    "http://purl.oclc.org/ooxml/drawingml/chart",
+}
+DRAW_NS = {
+    "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "http://purl.oclc.org/ooxml/drawingml/main",
+}
+XDR_NS = {
+    "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
+    "http://purl.oclc.org/ooxml/drawingml/spreadsheetDrawing",
+}
 DECORATIVE = "http://schemas.microsoft.com/office/drawing/2017/decorative"
-NON_REFERENCE_KINDS = {"styles", "theme", "sharedStrings", "core-properties", "extended-properties", "custom-properties", "comments", "image", "thumbnail", "printerSettings", "calcChain"}
+NON_REFERENCE_KINDS = {
+    "styles",
+    "theme",
+    "sharedStrings",
+    "core-properties",
+    "extended-properties",
+    "custom-properties",
+    "comments",
+    "image",
+    "thumbnail",
+    "printerSettings",
+    "calcChain",
+}
 SAFE_FUNCTIONS = frozenset(FORMULAE) | {"IMAGE"}
 
 
@@ -162,7 +218,7 @@ def _qualified_reference(value):
         raise ValueError("Unclosed quoted sheet name")
     if separator is None:
         return None, value
-    qualifier, operand = value[:separator], value[separator + 1:]
+    qualifier, operand = value[:separator], value[separator + 1 :]
     if qualifier.startswith("'") and qualifier.endswith("'"):
         qualifier = qualifier[1:-1].replace("''", "'")
     elif "'" in qualifier:
@@ -180,20 +236,31 @@ def _range_reason(value, sheets, names, scope):
     if sheet is not None:
         if ":" in sheet:
             return "3D sheet reference"
-        owners = [owner for owner in sheets if owner.name.casefold() == sheet.casefold()]
+        owners = [
+            owner for owner in sheets if owner.name.casefold() == sheet.casefold()
+        ]
         if len(owners) != 1:
             return "Unknown or ambiguous sheet qualifier"
         scope = owners[0].index
     bounds = operand.split(":")
     try:
-        if len(bounds) in (1, 2) and all(re.fullmatch(r"\$?[A-Za-z]{1,3}\$?[0-9]+", item) for item in bounds):
+        if len(bounds) in (1, 2) and all(
+            re.fullmatch(r"\$?[A-Za-z]{1,3}\$?[0-9]+", item) for item in bounds
+        ):
             for item in bounds:
                 cell_position(item.replace("$", ""))
             return None
-        if len(bounds) == 2 and all(re.fullmatch(r"\$?[A-Za-z]{1,3}", item) for item in bounds):
-            if all(column_index_from_string(item.replace("$", "").upper()) <= MAX_COLUMN for item in bounds):
+        if len(bounds) == 2 and all(
+            re.fullmatch(r"\$?[A-Za-z]{1,3}", item) for item in bounds
+        ):
+            if all(
+                column_index_from_string(item.replace("$", "").upper()) <= MAX_COLUMN
+                for item in bounds
+            ):
                 return None
-        if len(bounds) == 2 and all(re.fullmatch(r"\$?[0-9]{1,7}", item) for item in bounds):
+        if len(bounds) == 2 and all(
+            re.fullmatch(r"\$?[0-9]{1,7}", item) for item in bounds
+        ):
             if all(1 <= int(item.replace("$", "")) <= MAX_ROW for item in bounds):
                 return None
     except (CoordinateError, ValueError):
@@ -235,7 +302,9 @@ def formula_reason(text, sheets, names, scope=None):
                 if token.type == "FUNC":
                     function = token.value[:-1].upper()
                     if function in {"INDIRECT", "EVALUATE", "HYPERLINK"}:
-                        return f"Reference construction or string destination: {function}"
+                        return (
+                            f"Reference construction or string destination: {function}"
+                        )
                     if function not in SAFE_FUNCTIONS:
                         return f"Unsupported formula function/extension: {function}"
                 stack.append(token.type)
@@ -246,7 +315,8 @@ def formula_reason(text, sheets, names, scope=None):
                 if expect_operand and token.type != "FUNC":
                     return "Empty formula group"
                 if expect_operand and not (
-                    previous is not None and (
+                    previous is not None
+                    and (
                         (previous.type == "FUNC" and previous.subtype == "OPEN")
                         or (previous.type == "SEP" and previous.subtype == "ARG")
                     )
@@ -289,12 +359,16 @@ def rename_limitations(archive, root, workbook_relations):
         scope = item.get("localSheetId")
         scope = None if scope is None else int(scope)
         key = (scope, item.attrib["name"].casefold())
-        if key in names or (scope is not None and scope not in {s.index for s in sheets}):
+        if key in names or (
+            scope is not None and scope not in {s.index for s in sheets}
+        ):
             reasons.add("Ambiguous defined-name scope")
         names.add(key)
     for item in defined:
         scope = item.get("localSheetId")
-        reason = formula_reason(item.text, sheets, names, None if scope is None else int(scope))
+        reason = formula_reason(
+            item.text, sheets, names, None if scope is None else int(scope)
+        )
         if reason:
             reasons.add(f"xl/workbook.xml: defined name: {reason}")
     counts = {}
@@ -307,13 +381,21 @@ def rename_limitations(archive, root, workbook_relations):
             counts.setdefault(sheet.part, set()).add(sheet.index)
     for part, owners in counts.items():
         if len(owners) > 1:
-            reasons.add(f"{part}: multiple owning sheets make worksheet editing ambiguous")
+            reasons.add(
+                f"{part}: multiple owning sheets make worksheet editing ambiguous"
+            )
     for part, owners in drawing_owners(archive, sheets).items():
         if len(owners) > 1:
-            reasons.add(f"{part}: shared drawing ownership prevents safe reference editing")
-    for part, owners in referenced_part_owners(archive, sheets, "tablePart", "table").items():
+            reasons.add(
+                f"{part}: shared drawing ownership prevents safe reference editing"
+            )
+    for part, owners in referenced_part_owners(
+        archive, sheets, "tablePart", "table"
+    ).items():
         if len(owners) > 1:
-            reasons.add(f"{part}: shared table ownership prevents safe reference editing")
+            reasons.add(
+                f"{part}: shared table ownership prevents safe reference editing"
+            )
 
     parts = {"xl/workbook.xml": "workbook"}
     parts.update({s.part: s.kind for s in sheets if s.part is not None})
@@ -325,25 +407,45 @@ def rename_limitations(archive, root, workbook_relations):
             kind = rel.attrib["Type"].rsplit("/", 1)[-1]
             if kind == "hyperlink":
                 if rel.get("TargetMode") != "External":
-                    reason = _range_reason(rel.attrib["Target"].removeprefix("#"), sheets, names, None)
+                    reason = _range_reason(
+                        rel.attrib["Target"].removeprefix("#"), sheets, names, None
+                    )
                     if reason:
                         reasons.add(f"{rel_path}: internal hyperlink: {reason}")
                 continue
-            if kind not in NON_REFERENCE_KINDS | {"officeDocument", "worksheet", "chartsheet", "drawing", "chart", "table"}:
-                reasons.add(f"{rel_path}: unsupported reference-bearing relationship: {kind}")
+            if kind not in NON_REFERENCE_KINDS | {
+                "officeDocument",
+                "worksheet",
+                "chartsheet",
+                "drawing",
+                "chart",
+                "table",
+            }:
+                reasons.add(
+                    f"{rel_path}: unsupported reference-bearing relationship: {kind}"
+                )
                 continue
             if rel.get("TargetMode") == "External":
-                reasons.add(f"{rel_path}: external {kind} prevents complete reference inventory")
+                reasons.add(
+                    f"{rel_path}: external {kind} prevents complete reference inventory"
+                )
                 continue
             target = internal_target(parent, rel)
             parts[target] = "workbook" if kind == "officeDocument" else kind
 
     # Minimal checker fixtures can omit package-level metadata. These known
     # non-reference parts remain understood even without a root relationship.
-    parts.update({n: kind for n, kind in (
-        ("[Content_Types].xml", "contentTypes"), ("docProps/core.xml", "core-properties"),
-        ("docProps/app.xml", "extended-properties"),
-    ) if n in archive.namelist()})
+    parts.update(
+        {
+            n: kind
+            for n, kind in (
+                ("[Content_Types].xml", "contentTypes"),
+                ("docProps/core.xml", "core-properties"),
+                ("docProps/app.xml", "extended-properties"),
+            )
+            if n in archive.namelist()
+        }
+    )
     for part in sorted(parts):
         if part not in archive.namelist():
             archive.getinfo(part)  # Required missing structural parts remain failures.
@@ -355,7 +457,9 @@ def rename_limitations(archive, root, workbook_relations):
             continue
         kind = parts.get(part)
         if kind is None:
-            reasons.add(f"{part}: unrecognized/opaque package part may contain references")
+            reasons.add(
+                f"{part}: unrecognized/opaque package part may contain references"
+            )
             continue
         if not part.endswith(".xml"):
             continue  # Known media/printer parts contain no Excel sheet references.
@@ -363,72 +467,161 @@ def rename_limitations(archive, root, workbook_relations):
             stack = []
             for event, element in safe_xml.iterparse(stream, ("start", "end")):
                 local = element.tag.rsplit("}", 1)[-1]
-                namespace = element.tag[1:].split("}", 1)[0] if element.tag.startswith("{") else ""
+                namespace = (
+                    element.tag[1:].split("}", 1)[0]
+                    if element.tag.startswith("{")
+                    else ""
+                )
                 if event == "start":
                     stack.append(element)
                     continue
                 scope = next((s.index for s in sheets if s.part == part), None)
-                if kind in NON_REFERENCE_KINDS - {"core-properties", "extended-properties", "custom-properties"}:
+                if kind in NON_REFERENCE_KINDS - {
+                    "core-properties",
+                    "extended-properties",
+                    "custom-properties",
+                }:
                     if local in {"extLst", "ext", "AlternateContent"}:
-                        reasons.add(f"{part}: unrecognized metadata extension may contain references")
-                    if namespace not in MAIN_NS | DRAW_NS | {"http://schemas.openxmlformats.org/drawingml/2006/theme"}:
+                        reasons.add(
+                            f"{part}: unrecognized metadata extension may contain references"
+                        )
+                    if namespace not in MAIN_NS | DRAW_NS | {
+                        "http://schemas.openxmlformats.org/drawingml/2006/theme"
+                    }:
                         reasons.add(f"{part}: unrecognized metadata namespace")
                     if kind in METADATA_TAGS and local not in METADATA_TAGS[kind]:
                         reasons.add(f"{part}: unrecognized metadata element: {local}")
                 if kind not in NON_REFERENCE_KINDS | {"contentTypes"}:
-                    allowed = {"workbook": WORKBOOK_TAGS, "worksheet": SHEET_TAGS,
-                               "chartsheet": SHEET_TAGS, "chart": CHART_TAGS,
-                               "table": TABLE_TAGS, "drawing": DRAWING_TAGS}[kind]
-                    known = (kind in {"workbook", "worksheet", "chartsheet", "table"}
-                             and namespace in MAIN_NS and local in allowed) or (
-                        kind in {"chart", "drawing"} and namespace in DRAW_NS and local in A_TAGS
-                    ) or (kind == "chart" and namespace in CHART_NS and local in allowed) or (
-                        kind == "drawing" and namespace in XDR_NS and local in allowed
-                    ) or (kind == "drawing" and namespace in CHART_NS and local == "chart")
-                    if kind == "drawing" and namespace == DECORATIVE and local == "decorative":
+                    allowed = {
+                        "workbook": WORKBOOK_TAGS,
+                        "worksheet": SHEET_TAGS,
+                        "chartsheet": SHEET_TAGS,
+                        "chart": CHART_TAGS,
+                        "table": TABLE_TAGS,
+                        "drawing": DRAWING_TAGS,
+                    }[kind]
+                    known = (
+                        (
+                            kind in {"workbook", "worksheet", "chartsheet", "table"}
+                            and namespace in MAIN_NS
+                            and local in allowed
+                        )
+                        or (
+                            kind in {"chart", "drawing"}
+                            and namespace in DRAW_NS
+                            and local in A_TAGS
+                        )
+                        or (
+                            kind == "chart"
+                            and namespace in CHART_NS
+                            and local in allowed
+                        )
+                        or (
+                            kind == "drawing"
+                            and namespace in XDR_NS
+                            and local in allowed
+                        )
+                        or (
+                            kind == "drawing"
+                            and namespace in CHART_NS
+                            and local == "chart"
+                        )
+                    )
+                    if (
+                        kind == "drawing"
+                        and namespace == DECORATIVE
+                        and local == "decorative"
+                    ):
                         known = True
                     if kind == "drawing" and local in {"ext", "extLst"}:
                         known = namespace in DRAW_NS and (
-                            local == "extLst" or element.get("uri") == "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
+                            local == "extLst"
+                            or element.get("uri")
+                            == "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
                         )
                         # xdr:ext (anchor size) is not an extension container.
                         known = known or (namespace in XDR_NS and local == "ext")
                     if not known:
-                        reasons.add(f"{part}: unsupported reference-bearing element: {local}")
+                        reasons.add(
+                            f"{part}: unsupported reference-bearing element: {local}"
+                        )
                     for attribute in element.attrib:
                         attr_local = attribute.rsplit("}", 1)[-1]
                         if attr_local not in KNOWN_ATTRIBUTES:
-                            reasons.add(f"{part}: unsupported attribute on {local}: {attr_local}")
-                        if attribute.startswith("{") and not attribute.startswith((
-                            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}",
-                            "{http://purl.oclc.org/ooxml/officeDocument/relationships}",
-                            "{http://www.w3.org/XML/1998/namespace}",
-                        )):
-                            reasons.add(f"{part}: unsupported namespaced attribute on {local}")
-                    if local in {"pivotSource", "pivotFmts", "pivotFmt", "externalData", "fld"}:
-                        reasons.add(f"{part}: pivot/external/dynamic reference representation: {local}")
-                    if local in {"hlinkClick", "hlinkMouseOver"} and element.get("action"):
+                            reasons.add(
+                                f"{part}: unsupported attribute on {local}: {attr_local}"
+                            )
+                        if attribute.startswith("{") and not attribute.startswith(
+                            (
+                                "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}",
+                                "{http://purl.oclc.org/ooxml/officeDocument/relationships}",
+                                "{http://www.w3.org/XML/1998/namespace}",
+                            )
+                        ):
+                            reasons.add(
+                                f"{part}: unsupported namespaced attribute on {local}"
+                            )
+                    if local in {
+                        "pivotSource",
+                        "pivotFmts",
+                        "pivotFmt",
+                        "externalData",
+                        "fld",
+                    }:
+                        reasons.add(
+                            f"{part}: pivot/external/dynamic reference representation: {local}"
+                        )
+                    if local in {"hlinkClick", "hlinkMouseOver"} and element.get(
+                        "action"
+                    ):
                         reasons.add(f"{part}: unsupported drawing hyperlink action")
-                    if any(element.get(attribute) for attribute in (
-                        "macro", "fmlaMacro", "fmlaLink", "fmlaPict", "fmlaTxbx", "textlink",
-                        "connectionId", "queryTableFieldId",
-                    )):
-                        reasons.add(f"{part}: unsupported macro/query/object formula binding on {local}")
+                    if any(
+                        element.get(attribute)
+                        for attribute in (
+                            "macro",
+                            "fmlaMacro",
+                            "fmlaLink",
+                            "fmlaPict",
+                            "fmlaTxbx",
+                            "textlink",
+                            "connectionId",
+                            "queryTableFieldId",
+                        )
+                    ):
+                        reasons.add(
+                            f"{part}: unsupported macro/query/object formula binding on {local}"
+                        )
                     if local == "graphicData" and element.get("uri") not in CHART_NS:
                         reasons.add(f"{part}: unsupported drawing graphicData")
-                    if local in {"f", "formula", "formula1", "formula2", "calculatedColumnFormula", "totalsRowFormula"}:
+                    if local in {
+                        "f",
+                        "formula",
+                        "formula1",
+                        "formula2",
+                        "calculatedColumnFormula",
+                        "totalsRowFormula",
+                    }:
                         if local == "f" and element.get("t", "normal") != "normal":
-                            reasons.add(f"{part}: shared/array/dynamic/data-table formula is outside rename profile")
+                            reasons.add(
+                                f"{part}: shared/array/dynamic/data-table formula is outside rename profile"
+                            )
                         else:
                             reason = formula_reason(element.text, sheets, names, scope)
                             if reason:
                                 reasons.add(f"{part}: {reason}")
                     if local == "cfvo" and element.get("type") == "formula":
-                        reason = formula_reason(element.get("val"), sheets, names, scope)
+                        reason = formula_reason(
+                            element.get("val"), sheets, names, scope
+                        )
                         if reason:
                             reasons.add(f"{part}: conditional threshold: {reason}")
                     if local == "hyperlink" and element.get("location"):
-                        reason = _range_reason(element.get("location").removeprefix("#"), sheets, names, scope)
+                        reason = _range_reason(
+                            element.get("location").removeprefix("#"),
+                            sheets,
+                            names,
+                            scope,
+                        )
                         if reason:
                             reasons.add(f"{part}: internal hyperlink: {reason}")
                 stack.pop()
