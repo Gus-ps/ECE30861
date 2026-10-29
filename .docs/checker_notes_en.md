@@ -7,6 +7,9 @@ new ruleset 2.0.0 identity, deterministic aggregation and sparse cell input.
 Only ALT_TEXT and WORKSHEET_NAME run. This is not six-rule completion or shared
 adoption of the whole specification. See [the foundation contract](phase4_common_foundation.md)
 and AE-011; the earlier decisions below still govern detector behavior.
+The developer separately authorized only missing/duplicate DrawingML-ID target
+alignment with specification 2.1.0 Sections 7.1/7.2 (AE-012). That increment
+does not establish team-wide adoption or change the detection policy.
 
 The pod-alignment changes imported from Gustavo `bda0383` and the subsequent
 streaming/background/cNvPr-target update from
@@ -98,9 +101,10 @@ ZIP access, hashing, JSON identity, regular expressions and runner policy remain
 standard-library code. Table/Title checks remain inactive in the runner.
 
 The common foundation now uses ruleset 2.0.0, ALT_TEXT-first execution and
-limitation sorting/deduplication. Six-rule coverage, object-element targets
-for missing/duplicate IDs, new table rules and rename safety are outside this
-increment. Existing cNvPr targets remain. `cell_reader.py` and `coordinates.py`
+limitation sorting/deduplication. A subsequent target-only update uses object
+elements for missing/duplicate DrawingML IDs (AE-012). Six-rule coverage,
+new table rules and rename safety remain outside these increments.
+`cell_reader.py` and `coordinates.py`
 provide independently tested input for future checks, not additional findings;
 the existing detectors have not been rewritten to use them.
 
@@ -142,18 +146,22 @@ Rule/category: `ALT_TEXT` / `NON_TEXT_CONTENT`.
 
 Targets use actual drawing parts plus `#id=<stored-object-id>`. Relationships
 are followed rather than inferred from filenames. Missing/duplicate IDs receive
-review targets pointing to **cNvPr**, for example:
+review targets pointing to the **owning drawing object**, for example:
 
 ```text
-xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]/nvPicPr[1]/cNvPr[1]
+xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]
 ```
 
 XML paths start at `/root[1]` and count siblings of the same local name from one,
 ignoring namespaces. Other unsupported fallback targets identify the relevant
-object or XML element. Changing a missing/duplicate-ID target from its former
-parent-object location changes the affected findingId, even for identical source
-bytes. That historical target change is separate from the current ruleset 2.0.0
-identity update; ordinary `#id=` locations remain unchanged.
+object or XML element. Every member of a duplicate-ID group, including the
+first, uses its own fallback. Nested children target themselves, not their group.
+pic, sp, cxnSp, graphicFrame and grpSp reuse their existing indexed paths.
+MANUAL_REVIEW, category, messages and limitation reason stay unchanged; limitation
+locations follow the new target. The 2.0.0 identity recipe and unique `#id=`
+locations are unchanged; affected findingIds change because their targets change.
+AE-009's former cNvPr policy and historical results remain historical records;
+the developer-authorized Phase 4 target policy is AE-012.
 
 Unsupported/ambiguous representations yield `MANUAL_REVIEW` and a limitation
 while retaining other findings: unknown objects/anchors, wrappers, ambiguous
@@ -202,10 +210,15 @@ are unchanged; see the assumptions log for their provisional values.
 ## Verification and limits
 
 On 2026-10-29, `.venv/bin/python -m unittest discover -s tests -q` passed
-**82 tests** on Python 3.14.0. The prior library migration passed 61 tests;
+**85 tests** on Python 3.14.0, after a fresh 82-test target-change baseline.
+The related image-checker module passed 19 tests, including the exact drawing1
+duplicate-pic example, all five supported object kinds, nested groups,
+unique-ID locations, independently calculated 2.0.0 IDs, determinism and unchanged
+source bytes. These added cases are synthetic ZIP/XML, not Excel UI validation.
+The prior library migration passed 61 tests;
 that increment's fresh pre-migration baseline was 48 tests.
 Coverage includes the background-only/no-relationships case, 10,000-row
-grid/IMAGE path, and exact missing/duplicate-ID cNvPr targets. Existing tests
+grid/IMAGE path, and exact missing/duplicate-ID object targets. Existing tests
 cover names, hidden/chart tabs, supported objects/groups, reviews/limitations,
 runner behavior, stable identity, source preservation, and inactive checkers.
 
@@ -226,4 +239,4 @@ is checked separately. VML/rich-data and all unsupported variants are not
 exhaustively tested. Performance has not been benchmarked.
 
 Decision status and remaining limits are recorded in
-[the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-011**.
+[the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-012**.

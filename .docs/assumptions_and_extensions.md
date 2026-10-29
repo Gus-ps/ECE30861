@@ -1,5 +1,35 @@
 # Assumptions and Extensions
 
+## AE-012 — Phase 4 missing/duplicate object-ID targets (2026-10-29)
+
+- **Source/scope:** Phase 4 specification 2.1.0 Sections 7.1/7.2 and the
+  developer's explicit request authorize changing only ALT_TEXT missing/duplicate
+  DrawingML ID targets. Partial `1.1.1 Non-text Content`, not full coverage.
+- **Rule:** Use the actual drawing part plus the existing indexed path of the
+  owning pic, sp, cxnSp, graphicFrame or grpSp, including each nested child and
+  every member of a duplicate-ID group. Retain unique `#id=` targets,
+  MANUAL_REVIEW, category, messages and limitation reason. Location-bearing
+  limitation strings use the new target. Existing 2.0.0 identity hashes that
+  target; do not relabel historical results or increment the ruleset.
+- **Rationale:** `inspect()` already computes this object-level `fallback`.
+  Reuse it without new path calculation or changes to detection/group behavior.
+  Distinct object paths preserve distinct findings and IDs.
+- **Approval:** Developer authorized this exact implementation increment on
+  2026-10-29. Team-wide adoption of the whole specification is not established.
+  AE-009's cNvPr policy remains historical; AE-012 supersedes only the current
+  missing/duplicate-ID target described in AE-009/010/011.
+- **Implementation/verification:** `checks/image_alt_text.py` now passes the
+  existing object-level `fallback` to review for missing/duplicate IDs.
+  Fresh pre-change run: 82 tests passed. After the change, all 85 tests passed
+  on Python 3.14.0 using `.venv/bin/python -m unittest discover -s tests -q`;
+  the related `test_image_alt_text.py` suite passed 19 tests. Existing target
+  assertions changed only for the authorized missing/duplicate-ID cases.
+  Added tests cover the exact drawing1 duplicate-pic example, all five object
+  kinds, nested groups/children, unique-ID targets, independently calculated
+  2.0.0 IDs, repeatability, limitation reasons and unchanged source bytes.
+  Historical snapshots and Phase 3 records are unchanged. New cases are
+  synthetic ZIP/XML; no Excel UI validation or whole-spec adoption is claimed.
+
 ## AE-011 — Authorized Phase 4 common foundation (2026-10-29)
 
 - **Source/approval:** Developer explicitly authorizes only versioned finding

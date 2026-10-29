@@ -20,8 +20,11 @@ The future execution order is ALT_TEXT, WORKSHEET_NAME, TABLE_HEADER,
 MERGED_CELLS, LINK_TEXT, COLOR_CONTRAST. **Only the first two are registered and
 executed**; the remaining names reserve order and have no success/empty stubs.
 The existing provisional table check is not enabled. Existing detector scopes,
-classifications, prose and cNvPr fallback targets are unchanged. Rename safety
-and the Phase 4 object-element duplicate-ID target are outside this increment.
+classifications and prose are unchanged. The original common-foundation
+increment retained cNvPr fallback targets; the subsequent, separately authorized
+AE-012 update now uses owning object paths for missing/duplicate DrawingML IDs.
+Unique `#id=` targets and ruleset 2.0.0 remain unchanged. Rename safety is outside
+both increments. Historical snapshots and audit results are not rewritten.
 
 `finalize_findings` sorts findings by `(ruleId, worksheet, target)` in Unicode
 code-point order, independently of execution order. It never deduplicates
@@ -136,7 +139,11 @@ hidden/chartsheet inventory, source byte preservation and the complete fixture.
 The saved 1.0.0 regression snapshot is unchanged: test code independently
 applies only new IDs and limitation normalization when comparing new outputs.
 
-Table/merge/link/color checks, rename safety, new duplicate-ID targets,
+The later target-only increment passes 85 tests (19 image-checker tests), using
+object paths for missing/duplicate IDs as recorded in AE-012. It does not change
+the reader or the foundation's original 82-test verification record above.
+
+Table/merge/link/color checks, rename safety,
 remediation, HTTP/storage/UI and six-rule integration remain unimplemented in
 this increment. Excel UI validation, exhaustive unsupported-format handling,
 minimum-Python-version execution and performance benchmarks remain unverified.

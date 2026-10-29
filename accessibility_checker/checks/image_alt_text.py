@@ -3,6 +3,7 @@
 Checks accessibility title/description, not visible captions or semantic quality.
 Unsupported or ambiguous representations produce manual-review findings.
 Detection is retained from Phase 3; new finding identity uses ruleset 2.0.0.
+Missing/duplicate IDs use the owning object's Phase 4 indexed target.
 """
 
 import posixpath
@@ -368,7 +369,7 @@ def check_image_alt_text(
                         if not identifier or identifiers[identifier] != 1:
                             review(
                                 worksheet,
-                                f"{part}#xml={locations[properties]}",
+                                fallback,
                                 "Missing or duplicate drawing ID; indexed XML location used.",
                             )
                             if kind == "grpSp":

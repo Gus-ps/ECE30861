@@ -1,8 +1,11 @@
-"""WCAG 2.1 1.1.1 Non-text Content: Phase 3 title/description tests.
+"""WCAG 2.1 1.1.1 Non-text Content: retained title/description detection,
+with Phase 4 object-level missing/duplicate-ID target tests.
 
 Related to REQ-03/04/05/06 and AC-03/04/05/06; not full criterion coverage.
 """
 
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -497,10 +500,10 @@ class ImageAltTextTests(unittest.TestCase):
                 ]
                 expected_targets = {
                     "missing": [
-                        "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]/nvPicPr[1]/cNvPr[1]"
+                        "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]"
                     ],
                     "duplicate": [
-                        f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]/nvPicPr[1]/cNvPr[1]"
+                        f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]"
                         for i in (1, 2)
                     ],
                     "unknown": [
@@ -523,6 +526,124 @@ class ImageAltTextTests(unittest.TestCase):
                 self.assertEqual(
                     findings.limitations, check_image_alt_text(self.path).limitations
                 )
+
+    def test_phase4_duplicate_pic_targets_match_shared_example(self):
+        self.write_metadata([("Expenses", None, [{}, {}])])
+        with ZipFile(self.path) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        drawing = ET.fromstring(parts.pop("xl/drawings/drawing90.xml"))
+        for properties in drawing.iter(f"{{{XDR}}}cNvPr"):
+            properties.set("id", "7")
+        parts["xl/drawings/drawing1.xml"] = ET.tostring(drawing)
+        relation_part = "xl/worksheets/_rels/sheet17.xml.rels"
+        rels = ET.fromstring(parts[relation_part])
+        rels[0].set("Target", "../drawings/drawing1.xml")
+        parts[relation_part] = ET.tostring(rels)
+        with ZipFile(self.path, "w") as archive:
+            for name, data in parts.items():
+                archive.writestr(name, data)
+        before = self.path.read_bytes()
+        findings = check_image_alt_text(self.path)
+        expected = [
+            f"xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]"
+            for i in (1, 2)
+        ]
+        self.assertEqual([item["target"] for item in findings], expected)
+        self.assertEqual(len({item["findingId"] for item in findings}), 2)
+        source = hashlib.sha256(before).hexdigest()
+        for item, target in zip(findings, expected):
+            payload = json.dumps(
+                [source, "2.0.0", "ALT_TEXT", "Expenses", target],
+                ensure_ascii=False, separators=(",", ":"),
+            ).encode("utf-8")
+            self.assertEqual(item["findingId"], hashlib.sha256(payload).hexdigest())
+            self.assertEqual(item["ruleId"], "ALT_TEXT")
+            self.assertEqual(item["category"], "NON_TEXT_CONTENT")
+            self.assertEqual(item["classification"], "MANUAL_REVIEW")
+        self.assertEqual(findings.limitations, [
+            f"Expenses: {target}: Missing or duplicate drawing ID; indexed XML location used."
+            for target in expected
+        ])
+        repeated = check_image_alt_text(self.path)
+        self.assertEqual(findings, repeated)
+        self.assertEqual(findings.limitations, repeated.limitations)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_missing_and_duplicate_targets_for_each_supported_object_kind(self):
+        for kind in ("pic", "sp", "cxnSp", "graphicFrame", "grpSp"):
+            for case in ("missing", "duplicate"):
+                with self.subTest(kind=kind, case=case):
+                    initial_kind = "sp" if kind == "grpSp" else kind
+                    self.write_metadata([("Budget", None, [{"kind": initial_kind}] * 2)])
+
+                    def change(root):
+                        if kind == "grpSp":
+                            for anchor in root:
+                                anchor[0].tag = f"{{{XDR}}}grpSp"
+                                anchor[0][0].tag = f"{{{XDR}}}nvGrpSpPr"
+                                ET.SubElement(anchor[0], f"{{{XDR}}}grpSpPr")
+                        properties = list(root.iter(f"{{{XDR}}}cNvPr"))
+                        if case == "missing":
+                            del properties[0].attrib["id"]
+                        else:
+                            properties[1].set("id", "1")
+
+                    self.rewrite_part("xl/drawings/drawing90.xml", change)
+                    before = self.path.read_bytes()
+                    findings = check_image_alt_text(self.path)
+                    reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
+                    expected = [
+                        f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/{kind}[1]"
+                        for i in ((1,) if case == "missing" else (1, 2))
+                    ]
+                    self.assertEqual([f["target"] for f in reviews], expected)
+                    self.assertEqual(len(findings.limitations), len(expected))
+                    if case == "missing" and kind != "grpSp":
+                        normal = [f for f in findings if f["classification"] == "REQUIRES_USER_INPUT"]
+                        self.assertEqual([f["target"] for f in normal], ["xl/drawings/drawing90.xml#id=2"])
+                    self.assertEqual(findings, check_image_alt_text(self.path))
+                    self.assertEqual(self.path.read_bytes(), before)
+
+    def test_nested_group_targets_use_each_child_object_and_preserve_unique_id(self):
+        self.write_metadata([("Budget", None, [
+            {}, {}, {"kind": "sp"}, {"kind": "cxnSp"}, {"kind": "graphicFrame"},
+        ])])
+
+        def group(root):
+            children = [anchor[0] for anchor in root]
+            for anchor in list(root):
+                root.remove(anchor)
+            anchor = ET.SubElement(root, f"{{{XDR}}}twoCellAnchor")
+            outer = ET.SubElement(anchor, f"{{{XDR}}}grpSp")
+            props = ET.SubElement(outer, f"{{{XDR}}}nvGrpSpPr")
+            ET.SubElement(props, f"{{{XDR}}}cNvPr", {"name": "Missing group ID"})
+            ET.SubElement(outer, f"{{{XDR}}}grpSpPr")
+            children[1].find("{*}nvPicPr/{*}cNvPr").set("id", "1")
+            for child in children[2:4]:
+                del child.find("{*}*/{*}cNvPr").attrib["id"]
+            outer.extend(children[:3])
+            inner = ET.SubElement(outer, f"{{{XDR}}}grpSp")
+            props = ET.SubElement(inner, f"{{{XDR}}}nvGrpSpPr")
+            ET.SubElement(props, f"{{{XDR}}}cNvPr", {"id": "99"})
+            ET.SubElement(inner, f"{{{XDR}}}grpSpPr")
+            inner.append(children[3])
+            outer.append(children[4])
+
+        self.rewrite_part("xl/drawings/drawing90.xml", group)
+        before = self.path.read_bytes()
+        findings = check_image_alt_text(self.path)
+        prefix = "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[1]/grpSp[1]"
+        expected_reviews = [prefix + suffix for suffix in (
+            "", "/grpSp[1]/cxnSp[1]", "/pic[1]", "/pic[2]", "/sp[1]",
+        )]
+        reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
+        self.assertEqual([f["target"] for f in reviews], expected_reviews)
+        self.assertEqual(len(findings), 6)
+        self.assertEqual(len({f["findingId"] for f in findings}), 6)
+        self.assertEqual(findings[0]["target"], "xl/drawings/drawing90.xml#id=5")
+        self.assertEqual(len(findings.limitations), 5)
+        self.assertEqual(findings, check_image_alt_text(self.path))
+        self.assertEqual(self.path.read_bytes(), before)
 
     def test_chartsheet_drawing_is_inspected(self):
         self.write_metadata([("Chart", "hidden", [{}])])
