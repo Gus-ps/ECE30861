@@ -2,6 +2,14 @@
 
 ## Current decisions and usage
 
+Readiness stage 1 (AE-013) preserves safe child traversal when group nonvisual
+properties or decorative markers are ambiguous. The parent retains its review
+and limitation; children do not inherit decorative flags. Unknown wrappers stay
+manual and are not selected. No missing-alt finding is issued solely for a
+container. Validation: 21 ALT_TEXT tests and all 87 tests pass (2026-10-29,
+Python 3.14.0). This is developer-authorized partial 1.1.1 behavior, not a claim
+of whole-spec adoption or an implemented editor.
+
 The developer authorized the Phase 4 common foundation on 2026-10-29:
 new ruleset 2.0.0 identity, deterministic aggregation and sparse cell input.
 Only ALT_TEXT and WORKSHEET_NAME run. This is not six-rule completion or shared

@@ -1,5 +1,24 @@
 # Assumptions and Extensions
 
+## AE-013 — Group ambiguity must not hide safe children (2026-10-29)
+
+- **Source/approval:** Developer authorizes readiness stage 1 under specification
+  7.1/7.2, partial `1.1.1 Non-text Content`; not whole-spec team adoption.
+- **Rule:** Missing/ambiguous group nonvisual properties or decorative metadata
+  yield the existing parent review/limitation while directly enumerated children
+  are independently inspected. Native single 0/false is not decorative; 1/true
+  suppresses missing-alt for the parent only. Unknown wrappers are reviewed,
+  never selected speculatively. No container missing-alt finding is introduced.
+- **Rationale/implementation:** The existing NotImplementedError handler returned
+  before group children were visited. It now invokes the existing namespace-aware
+  direct-child visitor for grpSp only. Error handling is not otherwise widened;
+  object fallback paths, IDs, source bytes and classifications are retained.
+- **Verification:** Fresh baseline 85 tests. Related ALT_TEXT suite: 21 pass;
+  full suite: 87 pass on Python 3.14.0 in .venv. Added parameterized cases cover
+  parent property/marker ambiguity, native flags, complete/missing-alt children,
+  nested groups, wrappers, exact targets and deterministic unchanged-source
+  results. Fixtures are synthetic; Excel UI validation remains unperformed.
+
 ## AE-012 — Phase 4 missing/duplicate object-ID targets (2026-10-29)
 
 - **Source/scope:** Phase 4 specification 2.1.0 Sections 7.1/7.2 and the

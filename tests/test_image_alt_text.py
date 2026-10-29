@@ -468,6 +468,91 @@ class ImageAltTextTests(unittest.TestCase):
             ["xl/drawings/drawing90.xml#id=1", "xl/drawings/drawing90.xml#id=2"],
         )
 
+    def test_ambiguous_parent_group_preserves_safe_nested_children(self):
+        for case in ("missing_properties", "duplicate_properties", "multiple_markers",
+                     "invalid_marker", "foreign_marker"):
+            with self.subTest(case=case):
+                self.write_metadata([("Budget", None, [
+                    {}, {"title": "Complete", "descr": "Description"}, {"kind": "sp"},
+                ])])
+
+                def group(root):
+                    children = [anchor[0] for anchor in root]
+                    for anchor in list(root):
+                        root.remove(anchor)
+                    anchor = ET.SubElement(root, f"{{{XDR}}}twoCellAnchor")
+                    outer = ET.SubElement(anchor, f"{{{XDR}}}grpSp")
+                    nv = ET.SubElement(outer, f"{{{XDR}}}nvGrpSpPr")
+                    if case != "missing_properties":
+                        properties = ET.SubElement(nv, f"{{{XDR}}}cNvPr", {"id": "99"})
+                        if case == "duplicate_properties":
+                            ET.SubElement(nv, f"{{{XDR}}}cNvPr", {"id": "98"})
+                        else:
+                            ext = ET.SubElement(properties, f"{{{DRAW}}}extLst")
+                            marker_ns = "urn:unknown" if case == "foreign_marker" else DECORATIVE
+                            ET.SubElement(ext, f"{{{marker_ns}}}decorative", {
+                                "val": "invalid" if case == "invalid_marker" else "true",
+                            })
+                            if case == "multiple_markers":
+                                ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": "false"})
+                    outer.extend(children[:2])
+                    inner = ET.SubElement(outer, f"{{{XDR}}}grpSp")
+                    nv = ET.SubElement(inner, f"{{{XDR}}}nvGrpSpPr")
+                    ET.SubElement(nv, f"{{{XDR}}}cNvPr", {"id": "100"})
+                    inner.append(children[2])
+
+                self.rewrite_part("xl/drawings/drawing90.xml", group)
+                before = self.path.read_bytes()
+                result = check_image_alt_text(self.path)
+                parent_target = (
+                    "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[1]/grpSp[1]"
+                    if case in ("missing_properties", "duplicate_properties")
+                    else "xl/drawings/drawing90.xml#id=99"
+                )
+                self.assertEqual({f["target"]: f["classification"] for f in result}, {
+                    parent_target: "MANUAL_REVIEW",
+                    "xl/drawings/drawing90.xml#id=1": "REQUIRES_USER_INPUT",
+                    "xl/drawings/drawing90.xml#id=3": "REQUIRES_USER_INPUT",
+                })
+                self.assertEqual(len(result.limitations), 1)
+                repeated = check_image_alt_text(self.path)
+                self.assertEqual(result, repeated)
+                self.assertEqual(result.limitations, repeated.limitations)
+                self.assertEqual(before, self.path.read_bytes())
+
+    def test_group_decorative_flags_do_not_inherit_and_wrappers_stay_unselected(self):
+        for flag in (None, "0", "false", "1", "true"):
+            with self.subTest(flag=flag):
+                self.write_metadata([("Budget", None, [
+                    {}, {"title": "Complete", "descr": "Description"},
+                ])])
+
+                def group(root):
+                    children = [anchor[0] for anchor in root]
+                    for anchor in list(root):
+                        root.remove(anchor)
+                    anchor = ET.SubElement(root, f"{{{XDR}}}twoCellAnchor")
+                    outer = ET.SubElement(anchor, f"{{{XDR}}}grpSp")
+                    nv = ET.SubElement(outer, f"{{{XDR}}}nvGrpSpPr")
+                    properties = ET.SubElement(nv, f"{{{XDR}}}cNvPr", {"id": "99"})
+                    if flag is not None:
+                        ext = ET.SubElement(properties, f"{{{DRAW}}}extLst")
+                        ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": flag})
+                    outer.extend(children)
+                    wrapper = ET.SubElement(outer, "{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent")
+                    ET.SubElement(wrapper, f"{{{XDR}}}pic")
+
+                self.rewrite_part("xl/drawings/drawing90.xml", group)
+                result = check_image_alt_text(self.path)
+                expected = {
+                    "xl/drawings/drawing90.xml#id=1": "REQUIRES_USER_INPUT",
+                    "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[1]/grpSp[1]/AlternateContent[1]": "MANUAL_REVIEW",
+                }
+                if flag in ("1", "true"):
+                    expected["xl/drawings/drawing90.xml#id=99"] = "MANUAL_REVIEW"
+                self.assertEqual({f["target"]: f["classification"] for f in result}, expected)
+                self.assertEqual(len(result.limitations), 2 if flag in ("1", "true") else 1)
+
     def test_missing_duplicate_ids_and_unsupported_objects_produce_reviews(self):
         for case in ("missing", "duplicate", "unknown", "background"):
             with self.subTest(case=case):

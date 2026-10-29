@@ -418,6 +418,8 @@ def check_image_alt_text(
                                 return
                     except NotImplementedError as error:
                         review(worksheet, target, str(error))
+                        if kind == "grpSp":
+                            inspect_children(element, {"nvGrpSpPr", "grpSpPr"})
                         return
                     if decorative:
                         emit(
