@@ -11,9 +11,7 @@ from defusedxml import ElementTree
 
 
 def fromstring(text):
-    return ElementTree.fromstring(
-        text, forbid_dtd=True, forbid_entities=True, forbid_external=True
-    )
+    return ElementTree.fromstring(text, forbid_dtd=True, forbid_entities=True, forbid_external=True)
 
 
 def iterparse(source, events=None):

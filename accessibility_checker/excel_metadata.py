@@ -37,9 +37,7 @@ def workbook_title(properties):
     model = _model(DocumentProperties, properties)
     # Serialisable.from_tree matches child local names; a foreign namespace
     # must not supply or replace the Dublin Core title used by our rule.
-    local_titles = [
-        child for child in properties if child.tag.rsplit("}", 1)[-1] == "title"
-    ]
+    local_titles = [child for child in properties if child.tag.rsplit("}", 1)[-1] == "title"]
     if model is not None and len(titles) <= 1 and local_titles == titles:
         return model.title
     return titles[0].text if titles else None

@@ -20,9 +20,13 @@ def worksheet_features(reader, sheet, names, *, with_paths=False):
                 if len(stack) == 1:
                     local = element.tag.rsplit("}", 1)[-1]
                     counts[local] = counts.get(local, 0) + 1
-                if len(stack) == 1 and ((names is None and element.tag != f"{{{namespace}}}sheetData") or (names is not None and element.tag in {
-                    f"{{{namespace}}}{name}" for name in names
-                })):
+                if len(stack) == 1 and (
+                    (names is None and element.tag != f"{{{namespace}}}sheetData")
+                    or (
+                        names is not None
+                        and element.tag in {f"{{{namespace}}}{name}" for name in names}
+                    )
+                ):
                     selected = element
                     selected_path = f"/{sheet.kind}[1]/{local}[{counts[local]}]"
                 stack.append(element)
@@ -62,14 +66,14 @@ def overlaps(first, second):
 
 def indexed_paths(root):
     """Local-name, sibling-counted locations; namespace is validated separately."""
-    result = {root: '/' + root.tag.rsplit('}', 1)[-1] + '[1]'}
+    result = {root: "/" + root.tag.rsplit("}", 1)[-1] + "[1]"}
     pending = [root]
     while pending:
         parent = pending.pop()
         counts = {}
         for child in parent:
-            name = child.tag.rsplit('}', 1)[-1]
+            name = child.tag.rsplit("}", 1)[-1]
             counts[name] = counts.get(name, 0) + 1
-            result[child] = result[parent] + '/' + name + '[' + str(counts[name]) + ']'
+            result[child] = result[parent] + "/" + name + "[" + str(counts[name]) + "]"
             pending.append(child)
     return result

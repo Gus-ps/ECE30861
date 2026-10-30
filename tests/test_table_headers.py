@@ -59,9 +59,7 @@ class TableHeaderTests(unittest.TestCase):
                 if state is not None:
                     attributes["state"] = state
                 ET.SubElement(sheet_list, f"{{{MAIN}}}sheet", attributes)
-                workbook_relationships.append(
-                    (f"rId{index}", kind, f"worksheets/{sheet_file}")
-                )
+                workbook_relationships.append((f"rId{index}", kind, f"worksheets/{sheet_file}"))
                 sheet = ET.Element(f"{{{MAIN}}}worksheet")
                 ET.SubElement(sheet, f"{{{MAIN}}}sheetData")
                 table_parts = ET.SubElement(sheet, f"{{{MAIN}}}tableParts")
@@ -75,11 +73,7 @@ class TableHeaderTests(unittest.TestCase):
                         f"{{{MAIN}}}tablePart",
                         {f"{{{DOC}}}id": identifier},
                     )
-                    target = (
-                        f"../tables/{filename}"
-                        if index == 0
-                        else f"/xl/tables/{filename}"
-                    )
+                    target = f"../tables/{filename}" if index == 0 else f"/xl/tables/{filename}"
                     sheet_relationships.append((identifier, "table", target))
                     attributes = {
                         "id": str(table_number),
@@ -113,9 +107,7 @@ class TableHeaderTests(unittest.TestCase):
         )
 
     def test_req04_ac04_nonzero_or_omitted_count_not_flagged(self):
-        self.write_metadata(
-            [("Budget", "visible", [("A1:C5", "1"), ("E1:G5", None)], "worksheet")]
-        )
+        self.write_metadata([("Budget", "visible", [("A1:C5", "1"), ("E1:G5", None)], "worksheet")])
         self.assertEqual(check_table_headers(self.path), [])
 
     def test_req04_ac04_multiple_tables_sheets_relationships_and_sorting(self):
@@ -131,10 +123,7 @@ class TableHeaderTests(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            [
-                (item["worksheet"], item["target"])
-                for item in check_table_headers(str(self.path))
-            ],
+            [(item["worksheet"], item["target"]) for item in check_table_headers(str(self.path))],
             [
                 ("First", "B3:D6"),
                 ("Second", "A1:C5"),
@@ -151,9 +140,7 @@ class TableHeaderTests(unittest.TestCase):
                 ("Budget", "visible", [("D2:F9", "0")], "worksheet"),
             ]
         )
-        self.assertEqual(
-            [item["worksheet"] for item in check_table_headers(self.path)], ["Budget"]
-        )
+        self.assertEqual([item["worksheet"] for item in check_table_headers(self.path)], ["Budget"])
 
     def test_req04_ac04_no_table_parts_does_not_require_sheet_relationships(self):
         self.write_metadata([("Budget", None, [], "worksheet")])
@@ -169,9 +156,7 @@ class TableHeaderTests(unittest.TestCase):
         self.assertEqual(check_table_headers(self.path), [])
 
     def test_req05_ac05_finding_fields_id_and_repeatability(self):
-        self.write_metadata(
-            [("Budget", None, [("A1:C5", "0"), ("E1:G5", "0")], "worksheet")]
-        )
+        self.write_metadata([("Budget", None, [("A1:C5", "0"), ("E1:G5", "0")], "worksheet")])
         findings = check_table_headers(self.path)
         self.assertEqual(findings, check_table_headers(self.path))
         self.assertEqual(len({item["findingId"] for item in findings}), 2)
@@ -202,9 +187,7 @@ class TableHeaderTests(unittest.TestCase):
                 self.assertTrue(1 <= len(item[field]) <= 500)
 
     def test_req03_ac03_source_bytes_unchanged(self):
-        self.write_metadata(
-            [("Budget", None, [("A1:C5", "0"), ("E1:G5", "1")], "worksheet")]
-        )
+        self.write_metadata([("Budget", None, [("A1:C5", "0"), ("E1:G5", "1")], "worksheet")])
         before = self.path.read_bytes()
         check_table_headers(self.path)
         self.assertEqual(self.path.read_bytes(), before)

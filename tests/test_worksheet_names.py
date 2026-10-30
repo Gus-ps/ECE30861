@@ -75,9 +75,7 @@ class WorksheetNameTests(unittest.TestCase):
         self.assertEqual([f["worksheet"] for f in findings], sorted(matches))
         for item in findings:
             index = matches.index(item["worksheet"]) + 1
-            self.assertEqual(
-                item["target"], f"xl/worksheets/sheet{index}.xml#sheetId={index}"
-            )
+            self.assertEqual(item["target"], f"xl/worksheets/sheet{index}.xml#sheetId={index}")
 
     def test_exact_unicode_whitespace_boundaries(self):
         # Independent transcription of the Section 5 code-point set.
@@ -97,17 +95,13 @@ class WorksheetNameTests(unittest.TestCase):
         from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 
         self.assertEqual(set(map(ord, UNICODE_WHITE_SPACE)), set(points))
-        self.assertTrue(
-            all(chr(p) not in UNICODE_WHITE_SPACE for p in (*range(28, 32), 8203))
-        )
+        self.assertTrue(all(chr(p) not in UNICODE_WHITE_SPACE for p in (*range(28, 32), 8203)))
         # XML 1.0 cannot store U+000B/U+000C; check those in the policy above.
         for point in (p for p in points if p not in (11, 12)):
             with self.subTest(point=point):
                 name = chr(point) + "Sheet01" + chr(point)
                 self.write_metadata([(name, None, "worksheet")])
-                self.assertEqual(
-                    [f["worksheet"] for f in check_worksheet_names(self.path)], [name]
-                )
+                self.assertEqual([f["worksheet"] for f in check_worksheet_names(self.path)], [name])
 
     def test_hidden_worksheets_and_chartsheets_included(self):
         self.write_metadata(
@@ -142,9 +136,7 @@ class WorksheetNameTests(unittest.TestCase):
                 "recommendation",
             },
         )
-        self.assertTrue(
-            all(isinstance(value, str) and value for value in item.values())
-        )
+        self.assertTrue(all(isinstance(value, str) and value for value in item.values()))
         self.assertRegex(item["findingId"], r"\A[0-9a-f]{64}\Z")
         self.assertEqual(item["ruleId"], "WORKSHEET_NAME")
         self.assertEqual(item["category"], "WORKSHEET_NAME")

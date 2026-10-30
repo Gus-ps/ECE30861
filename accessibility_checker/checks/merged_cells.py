@@ -26,23 +26,41 @@ def check_merged_cells(path, *, source_sha256=None):
             cells = [cell for cell in reader.read_cells(sheet) if cell.populated]
             for rectangle in ranges:
                 top, left, bottom, right = range_sort_key(rectangle)
-                conflict = any(other != rectangle and overlaps(rectangle, other) for other in ranges)
-                if conflict or ((top, left) != (bottom, right) and any(
-                    contains(rectangle, cell.row, cell.column) for cell in cells
-                )):
-                    reason = ("Overlapping merge declarations require manual review." if conflict
-                              else "Populated merged cells may impede navigation, including title merges.")
-                    _review(result, source, sheet.name, sheet.part + "#merge=" + rectangle, reason, conflict)
+                conflict = any(
+                    other != rectangle and overlaps(rectangle, other) for other in ranges
+                )
+                if conflict or (
+                    (top, left) != (bottom, right)
+                    and any(contains(rectangle, cell.row, cell.column) for cell in cells)
+                ):
+                    reason = (
+                        "Overlapping merge declarations require manual review."
+                        if conflict
+                        else "Populated merged cells may impede navigation, including title merges."
+                    )
+                    _review(
+                        result,
+                        source,
+                        sheet.name,
+                        sheet.part + "#merge=" + rectangle,
+                        reason,
+                        conflict,
+                    )
     return finalize_findings(result)
 
 
 def _review(result, source, worksheet, target, reason, limitation):
-    result.append({
-        "findingId": make_phase4_finding_id(source, "MERGED_CELLS", worksheet, target),
-        "ruleId": "MERGED_CELLS", "category": "MERGED_CELLS",
-        "worksheet": worksheet, "target": target, "classification": "MANUAL_REVIEW",
-        "message": reason,
-        "recommendation": "Review the merged range and its effect on navigation; no cells were changed.",
-    })
+    result.append(
+        {
+            "findingId": make_phase4_finding_id(source, "MERGED_CELLS", worksheet, target),
+            "ruleId": "MERGED_CELLS",
+            "category": "MERGED_CELLS",
+            "worksheet": worksheet,
+            "target": target,
+            "classification": "MANUAL_REVIEW",
+            "message": reason,
+            "recommendation": "Review the merged range and its effect on navigation; no cells were changed.",
+        }
+    )
     if limitation:
         result.limitations.append(f"{worksheet}: {target}: {reason}")

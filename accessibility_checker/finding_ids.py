@@ -16,16 +16,12 @@ def get_source_sha256(path: str | PathLike[str]) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def make_phase3_finding_id(
-    source_sha256: str, rule_id: str, worksheet: str, target: str
-) -> str:
+def make_phase3_finding_id(source_sha256: str, rule_id: str, worksheet: str, target: str) -> str:
     """Apply the exact compact JSON identity recipe from the guide, Section 5."""
     return _versioned_id(source_sha256, "1.0.0", rule_id, worksheet, target)
 
 
-def make_phase4_finding_id(
-    source_sha256: str, rule_id: str, worksheet: str, target: str
-) -> str:
+def make_phase4_finding_id(source_sha256: str, rule_id: str, worksheet: str, target: str) -> str:
     """Use the current ruleset without relabeling historical results."""
     return _versioned_id(source_sha256, RULESET_VERSION, rule_id, worksheet, target)
 

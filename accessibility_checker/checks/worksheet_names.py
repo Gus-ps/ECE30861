@@ -55,15 +55,13 @@ def check_worksheet_names(
             )
             if match is None or not match.group(1).lstrip("0"):
                 continue
-            part = posixpath.normpath(
-                posixpath.join("xl", relationship.attrib["Target"])
-            ).lstrip("/")
+            part = posixpath.normpath(posixpath.join("xl", relationship.attrib["Target"])).lstrip(
+                "/"
+            )
             target = f"{part}#sheetId={attributes['sheetId']}"
             results.append(
                 {
-                    "findingId": make_phase4_finding_id(
-                        source_sha256, _RULE_ID, name, target
-                    ),
+                    "findingId": make_phase4_finding_id(source_sha256, _RULE_ID, name, target),
                     "ruleId": _RULE_ID,
                     "category": "WORKSHEET_NAME",
                     "worksheet": name,

@@ -47,9 +47,7 @@ class ImageAltTextTests(unittest.TestCase):
         self.write_metadata([("Budget", None, None)])
         self.rewrite_part(
             "xl/worksheets/sheet17.xml",
-            lambda root: ET.SubElement(
-                root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"}
-            ),
+            lambda root: ET.SubElement(root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"}),
         )
         findings = check_image_alt_text(self.path)
         self.assertEqual(len(findings), 1)
@@ -112,9 +110,7 @@ class ImageAltTextTests(unittest.TestCase):
                 sheet = ET.Element(f"{{{MAIN}}}worksheet")
                 ET.SubElement(sheet, f"{{{MAIN}}}sheetData")
                 if pictures is not None:
-                    ET.SubElement(
-                        sheet, f"{{{MAIN}}}drawing", {f"{{{DOC}}}id": "rId42"}
-                    )
+                    ET.SubElement(sheet, f"{{{MAIN}}}drawing", {f"{{{DOC}}}id": "rId42"})
                     # Test both relative and package-absolute relationship targets.
                     target = (
                         f"../drawings/{drawing_file}"
@@ -122,9 +118,7 @@ class ImageAltTextTests(unittest.TestCase):
                         else f"/xl/drawings/{drawing_file}"
                     )
                     rels = relationships([("rId42", "drawing", target)])
-                    archive.writestr(
-                        f"xl/worksheets/_rels/{sheet_file}.rels", ET.tostring(rels)
-                    )
+                    archive.writestr(f"xl/worksheets/_rels/{sheet_file}.rels", ET.tostring(rels))
                     drawing = ET.Element(f"{{{XDR}}}wsDr")
                     for image_index, specification in enumerate(pictures, 1):
                         anchor = ET.SubElement(
@@ -147,9 +141,7 @@ class ImageAltTextTests(unittest.TestCase):
                         for attribute in ("descr", "title"):
                             if attribute in specification:
                                 attributes[attribute] = specification[attribute]
-                        properties = ET.SubElement(
-                            nonvisual, f"{{{XDR}}}cNvPr", attributes
-                        )
+                        properties = ET.SubElement(nonvisual, f"{{{XDR}}}cNvPr", attributes)
                         if "decorative" in specification:
                             extensions = ET.SubElement(properties, f"{{{DRAW}}}extLst")
                             extension = ET.SubElement(
@@ -167,9 +159,7 @@ class ImageAltTextTests(unittest.TestCase):
                                 },
                             )
                         if kind == "graphicFrame":
-                            chart_ns = (
-                                "http://schemas.openxmlformats.org/drawingml/2006/chart"
-                            )
+                            chart_ns = "http://schemas.openxmlformats.org/drawingml/2006/chart"
                             graphic = ET.SubElement(picture, f"{{{DRAW}}}graphic")
                             data = ET.SubElement(
                                 graphic, f"{{{DRAW}}}graphicData", {"uri": chart_ns}
@@ -194,9 +184,7 @@ class ImageAltTextTests(unittest.TestCase):
                             f"xl/drawings/_rels/{drawing_file}.rels",
                             ET.tostring(relationships(chart_rels)),
                         )
-                    archive.writestr(
-                        f"xl/drawings/{drawing_file}", ET.tostring(drawing)
-                    )
+                    archive.writestr(f"xl/drawings/{drawing_file}", ET.tostring(drawing))
                 archive.writestr(f"xl/worksheets/{sheet_file}", ET.tostring(sheet))
             archive.writestr("xl/workbook.xml", ET.tostring(root))
             archive.writestr(
@@ -287,10 +275,7 @@ class ImageAltTextTests(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            [
-                (item["worksheet"], item["target"])
-                for item in check_image_alt_text(str(self.path))
-            ],
+            [(item["worksheet"], item["target"]) for item in check_image_alt_text(str(self.path))],
             [
                 ("First", "xl/drawings/drawing89.xml#id=1"),
                 ("Second", "xl/drawings/drawing90.xml#id=1"),
@@ -436,16 +421,12 @@ class ImageAltTextTests(unittest.TestCase):
             [f["target"].split("#")[-1] for f in findings],
             ["id=1", "id=2", "id=3", "id=5"],
         )
-        self.assertEqual(
-            findings[0]["message"], "Object is missing alternative text title."
-        )
+        self.assertEqual(findings[0]["message"], "Object is missing alternative text title.")
         self.assertEqual(
             findings[1]["message"],
             "Object is missing alternative text description (descr).",
         )
-        self.assertEqual(
-            findings[2]["message"], "Object is missing alternative text title."
-        )
+        self.assertEqual(findings[2]["message"], "Object is missing alternative text title.")
         self.assertEqual(findings[3]["classification"], "MANUAL_REVIEW")
 
     def test_group_children_are_checked_individually(self):
@@ -469,30 +450,58 @@ class ImageAltTextTests(unittest.TestCase):
         )
 
     def test_shared_drawing_ownership_is_manual_including_hidden_and_chart_tabs(self):
-        for kind, state in (("worksheet", "hidden"), ("worksheet", "veryHidden"), ("chartsheet", "hidden")):
+        for kind, state in (
+            ("worksheet", "hidden"),
+            ("worksheet", "veryHidden"),
+            ("chartsheet", "hidden"),
+        ):
             with self.subTest(kind=kind, state=state):
-                self.write_metadata([("Visible", None, [
-                    {}, {"title": "Present"}, {"descr": "Present"},
-                    {"title": "Complete", "descr": "Present"},
-                ]), ("Other", state, None)])
-                self.rewrite_part("xl/worksheets/sheet16.xml", lambda root: ET.SubElement(
-                    root, f"{{{MAIN}}}drawing", {f"{{{DOC}}}id": "shared"},
-                ))
-                self.rewrite_part("xl/_rels/workbook.xml.rels", lambda root: root[1].set("Type", f"{DOC}/{kind}"))
+                self.write_metadata(
+                    [
+                        (
+                            "Visible",
+                            None,
+                            [
+                                {},
+                                {"title": "Present"},
+                                {"descr": "Present"},
+                                {"title": "Complete", "descr": "Present"},
+                            ],
+                        ),
+                        ("Other", state, None),
+                    ]
+                )
+                self.rewrite_part(
+                    "xl/worksheets/sheet16.xml",
+                    lambda root: ET.SubElement(
+                        root,
+                        f"{{{MAIN}}}drawing",
+                        {f"{{{DOC}}}id": "shared"},
+                    ),
+                )
+                self.rewrite_part(
+                    "xl/_rels/workbook.xml.rels", lambda root: root[1].set("Type", f"{DOC}/{kind}")
+                )
                 with ZipFile(self.path, "a") as archive:
-                    archive.writestr("xl/worksheets/_rels/sheet16.xml.rels", ET.tostring(
-                        relationships([("shared", "drawing", "/xl/drawings/drawing90.xml")])
-                    ))
+                    archive.writestr(
+                        "xl/worksheets/_rels/sheet16.xml.rels",
+                        ET.tostring(
+                            relationships([("shared", "drawing", "/xl/drawings/drawing90.xml")])
+                        ),
+                    )
                 before = self.path.read_bytes()
                 result = check_image_alt_text(self.path)
                 self.assertEqual(len(result), 6)
                 self.assertEqual({f["worksheet"] for f in result}, {"Visible", "Other"})
                 self.assertTrue(all(f["classification"] == "MANUAL_REVIEW" for f in result))
-                self.assertEqual({f["target"] for f in result}, {
-                    f"xl/drawings/drawing90.xml#id={i}" for i in (1, 2, 3)
-                })
+                self.assertEqual(
+                    {f["target"] for f in result},
+                    {f"xl/drawings/drawing90.xml#id={i}" for i in (1, 2, 3)},
+                )
                 self.assertEqual(len(result.limitations), 6)
-                self.assertTrue(all("multiple owning sheets" in text for text in result.limitations))
+                self.assertTrue(
+                    all("multiple owning sheets" in text for text in result.limitations)
+                )
                 self.assertEqual(result, check_image_alt_text(self.path))
                 self.assertEqual(result.limitations, check_image_alt_text(self.path).limitations)
                 self.assertEqual(before, self.path.read_bytes())
@@ -502,20 +511,34 @@ class ImageAltTextTests(unittest.TestCase):
             with self.subTest(case=case):
                 self.write_metadata([("Budget", None, [{}]), ("Other", None, None)])
                 if case == "repeat":
-                    self.rewrite_part("xl/worksheets/sheet17.xml", lambda root: ET.SubElement(
-                        root, f"{{{MAIN}}}drawing", {f"{{{DOC}}}id": "alias"},
-                    ))
-                    self.rewrite_part("xl/worksheets/_rels/sheet17.xml.rels", lambda root: ET.SubElement(
-                        root, f"{{{PKG}}}Relationship", {
-                            "Id": "alias", "Type": f"{DOC}/drawing",
-                            "Target": "/xl/drawings/drawing90.xml",
-                        },
-                    ))
+                    self.rewrite_part(
+                        "xl/worksheets/sheet17.xml",
+                        lambda root: ET.SubElement(
+                            root,
+                            f"{{{MAIN}}}drawing",
+                            {f"{{{DOC}}}id": "alias"},
+                        ),
+                    )
+                    self.rewrite_part(
+                        "xl/worksheets/_rels/sheet17.xml.rels",
+                        lambda root: ET.SubElement(
+                            root,
+                            f"{{{PKG}}}Relationship",
+                            {
+                                "Id": "alias",
+                                "Type": f"{DOC}/drawing",
+                                "Target": "/xl/drawings/drawing90.xml",
+                            },
+                        ),
+                    )
                 else:
                     with ZipFile(self.path, "a") as archive:
-                        archive.writestr("xl/worksheets/_rels/sheet16.xml.rels", ET.tostring(
-                            relationships([("unused", "drawing", "../drawings/drawing90.xml")])
-                        ))
+                        archive.writestr(
+                            "xl/worksheets/_rels/sheet16.xml.rels",
+                            ET.tostring(
+                                relationships([("unused", "drawing", "../drawings/drawing90.xml")])
+                            ),
+                        )
                 result = check_image_alt_text(self.path)
                 self.assertEqual(len(result), 1)
                 self.assertEqual(result[0]["classification"], "REQUIRES_USER_INPUT")
@@ -523,21 +546,40 @@ class ImageAltTextTests(unittest.TestCase):
 
     def test_shared_sheet_part_also_makes_drawing_ownership_ambiguous(self):
         self.write_metadata([("First", None, [{}]), ("Second", "veryHidden", None)])
-        self.rewrite_part("xl/_rels/workbook.xml.rels", lambda root: root[1].set(
-            "Target", "worksheets/sheet17.xml",
-        ))
+        self.rewrite_part(
+            "xl/_rels/workbook.xml.rels",
+            lambda root: root[1].set(
+                "Target",
+                "worksheets/sheet17.xml",
+            ),
+        )
         result = check_image_alt_text(self.path)
         self.assertEqual(len(result), 2)
         self.assertTrue(all(f["classification"] == "MANUAL_REVIEW" for f in result))
         self.assertEqual(len(result.limitations), 2)
 
     def test_ambiguous_parent_group_preserves_safe_nested_children(self):
-        for case in ("missing_properties", "duplicate_properties", "multiple_markers",
-                     "invalid_marker", "foreign_marker"):
+        for case in (
+            "missing_properties",
+            "duplicate_properties",
+            "multiple_markers",
+            "invalid_marker",
+            "foreign_marker",
+        ):
             with self.subTest(case=case):
-                self.write_metadata([("Budget", None, [
-                    {}, {"title": "Complete", "descr": "Description"}, {"kind": "sp"},
-                ])])
+                self.write_metadata(
+                    [
+                        (
+                            "Budget",
+                            None,
+                            [
+                                {},
+                                {"title": "Complete", "descr": "Description"},
+                                {"kind": "sp"},
+                            ],
+                        )
+                    ]
+                )
 
                 def group(root):
                     children = [anchor[0] for anchor in root]
@@ -553,9 +595,13 @@ class ImageAltTextTests(unittest.TestCase):
                         else:
                             ext = ET.SubElement(properties, f"{{{DRAW}}}extLst")
                             marker_ns = "urn:unknown" if case == "foreign_marker" else DECORATIVE
-                            ET.SubElement(ext, f"{{{marker_ns}}}decorative", {
-                                "val": "invalid" if case == "invalid_marker" else "true",
-                            })
+                            ET.SubElement(
+                                ext,
+                                f"{{{marker_ns}}}decorative",
+                                {
+                                    "val": "invalid" if case == "invalid_marker" else "true",
+                                },
+                            )
                             if case == "multiple_markers":
                                 ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": "false"})
                     outer.extend(children[:2])
@@ -572,11 +618,14 @@ class ImageAltTextTests(unittest.TestCase):
                     if case in ("missing_properties", "duplicate_properties")
                     else "xl/drawings/drawing90.xml#id=99"
                 )
-                self.assertEqual({f["target"]: f["classification"] for f in result}, {
-                    parent_target: "MANUAL_REVIEW",
-                    "xl/drawings/drawing90.xml#id=1": "REQUIRES_USER_INPUT",
-                    "xl/drawings/drawing90.xml#id=3": "REQUIRES_USER_INPUT",
-                })
+                self.assertEqual(
+                    {f["target"]: f["classification"] for f in result},
+                    {
+                        parent_target: "MANUAL_REVIEW",
+                        "xl/drawings/drawing90.xml#id=1": "REQUIRES_USER_INPUT",
+                        "xl/drawings/drawing90.xml#id=3": "REQUIRES_USER_INPUT",
+                    },
+                )
                 self.assertEqual(len(result.limitations), 1)
                 repeated = check_image_alt_text(self.path)
                 self.assertEqual(result, repeated)
@@ -586,9 +635,18 @@ class ImageAltTextTests(unittest.TestCase):
     def test_group_decorative_flags_do_not_inherit_and_wrappers_stay_unselected(self):
         for flag in (None, "0", "false", "1", "true"):
             with self.subTest(flag=flag):
-                self.write_metadata([("Budget", None, [
-                    {}, {"title": "Complete", "descr": "Description"},
-                ])])
+                self.write_metadata(
+                    [
+                        (
+                            "Budget",
+                            None,
+                            [
+                                {},
+                                {"title": "Complete", "descr": "Description"},
+                            ],
+                        )
+                    ]
+                )
 
                 def group(root):
                     children = [anchor[0] for anchor in root]
@@ -602,7 +660,10 @@ class ImageAltTextTests(unittest.TestCase):
                         ext = ET.SubElement(properties, f"{{{DRAW}}}extLst")
                         ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": flag})
                     outer.extend(children)
-                    wrapper = ET.SubElement(outer, "{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent")
+                    wrapper = ET.SubElement(
+                        outer,
+                        "{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent",
+                    )
                     ET.SubElement(wrapper, f"{{{XDR}}}pic")
 
                 self.rewrite_part("xl/drawings/drawing90.xml", group)
@@ -630,9 +691,7 @@ class ImageAltTextTests(unittest.TestCase):
                     elif case == "unknown":
                         ET.SubElement(root[1], f"{{{XDR}}}unknownObject")
                     else:
-                        ET.SubElement(
-                            root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"}
-                        )
+                        ET.SubElement(root, f"{{{MAIN}}}picture", {f"{{{DOC}}}id": "background"})
 
                 part = (
                     "xl/worksheets/sheet17.xml"
@@ -643,13 +702,9 @@ class ImageAltTextTests(unittest.TestCase):
                 before = self.path.read_bytes()
                 findings = check_image_alt_text(self.path)
                 self.assertEqual(self.path.read_bytes(), before)
-                reviews = [
-                    f for f in findings if f["classification"] == "MANUAL_REVIEW"
-                ]
+                reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
                 expected_targets = {
-                    "missing": [
-                        "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]"
-                    ],
+                    "missing": ["xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]"],
                     "duplicate": [
                         f"xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]"
                         for i in (1, 2)
@@ -657,9 +712,7 @@ class ImageAltTextTests(unittest.TestCase):
                     "unknown": [
                         "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[2]/unknownObject[1]"
                     ],
-                    "background": [
-                        "xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]"
-                    ],
+                    "background": ["xl/worksheets/sheet17.xml#xml=/worksheet[1]/picture[1]"],
                 }
                 self.assertEqual([f["target"] for f in reviews], expected_targets[case])
                 self.assertEqual(len(findings.limitations), len(reviews))
@@ -667,13 +720,9 @@ class ImageAltTextTests(unittest.TestCase):
                     self.assertIn(item["target"], limitation)
                     self.assertIn("Budget", limitation)
                 # Other assessable objects retain their findings instead of being lost.
-                self.assertEqual(
-                    len(findings), 2 if case in ("missing", "duplicate") else 3
-                )
+                self.assertEqual(len(findings), 2 if case in ("missing", "duplicate") else 3)
                 self.assertEqual(findings, check_image_alt_text(self.path))
-                self.assertEqual(
-                    findings.limitations, check_image_alt_text(self.path).limitations
-                )
+                self.assertEqual(findings.limitations, check_image_alt_text(self.path).limitations)
 
     def test_phase4_duplicate_pic_targets_match_shared_example(self):
         self.write_metadata([("Expenses", None, [{}, {}])])
@@ -693,8 +742,7 @@ class ImageAltTextTests(unittest.TestCase):
         before = self.path.read_bytes()
         findings = check_image_alt_text(self.path)
         expected = [
-            f"xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]"
-            for i in (1, 2)
+            f"xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[{i}]/pic[1]" for i in (1, 2)
         ]
         self.assertEqual([item["target"] for item in findings], expected)
         self.assertEqual(len({item["findingId"] for item in findings}), 2)
@@ -702,16 +750,20 @@ class ImageAltTextTests(unittest.TestCase):
         for item, target in zip(findings, expected):
             payload = json.dumps(
                 [source, "2.0.0", "ALT_TEXT", "Expenses", target],
-                ensure_ascii=False, separators=(",", ":"),
+                ensure_ascii=False,
+                separators=(",", ":"),
             ).encode("utf-8")
             self.assertEqual(item["findingId"], hashlib.sha256(payload).hexdigest())
             self.assertEqual(item["ruleId"], "ALT_TEXT")
             self.assertEqual(item["category"], "NON_TEXT_CONTENT")
             self.assertEqual(item["classification"], "MANUAL_REVIEW")
-        self.assertEqual(findings.limitations, [
-            f"Expenses: {target}: Missing or duplicate drawing ID; indexed XML location used."
-            for target in expected
-        ])
+        self.assertEqual(
+            findings.limitations,
+            [
+                f"Expenses: {target}: Missing or duplicate drawing ID; indexed XML location used."
+                for target in expected
+            ],
+        )
         repeated = check_image_alt_text(self.path)
         self.assertEqual(findings, repeated)
         self.assertEqual(findings.limitations, repeated.limitations)
@@ -747,15 +799,31 @@ class ImageAltTextTests(unittest.TestCase):
                     self.assertEqual([f["target"] for f in reviews], expected)
                     self.assertEqual(len(findings.limitations), len(expected))
                     if case == "missing" and kind != "grpSp":
-                        normal = [f for f in findings if f["classification"] == "REQUIRES_USER_INPUT"]
-                        self.assertEqual([f["target"] for f in normal], ["xl/drawings/drawing90.xml#id=2"])
+                        normal = [
+                            f for f in findings if f["classification"] == "REQUIRES_USER_INPUT"
+                        ]
+                        self.assertEqual(
+                            [f["target"] for f in normal], ["xl/drawings/drawing90.xml#id=2"]
+                        )
                     self.assertEqual(findings, check_image_alt_text(self.path))
                     self.assertEqual(self.path.read_bytes(), before)
 
     def test_nested_group_targets_use_each_child_object_and_preserve_unique_id(self):
-        self.write_metadata([("Budget", None, [
-            {}, {}, {"kind": "sp"}, {"kind": "cxnSp"}, {"kind": "graphicFrame"},
-        ])])
+        self.write_metadata(
+            [
+                (
+                    "Budget",
+                    None,
+                    [
+                        {},
+                        {},
+                        {"kind": "sp"},
+                        {"kind": "cxnSp"},
+                        {"kind": "graphicFrame"},
+                    ],
+                )
+            ]
+        )
 
         def group(root):
             children = [anchor[0] for anchor in root]
@@ -781,9 +849,16 @@ class ImageAltTextTests(unittest.TestCase):
         before = self.path.read_bytes()
         findings = check_image_alt_text(self.path)
         prefix = "xl/drawings/drawing90.xml#xml=/wsDr[1]/twoCellAnchor[1]/grpSp[1]"
-        expected_reviews = [prefix + suffix for suffix in (
-            "", "/grpSp[1]/cxnSp[1]", "/pic[1]", "/pic[2]", "/sp[1]",
-        )]
+        expected_reviews = [
+            prefix + suffix
+            for suffix in (
+                "",
+                "/grpSp[1]/cxnSp[1]",
+                "/pic[1]",
+                "/pic[2]",
+                "/sp[1]",
+            )
+        ]
         reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
         self.assertEqual([f["target"] for f in reviews], expected_reviews)
         self.assertEqual(len(findings), 6)
@@ -838,9 +913,7 @@ class ImageAltTextTests(unittest.TestCase):
                         ext = ET.SubElement(
                             ET.SubElement(props, f"{{{DRAW}}}extLst"), f"{{{DRAW}}}ext"
                         )
-                        ET.SubElement(
-                            ext, f"{{{DECORATIVE}}}decorative", {"val": "true"}
-                        )
+                        ET.SubElement(ext, f"{{{DECORATIVE}}}decorative", {"val": "true"})
                         group.append(child)
 
                 self.rewrite_part("xl/drawings/drawing90.xml", change)
@@ -856,14 +929,10 @@ class ImageAltTextTests(unittest.TestCase):
                     )
                     rels[0].set("TargetMode", "External")
                     with ZipFile(self.path, "a") as archive:
-                        archive.writestr(
-                            "xl/drawings/_rels/drawing90.xml.rels", ET.tostring(rels)
-                        )
+                        archive.writestr("xl/drawings/_rels/drawing90.xml.rels", ET.tostring(rels))
                 before = self.path.read_bytes()
                 findings = check_image_alt_text(self.path)
-                reviews = [
-                    f for f in findings if f["classification"] == "MANUAL_REVIEW"
-                ]
+                reviews = [f for f in findings if f["classification"] == "MANUAL_REVIEW"]
                 self.assertEqual(len(reviews), 1)
                 self.assertEqual(len(findings.limitations), 1)
                 expected = {

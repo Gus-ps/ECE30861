@@ -7,8 +7,8 @@ import hashlib
 import json
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -26,7 +26,12 @@ from accessibility_checker.runner import check_workbook
 class ReadinessIntegrationTests(unittest.TestCase):
     def setUp(self):
         # Preserve this historical two-rule acceptance profile.
-        for name in ("check_table_headers", "check_merged_cells", "check_link_text", "check_color_contrast"):
+        for name in (
+            "check_table_headers",
+            "check_merged_cells",
+            "check_link_text",
+            "check_color_contrast",
+        ):
             mocked = patch("accessibility_checker.runner." + name, return_value=[])
             mocked.start()
             self.addCleanup(mocked.stop)
@@ -35,16 +40,30 @@ class ReadinessIntegrationTests(unittest.TestCase):
         before = path.read_bytes()
         source = hashlib.sha256(before).hexdigest()
         self.assertEqual({f["ruleId"] for f in result}, {"ALT_TEXT", "WORKSHEET_NAME"})
-        self.assertEqual(result, sorted(result, key=lambda f: (f["ruleId"], f["worksheet"], f["target"])))
+        self.assertEqual(
+            result, sorted(result, key=lambda f: (f["ruleId"], f["worksheet"], f["target"]))
+        )
         self.assertEqual(result.limitations, sorted(set(result.limitations)))
         self.assertEqual(len({f["findingId"] for f in result}), len(result))
         for finding in result:
-            self.assertEqual(set(finding), {
-                "findingId", "ruleId", "category", "worksheet", "target",
-                "classification", "message", "recommendation",
-            })
-            identity = json.dumps([source, "2.0.0", finding["ruleId"], finding["worksheet"], finding["target"]],
-                                  ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            self.assertEqual(
+                set(finding),
+                {
+                    "findingId",
+                    "ruleId",
+                    "category",
+                    "worksheet",
+                    "target",
+                    "classification",
+                    "message",
+                    "recommendation",
+                },
+            )
+            identity = json.dumps(
+                [source, "2.0.0", finding["ruleId"], finding["worksheet"], finding["target"]],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
             self.assertEqual(finding["findingId"], hashlib.sha256(identity).hexdigest())
         repeated = check_workbook(path)
         self.assertEqual(result, repeated)
@@ -70,9 +89,13 @@ class ReadinessIntegrationTests(unittest.TestCase):
             validation = DataValidation(type="list", formula1="InputRange")
             first.add_data_validation(validation)
             validation.add("C1")
-            first.conditional_formatting.add("A1:A2", FormulaRule(
-                formula=["A1>0"], fill=PatternFill(fill_type="solid", fgColor="FFFF0000"),
-            ))
+            first.conditional_formatting.add(
+                "A1:A2",
+                FormulaRule(
+                    formula=["A1>0"],
+                    fill=PatternFill(fill_type="solid", fgColor="FFFF0000"),
+                ),
+            )
             first["A4"] = "Go to data"
             first["A4"].hyperlink = Hyperlink(ref="A4", location="'O''Brien'!A1")
             chart = BarChart()
@@ -91,8 +114,14 @@ class ReadinessIntegrationTests(unittest.TestCase):
             finally:
                 loaded.close()
             result = check_workbook(path)
-            self.assertTrue(all(f["classification"] == "REQUIRES_USER_INPUT" for f in result), result.limitations)
-            self.assertEqual({f["worksheet"] for f in result if f["ruleId"] == "WORKSHEET_NAME"}, {"Sheet1", "Sheet3"})
+            self.assertTrue(
+                all(f["classification"] == "REQUIRES_USER_INPUT" for f in result),
+                result.limitations,
+            )
+            self.assertEqual(
+                {f["worksheet"] for f in result if f["ruleId"] == "WORKSHEET_NAME"},
+                {"Sheet1", "Sheet3"},
+            )
             self.assertEqual(result.limitations, [])
             self.assert_common_contract(path, result)
             self.assertEqual(before, path.read_bytes())
@@ -118,7 +147,11 @@ class ReadinessIntegrationTests(unittest.TestCase):
                 for name, data in parts.items():
                     archive.writestr(name, data)
             result = check_workbook(path)
-            shared = [f for f in result if f["ruleId"] == "ALT_TEXT" and f["target"] == "xl/drawings/drawing1.xml#id=1"]
+            shared = [
+                f
+                for f in result
+                if f["ruleId"] == "ALT_TEXT" and f["target"] == "xl/drawings/drawing1.xml#id=1"
+            ]
             self.assertEqual({f["worksheet"] for f in shared}, {"Sheet01", "sheet2"})
             self.assertTrue(all(f["classification"] == "MANUAL_REVIEW" for f in shared))
             names = [f for f in result if f["ruleId"] == "WORKSHEET_NAME"]

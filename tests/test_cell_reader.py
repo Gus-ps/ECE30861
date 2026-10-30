@@ -15,10 +15,13 @@ from defusedxml.common import DefusedXmlException
 
 from accessibility_checker.cell_reader import WorkbookReader, WorkbookReadError
 from accessibility_checker.coordinates import (
-    CoordinateError, canonical_range, cell_position, cell_reference, range_sort_key,
+    CoordinateError,
+    canonical_range,
+    cell_position,
+    cell_reference,
+    range_sort_key,
 )
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
-
 
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 DOC = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -32,8 +35,9 @@ class CoordinateTests(unittest.TestCase):
         self.assertEqual(canonical_range("b2"), "B2:B2")
         self.assertEqual(canonical_range("a1:d9"), "A1:D9")
         self.assertEqual(sorted(["A10", "A2", "B2"], key=cell_position), ["A2", "B2", "A10"])
-        self.assertEqual(sorted(["A10:B11", "B2:C2", "A2:A9"], key=range_sort_key),
-                         ["A2:A9", "B2:C2", "A10:B11"])
+        self.assertEqual(
+            sorted(["A10:B11", "B2:C2", "A2:A9"], key=range_sort_key), ["A2:A9", "B2:C2", "A10:B11"]
+        )
 
     def test_invalid_and_reversed_coordinates(self):
         for reference in ("A0", "XFE1", "A1048577", "$A$1", "Sheet1!A1", "A-1", "A", " A1", "Ａ1"):
@@ -55,14 +59,27 @@ class CellReaderTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.path = Path(directory.name) / "source.xlsx"
 
-    def write(self, rows, strings=None, *, namespace=MAIN, extra_sheets=False,
-              sheet_target="../grid/data.xml", external_strings=False):
+    def write(
+        self,
+        rows,
+        strings=None,
+        *,
+        namespace=MAIN,
+        extra_sheets=False,
+        sheet_target="../grid/data.xml",
+        external_strings=False,
+    ):
         """Nonstandard part names exercise relationships rather than filenames."""
         shared = (
-            f'<Relationship Id="strings" Type="{DOC}/sharedStrings" '
-            'Target="../text/strings.xml"'
-            + (' TargetMode="External"' if external_strings else '') + '/>'
-        ) if strings is not None else ""
+            (
+                f'<Relationship Id="strings" Type="{DOC}/sharedStrings" '
+                'Target="../text/strings.xml"'
+                + (' TargetMode="External"' if external_strings else "")
+                + "/>"
+            )
+            if strings is not None
+            else ""
+        )
         sheets = '<sheet name=" Dépenses 📊 " sheetId="007" state="hidden" r:id="grid"/>'
         extras = ""
         if extra_sheets:
@@ -93,8 +110,10 @@ class CellReaderTests(unittest.TestCase):
             return reader.read_cells(reader.sheets[0])
 
     def test_omitted_coordinates_follow_previous_stored_row_and_column(self):
-        self.write('<row><c><v>0</v></c><c r="C1"><v>3</v></c><c/></row>'
-                   '<row r="10"><c r="b10"/><c/></row><row><c/></row>')
+        self.write(
+            '<row><c><v>0</v></c><c r="C1"><v>3</v></c><c/></row>'
+            '<row r="10"><c r="b10"/><c/></row><row><c/></row>'
+        )
         before = self.path.read_bytes()
         cells = self.read()
         self.assertEqual([c.reference for c in cells], ["A1", "C1", "D1", "B10", "C10", "A11"])
@@ -102,19 +121,26 @@ class CellReaderTests(unittest.TestCase):
         self.assertEqual(cells, self.read())
 
     def test_numeric_order_does_not_expand_declared_used_range(self):
-        self.write('<row r="10"><c r="XFD10"/><c r="A10"/></row>'
-                   '<row r="2"><c r="B2"/><c r="A2"/></row>')
+        self.write(
+            '<row r="10"><c r="XFD10"/><c r="A10"/></row><row r="2"><c r="B2"/><c r="A2"/></row>'
+        )
         self.assertEqual([c.reference for c in self.read()], ["A2", "B2", "A10", "XFD10"])
 
     def test_coordinate_errors_are_not_corrected_or_overwritten(self):
         cases = (
-            '<row r="0"><c/></row>', '<row r="1048577"/>', '<row r="-1"/>',
-            '<row r="1"><c r="A2"/></row>', '<row><c r="XFE1"/></row>',
-            '<row><c r="$A$1"/></row>', '<row><c r="A1"/><c r="a01"/></row>',
+            '<row r="0"><c/></row>',
+            '<row r="1048577"/>',
+            '<row r="-1"/>',
+            '<row r="1"><c r="A2"/></row>',
+            '<row><c r="XFE1"/></row>',
+            '<row><c r="$A$1"/></row>',
+            '<row><c r="A1"/><c r="a01"/></row>',
             '<row r="2"/><row r="2"/>',
-            '<row r="1048576"/><row/>', '<row><c r="XFD1"/><c/></row>',
-            '<c r="A1"/>', '<row><row><c/></row></row>',
-            '<row r="' + '9' * 5000 + '"/>',
+            '<row r="1048576"/><row/>',
+            '<row><c r="XFD1"/><c/></row>',
+            '<c r="A1"/>',
+            "<row><row><c/></row></row>",
+            '<row r="' + "9" * 5000 + '"/>',
         )
         for rows in cases:
             with self.subTest(rows=rows):
@@ -138,14 +164,16 @@ class CellReaderTests(unittest.TestCase):
         self.assertNotEqual(second.value, " é tail📊")
 
     def test_formula_presence_metadata_and_saved_cache_are_separate(self):
-        self.write('<row>'
-                   '<c><f>1+1</f><v>2</v></c>'
-                   '<c><f t="shared" si="3"/></c>'
-                   '<c t="str"><f>" text "</f><v xml:space="preserve"> text </v></c>'
-                   '<c><f>1/0</f><v/></c>'
-                   '<c t="e"><f>1/0</f><v>#DIV/0!</v></c>'
-                   '<c t="s"><f t="shared" si="3"/></c>'
-                   '</row>')
+        self.write(
+            "<row>"
+            "<c><f>1+1</f><v>2</v></c>"
+            '<c><f t="shared" si="3"/></c>'
+            '<c t="str"><f>" text "</f><v xml:space="preserve"> text </v></c>'
+            "<c><f>1/0</f><v/></c>"
+            '<c t="e"><f>1/0</f><v>#DIV/0!</v></c>'
+            '<c t="s"><f t="shared" si="3"/></c>'
+            "</row>"
+        )
         numeric, shared, string, empty, error, no_index = self.read()
         self.assertEqual(numeric.formula.text, "1+1")
         self.assertEqual(numeric.cached_value, Decimal(2))
@@ -166,9 +194,11 @@ class CellReaderTests(unittest.TestCase):
         self.assertTrue(all(cell.populated and cell.intake_nonempty for cell in self.read()))
 
     def test_zero_false_precision_and_formatting_only_cells(self):
-        self.write('<row><c><v>0</v></c><c t="b"><v>0</v></c>'
-                   '<c><v>12345678901234567890.0123456789</v></c><c s="7"/>'
-                   '<c t="e"><v>#N/A</v></c></row>')
+        self.write(
+            '<row><c><v>0</v></c><c t="b"><v>0</v></c>'
+            '<c><v>12345678901234567890.0123456789</v></c><c s="7"/>'
+            '<c t="e"><v>#N/A</v></c></row>'
+        )
         zero, false, exact, style, error = self.read()
         self.assertEqual(zero.value, Decimal(0))
         self.assertIs(false.value, False)
@@ -182,11 +212,13 @@ class CellReaderTests(unittest.TestCase):
     def test_intake_vs_populated_strings_and_exact_whitespace_set(self):
         # XML 1.0 excludes some policy controls. Exercise those through CellData
         # below instead of creating invalid XML or changing the parser.
-        self.write('<row><c t="s"><v>0</v></c><c t="s"><v>1</v></c>'
-                   '<c t="inlineStr"><is><t> &#9;&#10;&#13; 　</t></is></c>'
-                   '<c t="inlineStr"><is><t>​</t></is></c>'
-                   '<c t="inlineStr"><is><t/></is></c></row>',
-                   '<si><t/></si><si><t> </t></si>')
+        self.write(
+            '<row><c t="s"><v>0</v></c><c t="s"><v>1</v></c>'
+            '<c t="inlineStr"><is><t> &#9;&#10;&#13; 　</t></is></c>'
+            '<c t="inlineStr"><is><t>​</t></is></c>'
+            '<c t="inlineStr"><is><t/></is></c></row>',
+            "<si><t/></si><si><t> </t></si>",
+        )
         empty_shared, space_shared, space_inline, zwsp, empty_inline = self.read()
         for c in (empty_shared, space_shared, space_inline):
             self.assertTrue(c.intake_nonempty)
@@ -195,13 +227,14 @@ class CellReaderTests(unittest.TestCase):
         self.assertFalse(empty_inline.intake_nonempty)
         self.assertFalse(empty_inline.populated)
         from dataclasses import replace
+
         for whitespace in UNICODE_WHITE_SPACE:
             self.assertFalse(replace(space_inline, value=whitespace).populated)
         for excluded in "\u200b\u001c\u001d\u001e\u001f":
             self.assertTrue(replace(space_inline, value=excluded).populated)
 
     def test_actual_relationship_parts_hidden_tabs_and_chart_distinction(self):
-        self.write('<row><c><v>1</v></c></row>', extra_sheets=True)
+        self.write("<row><c><v>1</v></c></row>", extra_sheets=True)
         with WorkbookReader(self.path) as reader:
             self.assertEqual(reader.workbook_part, "meta/book.xml")
             grid, private, chart, external = reader.sheets
@@ -221,32 +254,36 @@ class CellReaderTests(unittest.TestCase):
                     reader.read_cells(sheet)
 
     def test_strict_namespace_cells_and_relationship_targets(self):
-        self.write('<row><c t="s"><v>0</v></c></row>', '<si><r><t>Strict</t></r></si>',
-                   namespace="http://purl.oclc.org/ooxml/spreadsheetml/main")
+        self.write(
+            '<row><c t="s"><v>0</v></c></row>',
+            "<si><r><t>Strict</t></r></si>",
+            namespace="http://purl.oclc.org/ooxml/spreadsheetml/main",
+        )
         self.assertEqual(self.read()[0].value, "Strict")
 
     def test_bad_values_or_shared_string_references_raise(self):
         for cell, strings in (
             ('<c t="s"><v>0</v></c>', None),
-            ('<c t="s"><v>9</v></c>', '<si><t>x</t></si>'),
-            ('<c t="s"><v>-1</v></c>', '<si><t>x</t></si>'),
+            ('<c t="s"><v>9</v></c>', "<si><t>x</t></si>"),
+            ('<c t="s"><v>-1</v></c>', "<si><t>x</t></si>"),
             ('<c t="b"><v>unknown</v></c>', None),
-            ('<c><v>NaN</v></c>', None), ('<c><v>abc</v></c>', None),
+            ("<c><v>NaN</v></c>", None),
+            ("<c><v>abc</v></c>", None),
             ('<c t="unsupported"><v>1</v></c>', None),
-            ('<c><v>1</v><v>2</v></c>', None),
+            ("<c><v>1</v><v>2</v></c>", None),
         ):
             with self.subTest(cell=cell):
-                self.write(f'<row>{cell}</row>', strings)
+                self.write(f"<row>{cell}</row>", strings)
                 with self.assertRaises(WorkbookReadError):
                     self.read()
 
     def test_external_shared_strings_or_escaping_paths_are_never_fetched(self):
-        self.write('<row><c t="s"><v>0</v></c></row>', '<si><t>x</t></si>', external_strings=True)
+        self.write('<row><c t="s"><v>0</v></c></row>', "<si><t>x</t></si>", external_strings=True)
         with self.assertRaises(WorkbookReadError):
             self.read()
         for target in ("../../outside.xml", "https://example.invalid/x", "../%2e%2e/outside.xml"):
             with self.subTest(target=target):
-                self.write('', sheet_target=target)
+                self.write("", sheet_target=target)
                 with self.assertRaises(WorkbookReadError):
                     self.read()
 
@@ -256,7 +293,7 @@ class CellReaderTests(unittest.TestCase):
             self.read()
 
     def test_reader_on_complete_package_and_original_bytes(self):
-        path = Path(__file__).parent / 'fixtures' / 'migration_complete.xlsx'
+        path = Path(__file__).parent / "fixtures" / "migration_complete.xlsx"
         before = path.read_bytes()
         with WorkbookReader(path) as reader:
             cells = reader.read_cells(reader.sheets[0])
@@ -270,10 +307,10 @@ class CellReaderTests(unittest.TestCase):
             reader.read_cells(reader.sheets[0])
 
     def test_shared_string_unsafe_xml_failure_is_not_cached_as_success(self):
-        self.write('<row><c t="s"><v>0</v></c></row>', '<si><t>x</t></si>')
+        self.write('<row><c t="s"><v>0</v></c></row>', "<si><t>x</t></si>")
         with ZipFile(self.path) as archive:
             parts = {p: archive.read(p) for p in archive.namelist()}
-        parts['text/strings.xml'] = b'<!DOCTYPE sst>' + parts['text/strings.xml']
+        parts["text/strings.xml"] = b"<!DOCTYPE sst>" + parts["text/strings.xml"]
         with ZipFile(self.path, "w") as archive:
             for part, data in parts.items():
                 archive.writestr(part, data)
@@ -283,5 +320,5 @@ class CellReaderTests(unittest.TestCase):
                     reader.read_cells(reader.sheets[0])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

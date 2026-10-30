@@ -60,9 +60,7 @@ def _target(part: str, relationship: ET.Element) -> str:
 
 def _properties(element: ET.Element, namespace: str) -> ET.Element:
     kind = element.tag.rsplit("}", 1)[-1]
-    properties = element.findall(
-        f"{{{namespace}}}{_PROPERTIES[kind]}/{{{namespace}}}cNvPr"
-    )
+    properties = element.findall(f"{{{namespace}}}{_PROPERTIES[kind]}/{{{namespace}}}cNvPr")
     if len(properties) != 1:
         raise NotImplementedError(
             "Missing or ambiguous nonvisual properties require manual review."
@@ -71,22 +69,14 @@ def _properties(element: ET.Element, namespace: str) -> ET.Element:
 
 
 def _is_decorative(properties: ET.Element) -> bool:
-    markers = [
-        item
-        for item in properties.iter()
-        if item.tag.rsplit("}", 1)[-1] == "decorative"
-    ]
+    markers = [item for item in properties.iter() if item.tag.rsplit("}", 1)[-1] == "decorative"]
     if not markers:
         return False
     if len(markers) != 1 or markers[0].tag != _DECORATIVE:
-        raise NotImplementedError(
-            "Ambiguous decorative metadata requires manual review."
-        )
+        raise NotImplementedError("Ambiguous decorative metadata requires manual review.")
     value = markers[0].get("val")
     if value not in ("0", "1", "false", "true"):
-        raise NotImplementedError(
-            "Unspecified decorative flag value requires manual review."
-        )
+        raise NotImplementedError("Unspecified decorative flag value requires manual review.")
     return value in ("1", "true")
 
 
@@ -96,9 +86,7 @@ def _check_chart_reference(workbook: ZipFile, part: str, element: ET.Element):
         raise NotImplementedError("Nonstandard graphicFrame requires manual review.")
     relationship = _relationships(workbook, part)[_relationship_id(data[0][0])]
     if not relationship.attrib["Type"].endswith("/chart"):
-        raise NotImplementedError(
-            "Ambiguous chart relationship requires manual review."
-        )
+        raise NotImplementedError("Ambiguous chart relationship requires manual review.")
     workbook.getinfo(_target(part, relationship))
 
 
@@ -180,18 +168,14 @@ def check_image_alt_text(
     results = Findings()
     seen = set()
 
-    def emit(
-        worksheet, target, classification, message, recommendation, limitation=None
-    ):
+    def emit(worksheet, target, classification, message, recommendation, limitation=None):
         key = (worksheet, target)
         if key in seen:
             return
         seen.add(key)
         results.append(
             {
-                "findingId": make_phase4_finding_id(
-                    source_sha256, _RULE_ID, worksheet, target
-                ),
+                "findingId": make_phase4_finding_id(source_sha256, _RULE_ID, worksheet, target),
                 "ruleId": _RULE_ID,
                 "category": "NON_TEXT_CONTENT",
                 "worksheet": worksheet,
@@ -261,9 +245,7 @@ def check_image_alt_text(
                 ):
                     fallback = f"{sheet_part}#xml={sheet_locations[element]}"
                     identifiers = [
-                        value
-                        for key, value in element.attrib.items()
-                        if key.endswith("}id")
+                        value for key, value in element.attrib.items() if key.endswith("}id")
                     ]
                     if kind == "picture":
                         review(
@@ -324,9 +306,9 @@ def check_image_alt_text(
                     continue
                 relationship = get_sheet_rels()[_relationship_id(drawing)]
                 drawing_target = f"{sheet_part}#xml={sheet_locations[drawing]}"
-                if relationship.get(
-                    "TargetMode"
-                ) == "External" or not relationship.attrib["Type"].endswith("/drawing"):
+                if relationship.get("TargetMode") == "External" or not relationship.attrib[
+                    "Type"
+                ].endswith("/drawing"):
                     review(
                         worksheet,
                         drawing_target,
@@ -356,13 +338,8 @@ def check_image_alt_text(
                 def inspect(element):
                     kind = element.tag.rsplit("}", 1)[-1]
                     fallback = f"{part}#xml={locations[element]}"
-                    if (
-                        element.tag != f"{{{namespace}}}{kind}"
-                        or kind not in _PROPERTIES
-                    ):
-                        review(
-                            worksheet, fallback, f"Unsupported drawing object: {kind}."
-                        )
+                    if element.tag != f"{{{namespace}}}{kind}" or kind not in _PROPERTIES:
+                        review(worksheet, fallback, f"Unsupported drawing object: {kind}.")
                         return
                     target = fallback
                     try:
@@ -438,9 +415,7 @@ def check_image_alt_text(
                                 ("title", "title"),
                                 ("descr", "description (descr)"),
                             )
-                            if not properties.get(attribute, "").strip(
-                                UNICODE_WHITE_SPACE
-                            )
+                            if not properties.get(attribute, "").strip(UNICODE_WHITE_SPACE)
                         ]
                         if missing:
                             if len(ownership.get(part, ())) > 1:

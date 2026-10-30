@@ -114,9 +114,7 @@ def _body_text(element, namespace):
                 if text.tag == f"{{{namespace}}}t":
                     fragments.append(text.text or "")
                 elif text.tag != f"{{{namespace}}}rPr":
-                    raise WorkbookReadError(
-                        f"Unsupported rich-text run child: {text.tag}"
-                    )
+                    raise WorkbookReadError(f"Unsupported rich-text run child: {text.tag}")
         elif child.tag not in {
             f"{{{namespace}}}rPh",
             f"{{{namespace}}}phoneticPr",
@@ -129,12 +127,17 @@ def _text_runs(element, namespace):
     result = []
     for child in element:
         if child.tag == f"{{{namespace}}}t":
-            result.append((child.text or '', ()))
+            result.append((child.text or "", ()))
         elif child.tag == f"{{{namespace}}}r":
             props = child.find(f"{{{namespace}}}rPr")
-            signature = () if props is None else tuple(
-                (item.tag, tuple(sorted(item.attrib.items()))) for item in props)
-            result.append((''.join(t.text or '' for t in child.findall(f"{{{namespace}}}t")), signature))
+            signature = (
+                ()
+                if props is None
+                else tuple((item.tag, tuple(sorted(item.attrib.items()))) for item in props)
+            )
+            result.append(
+                ("".join(t.text or "" for t in child.findall(f"{{{namespace}}}t")), signature)
+            )
     return tuple(result)
 
 
@@ -146,9 +149,7 @@ def _part(base, target):
     if "\\" in path or "\x00" in path:
         raise WorkbookReadError("Unsafe package target")
     resolved = posixpath.normpath(
-        path.lstrip("/")
-        if path.startswith("/")
-        else posixpath.join(posixpath.dirname(base), path)
+        path.lstrip("/") if path.startswith("/") else posixpath.join(posixpath.dirname(base), path)
     )
     if not path or resolved in (".", "..") or resolved.startswith("../"):
         raise WorkbookReadError("Package target escapes its archive")
@@ -191,15 +192,9 @@ class WorkbookReader:
 
     def _read_inventory(self):
         root_rels = _relationships(self._archive, "")
-        office = [
-            r
-            for r in root_rels.values()
-            if r.attrib["Type"].endswith("/officeDocument")
-        ]
+        office = [r for r in root_rels.values() if r.attrib["Type"].endswith("/officeDocument")]
         if len(office) != 1 or office[0].get("TargetMode") == "External":
-            raise WorkbookReadError(
-                "A unique internal workbook relationship is required"
-            )
+            raise WorkbookReadError("A unique internal workbook relationship is required")
         self.workbook_part = _part("", office[0].attrib["Target"])
         root = safe_xml.fromstring(self._archive.read(self.workbook_part))
         namespace = _namespace(root, "workbook")
@@ -230,9 +225,7 @@ class WorkbookReader:
                 )
             )
         self.sheets = tuple(sheets)
-        strings = [
-            r for r in relations.values() if r.attrib["Type"].endswith("/sharedStrings")
-        ]
+        strings = [r for r in relations.values() if r.attrib["Type"].endswith("/sharedStrings")]
         if len(strings) > 1:
             raise WorkbookReadError("Ambiguous shared strings relationship")
         self._strings_relationship = strings[0] if strings else None
@@ -242,9 +235,7 @@ class WorkbookReader:
         if self._strings is None:
             rel = self._strings_relationship
             if rel is None:
-                raise WorkbookReadError(
-                    "Shared string cell has no shared strings relationship"
-                )
+                raise WorkbookReadError("Shared string cell has no shared strings relationship")
             if rel.get("TargetMode") == "External":
                 raise WorkbookReadError("External shared strings are not fetched")
             part = _part(self.workbook_part, rel.attrib["Target"])
@@ -260,7 +251,13 @@ class WorkbookReader:
                         stack.append(element)
                     else:
                         if len(stack) == 2 and element.tag == f"{{{namespace}}}si":
-                            strings.append((_body_text(element, namespace), element.find(f"{{{namespace}}}r") is not None, _text_runs(element, namespace)))
+                            strings.append(
+                                (
+                                    _body_text(element, namespace),
+                                    element.find(f"{{{namespace}}}r") is not None,
+                                    _text_runs(element, namespace),
+                                )
+                            )
                             stack[0].remove(element)
                             element.clear()
                         stack.pop()
@@ -294,14 +291,10 @@ class WorkbookReader:
             strings = self._shared_strings()
             digits = raw.lstrip("0") or "0"
             if len(digits) > len(str(len(strings))):
-                raise WorkbookReadError(
-                    f"Shared string index out of bounds: {reference}"
-                )
+                raise WorkbookReadError(f"Shared string index out of bounds: {reference}")
             index = int(digits)
             if index >= len(strings):
-                raise WorkbookReadError(
-                    f"Shared string index out of bounds: {reference}"
-                )
+                raise WorkbookReadError(f"Shared string index out of bounds: {reference}")
             value, rich_text, rich_runs = strings[index]
         elif kind == "inlineStr":
             value = _body_text(inline[0], namespace) if inline else None
@@ -317,18 +310,23 @@ class WorkbookReader:
                 if value is not None and not value.is_finite():
                     raise InvalidOperation
             except InvalidOperation as error:
-                raise WorkbookReadError(
-                    f"Invalid numeric value: {reference}"
-                ) from error
+                raise WorkbookReadError(f"Invalid numeric value: {reference}") from error
         elif kind in ("str", "e", "d"):
             value = raw
         else:
             raise WorkbookReadError(f"Unsupported cell type {kind!r}: {reference}")
-        formula = (
-            Formula(formulas[0].text, dict(formulas[0].attrib)) if formulas else None
-        )
+        formula = Formula(formulas[0].text, dict(formulas[0].attrib)) if formulas else None
         return CellData(
-            reference, row, column, kind, value, raw, formula, element.get("s"), rich_text, rich_runs
+            reference,
+            row,
+            column,
+            kind,
+            value,
+            raw,
+            formula,
+            element.get("s"),
+            rich_text,
+            rich_runs,
         )
 
     def read_cells(self, sheet: SheetInfo) -> tuple[CellData, ...]:
@@ -340,9 +338,7 @@ class WorkbookReader:
         if self._archive is None:
             raise WorkbookReadError("WorkbookReader must be used inside a with block")
         if sheet.external or sheet.kind != "worksheet":
-            raise WorkbookReadError(
-                "External sheets/chartsheets cannot supply worksheet cells"
-            )
+            raise WorkbookReadError("External sheets/chartsheets cannot supply worksheet cells")
         cells = {}
         rows = set()
         previous_row = 0
@@ -363,35 +359,21 @@ class WorkbookReader:
                             raise WorkbookReadError("Duplicate or misplaced sheetData")
                         sheet_data_seen = True
                     if element.tag == f"{{{namespace}}}row":
-                        if (
-                            len(stack) != 2
-                            or stack[-1].tag != f"{{{namespace}}}sheetData"
-                        ):
+                        if len(stack) != 2 or stack[-1].tag != f"{{{namespace}}}sheetData":
                             raise CoordinateError("Row outside worksheet sheetData")
                         custom = element.get("customFormat", "0")
                         if custom not in {"0", "1", "false", "true"}:
                             raise WorkbookReadError("Invalid row customFormat")
                         row_style_id = element.get("s") if custom in {"1", "true"} else None
                         raw_row = element.get("r")
-                        if (
-                            raw_row is not None
-                            and re.fullmatch(r"[0-9]+", raw_row) is None
-                        ):
+                        if raw_row is not None and re.fullmatch(r"[0-9]+", raw_row) is None:
                             raise CoordinateError(f"Invalid row: {raw_row!r}")
-                        digits = (
-                            (raw_row.lstrip("0") or "0")
-                            if raw_row is not None
-                            else None
-                        )
+                        digits = (raw_row.lstrip("0") or "0") if raw_row is not None else None
                         if digits is not None and len(digits) > 7:
                             raise CoordinateError("Row outside Excel bounds")
-                        current_row = (
-                            previous_row + 1 if digits is None else int(digits)
-                        )
+                        current_row = previous_row + 1 if digits is None else int(digits)
                         if not 1 <= current_row <= MAX_ROW or current_row in rows:
-                            raise CoordinateError(
-                                f"Invalid or duplicate row: {current_row}"
-                            )
+                            raise CoordinateError(f"Invalid or duplicate row: {current_row}")
                         rows.add(current_row)
                         previous_row = current_row
                         previous_column = 0
@@ -410,9 +392,7 @@ class WorkbookReader:
                     cell = replace(cell, row_style_id=row_style_id)
                     key = (cell.row, cell.column)
                     if key in cells:
-                        raise CoordinateError(
-                            f"Duplicate cell address: {cell.reference}"
-                        )
+                        raise CoordinateError(f"Duplicate cell address: {cell.reference}")
                     cells[key] = cell
                     previous_column = cell.column
                     cell_depth = None

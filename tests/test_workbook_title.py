@@ -26,9 +26,7 @@ class WorkbookTitleTests(unittest.TestCase):
             "{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}coreProperties"
         )
         if title is not None:
-            ET.SubElement(
-                properties, "{http://purl.org/dc/elements/1.1/}title"
-            ).text = title
+            ET.SubElement(properties, "{http://purl.org/dc/elements/1.1/}title").text = title
         relationships = ET.Element(f"{{{pkg}}}Relationships")
         if core:
             ET.SubElement(

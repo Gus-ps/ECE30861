@@ -235,9 +235,7 @@ def _range_reason(value, sheets, names, scope):
     if sheet is not None:
         if ":" in sheet:
             return "3D sheet reference"
-        owners = [
-            owner for owner in sheets if owner.name.casefold() == sheet.casefold()
-        ]
+        owners = [owner for owner in sheets if owner.name.casefold() == sheet.casefold()]
         if len(owners) != 1:
             return "Unknown or ambiguous sheet qualifier"
         scope = owners[0].index
@@ -249,17 +247,13 @@ def _range_reason(value, sheets, names, scope):
             for item in bounds:
                 cell_position(item.replace("$", ""))
             return None
-        if len(bounds) == 2 and all(
-            re.fullmatch(r"\$?[A-Za-z]{1,3}", item) for item in bounds
-        ):
+        if len(bounds) == 2 and all(re.fullmatch(r"\$?[A-Za-z]{1,3}", item) for item in bounds):
             if all(
                 column_index_from_string(item.replace("$", "").upper()) <= MAX_COLUMN
                 for item in bounds
             ):
                 return None
-        if len(bounds) == 2 and all(
-            re.fullmatch(r"\$?[0-9]{1,7}", item) for item in bounds
-        ):
+        if len(bounds) == 2 and all(re.fullmatch(r"\$?[0-9]{1,7}", item) for item in bounds):
             if all(1 <= int(item.replace("$", "")) <= MAX_ROW for item in bounds):
                 return None
     except (CoordinateError, ValueError):
@@ -301,9 +295,7 @@ def formula_reason(text, sheets, names, scope=None):
                 if token.type == "FUNC":
                     function = token.value[:-1].upper()
                     if function in {"INDIRECT", "EVALUATE", "HYPERLINK"}:
-                        return (
-                            f"Reference construction or string destination: {function}"
-                        )
+                        return f"Reference construction or string destination: {function}"
                     if function not in SAFE_FUNCTIONS:
                         return f"Unsupported formula function/extension: {function}"
                 stack.append(token.type)
@@ -358,16 +350,12 @@ def rename_limitations(archive, root, workbook_relations):
         scope = item.get("localSheetId")
         scope = None if scope is None else int(scope)
         key = (scope, item.attrib["name"].casefold())
-        if key in names or (
-            scope is not None and scope not in {s.index for s in sheets}
-        ):
+        if key in names or (scope is not None and scope not in {s.index for s in sheets}):
             reasons.add("Ambiguous defined-name scope")
         names.add(key)
     for item in defined:
         scope = item.get("localSheetId")
-        reason = formula_reason(
-            item.text, sheets, names, None if scope is None else int(scope)
-        )
+        reason = formula_reason(item.text, sheets, names, None if scope is None else int(scope))
         if reason:
             reasons.add(f"xl/workbook.xml: defined name: {reason}")
     counts = {}
@@ -380,21 +368,13 @@ def rename_limitations(archive, root, workbook_relations):
             counts.setdefault(sheet.part, set()).add(sheet.index)
     for part, owners in counts.items():
         if len(owners) > 1:
-            reasons.add(
-                f"{part}: multiple owning sheets make worksheet editing ambiguous"
-            )
+            reasons.add(f"{part}: multiple owning sheets make worksheet editing ambiguous")
     for part, owners in drawing_owners(archive, sheets).items():
         if len(owners) > 1:
-            reasons.add(
-                f"{part}: shared drawing ownership prevents safe reference editing"
-            )
-    for part, owners in referenced_part_owners(
-        archive, sheets, "tablePart", "table"
-    ).items():
+            reasons.add(f"{part}: shared drawing ownership prevents safe reference editing")
+    for part, owners in referenced_part_owners(archive, sheets, "tablePart", "table").items():
         if len(owners) > 1:
-            reasons.add(
-                f"{part}: shared table ownership prevents safe reference editing"
-            )
+            reasons.add(f"{part}: shared table ownership prevents safe reference editing")
 
     parts = {"xl/workbook.xml": "workbook"}
     parts.update({s.part: s.kind for s in sheets if s.part is not None})
@@ -420,14 +400,10 @@ def rename_limitations(archive, root, workbook_relations):
                 "chart",
                 "table",
             }:
-                reasons.add(
-                    f"{rel_path}: unsupported reference-bearing relationship: {kind}"
-                )
+                reasons.add(f"{rel_path}: unsupported reference-bearing relationship: {kind}")
                 continue
             if rel.get("TargetMode") == "External":
-                reasons.add(
-                    f"{rel_path}: external {kind} prevents complete reference inventory"
-                )
+                reasons.add(f"{rel_path}: external {kind} prevents complete reference inventory")
                 continue
             target = internal_target(parent, rel)
             parts[target] = "workbook" if kind == "officeDocument" else kind
@@ -456,9 +432,7 @@ def rename_limitations(archive, root, workbook_relations):
             continue
         kind = parts.get(part)
         if kind is None:
-            reasons.add(
-                f"{part}: unrecognized/opaque package part may contain references"
-            )
+            reasons.add(f"{part}: unrecognized/opaque package part may contain references")
             continue
         if not part.endswith(".xml"):
             continue  # Known media/printer parts contain no Excel sheet references.
@@ -466,11 +440,7 @@ def rename_limitations(archive, root, workbook_relations):
             stack = []
             for event, element in safe_xml.iterparse(stream, ("start", "end")):
                 local = element.tag.rsplit("}", 1)[-1]
-                namespace = (
-                    element.tag[1:].split("}", 1)[0]
-                    if element.tag.startswith("{")
-                    else ""
-                )
+                namespace = element.tag[1:].split("}", 1)[0] if element.tag.startswith("{") else ""
                 if event == "start":
                     stack.append(element)
                     continue
@@ -510,46 +480,25 @@ def rename_limitations(archive, root, workbook_relations):
                             and namespace in DRAW_NS
                             and local in A_TAGS
                         )
-                        or (
-                            kind == "chart"
-                            and namespace in CHART_NS
-                            and local in allowed
-                        )
-                        or (
-                            kind == "drawing"
-                            and namespace in XDR_NS
-                            and local in allowed
-                        )
-                        or (
-                            kind == "drawing"
-                            and namespace in CHART_NS
-                            and local == "chart"
-                        )
+                        or (kind == "chart" and namespace in CHART_NS and local in allowed)
+                        or (kind == "drawing" and namespace in XDR_NS and local in allowed)
+                        or (kind == "drawing" and namespace in CHART_NS and local == "chart")
                     )
-                    if (
-                        kind == "drawing"
-                        and namespace == DECORATIVE
-                        and local == "decorative"
-                    ):
+                    if kind == "drawing" and namespace == DECORATIVE and local == "decorative":
                         known = True
                     if kind == "drawing" and local in {"ext", "extLst"}:
                         known = namespace in DRAW_NS and (
                             local == "extLst"
-                            or element.get("uri")
-                            == "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
+                            or element.get("uri") == "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
                         )
                         # xdr:ext (anchor size) is not an extension container.
                         known = known or (namespace in XDR_NS and local == "ext")
                     if not known:
-                        reasons.add(
-                            f"{part}: unsupported reference-bearing element: {local}"
-                        )
+                        reasons.add(f"{part}: unsupported reference-bearing element: {local}")
                     for attribute in element.attrib:
                         attr_local = attribute.rsplit("}", 1)[-1]
                         if attr_local not in KNOWN_ATTRIBUTES:
-                            reasons.add(
-                                f"{part}: unsupported attribute on {local}: {attr_local}"
-                            )
+                            reasons.add(f"{part}: unsupported attribute on {local}: {attr_local}")
                         if attribute.startswith("{") and not attribute.startswith(
                             (
                                 "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}",
@@ -557,9 +506,7 @@ def rename_limitations(archive, root, workbook_relations):
                                 "{http://www.w3.org/XML/1998/namespace}",
                             )
                         ):
-                            reasons.add(
-                                f"{part}: unsupported namespaced attribute on {local}"
-                            )
+                            reasons.add(f"{part}: unsupported namespaced attribute on {local}")
                     if local in {
                         "pivotSource",
                         "pivotFmts",
@@ -570,9 +517,7 @@ def rename_limitations(archive, root, workbook_relations):
                         reasons.add(
                             f"{part}: pivot/external/dynamic reference representation: {local}"
                         )
-                    if local in {"hlinkClick", "hlinkMouseOver"} and element.get(
-                        "action"
-                    ):
+                    if local in {"hlinkClick", "hlinkMouseOver"} and element.get("action"):
                         reasons.add(f"{part}: unsupported drawing hyperlink action")
                     if any(
                         element.get(attribute)
@@ -609,9 +554,7 @@ def rename_limitations(archive, root, workbook_relations):
                             if reason:
                                 reasons.add(f"{part}: {reason}")
                     if local == "cfvo" and element.get("type") == "formula":
-                        reason = formula_reason(
-                            element.get("val"), sheets, names, scope
-                        )
+                        reason = formula_reason(element.get("val"), sheets, names, scope)
                         if reason:
                             reasons.add(f"{part}: conditional threshold: {reason}")
                     if local == "hyperlink" and element.get("location"):

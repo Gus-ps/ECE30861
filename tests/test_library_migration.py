@@ -25,7 +25,6 @@ from accessibility_checker.checks.workbook_title import check_workbook_title
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.runner import check_workbook
 
-
 FIXTURES = Path(__file__).parent / "fixtures"
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 DOC = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -40,17 +39,22 @@ def current_expected():
     """
     expected = json.loads((FIXTURES / "migration_complete.expected.json").read_text())
     for finding in expected["findings"]:
-        identity = [expected["sha256"], "1.0.0", finding["ruleId"],
-                    finding["worksheet"], finding["target"]]
-        original_id = hashlib.sha256(json.dumps(
-            identity, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")).hexdigest()
+        identity = [
+            expected["sha256"],
+            "1.0.0",
+            finding["ruleId"],
+            finding["worksheet"],
+            finding["target"],
+        ]
+        original_id = hashlib.sha256(
+            json.dumps(identity, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         if original_id != finding["findingId"]:
             raise AssertionError("Historical snapshot was changed")
         identity[1] = "2.0.0"
-        finding["findingId"] = hashlib.sha256(json.dumps(
-            identity, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")).hexdigest()
+        finding["findingId"] = hashlib.sha256(
+            json.dumps(identity, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
     expected["limitations"] = sorted(set(expected["limitations"]))
     return expected
 
@@ -58,7 +62,12 @@ def current_expected():
 class CompleteWorkbookTests(unittest.TestCase):
     def setUp(self):
         # Preserve this historical two-rule acceptance profile.
-        for name in ("check_table_headers", "check_merged_cells", "check_link_text", "check_color_contrast"):
+        for name in (
+            "check_table_headers",
+            "check_merged_cells",
+            "check_link_text",
+            "check_color_contrast",
+        ):
             mocked = patch("accessibility_checker.runner." + name, return_value=[])
             mocked.start()
             self.addCleanup(mocked.stop)
@@ -104,8 +113,11 @@ class MetadataCompatibilityTests(unittest.TestCase):
         for extra in ({}, {"future": "unsupported"}):
             with self.subTest(extra=extra):
                 attributes = {
-                    "name": " Sheet01 ", "sheetId": "0007", "state": "veryHidden",
-                    f"{{{DOC}}}id": "originalRelation", **extra,
+                    "name": " Sheet01 ",
+                    "sheetId": "0007",
+                    "state": "veryHidden",
+                    f"{{{DOC}}}id": "originalRelation",
+                    **extra,
                 }
                 element = ET.Element(f"{{{MAIN}}}sheet", attributes)
                 self.assertEqual(excel_metadata.sheet_attributes(element), attributes)
@@ -114,9 +126,14 @@ class MetadataCompatibilityTests(unittest.TestCase):
     def test_table_lexical_counts_and_targets_are_not_normalized(self):
         for count in (None, "0", "00", "+0", " 0", "0.0", "1", "unknown"):
             with self.subTest(count=count):
-                element = ET.Element(f"{{{MAIN}}}table", {
-                    "id": "01", "displayName": "Table1", "ref": "a1:b2",
-                })
+                element = ET.Element(
+                    f"{{{MAIN}}}table",
+                    {
+                        "id": "01",
+                        "displayName": "Table1",
+                        "ref": "a1:b2",
+                    },
+                )
                 if count is not None:
                     element.set("headerRowCount", count)
                 actual_count, target = excel_metadata.table_header(element)
@@ -147,8 +164,9 @@ class MetadataCompatibilityTests(unittest.TestCase):
         expected = current_expected()
         for model in ("ChildSheet", "DocumentProperties", "Table"):
             for error in (TypeError, ValueError, OverflowError):
-                with self.subTest(model=model, error=error), patch.object(
-                    getattr(excel_metadata, model), "from_tree", side_effect=error
+                with (
+                    self.subTest(model=model, error=error),
+                    patch.object(getattr(excel_metadata, model), "from_tree", side_effect=error),
                 ):
                     result = check_workbook(path)
                     self.assertEqual(list(result), expected["findings"])
@@ -163,15 +181,23 @@ class MetadataCompatibilityTests(unittest.TestCase):
 
     def test_models_are_used_for_metadata(self):
         # An observation of real model calls, not an otherwise unused import.
-        with patch.object(
-            excel_metadata.ChildSheet, "from_tree",
-            wraps=excel_metadata.ChildSheet.from_tree,
-        ) as sheets, patch.object(
-            excel_metadata.DocumentProperties, "from_tree",
-            wraps=excel_metadata.DocumentProperties.from_tree,
-        ) as properties, patch.object(
-            excel_metadata.Table, "from_tree", wraps=excel_metadata.Table.from_tree,
-        ) as tables:
+        with (
+            patch.object(
+                excel_metadata.ChildSheet,
+                "from_tree",
+                wraps=excel_metadata.ChildSheet.from_tree,
+            ) as sheets,
+            patch.object(
+                excel_metadata.DocumentProperties,
+                "from_tree",
+                wraps=excel_metadata.DocumentProperties.from_tree,
+            ) as properties,
+            patch.object(
+                excel_metadata.Table,
+                "from_tree",
+                wraps=excel_metadata.Table.from_tree,
+            ) as tables,
+        ):
             path = FIXTURES / "migration_complete.xlsx"
             check_workbook(path)
             check_workbook_title(path)
@@ -184,7 +210,7 @@ class MetadataCompatibilityTests(unittest.TestCase):
 class SafeXmlTests(unittest.TestCase):
     def test_dtd_entities_and_external_resources_are_rejected_tree_and_stream(self):
         documents = (
-            '<!DOCTYPE root><root/>',
+            "<!DOCTYPE root><root/>",
             '<!DOCTYPE root [<!ENTITY text "injected">]><root>&text;</root>',
             '<!DOCTYPE root SYSTEM "https://example.invalid/evil.dtd"><root/>',
             '<!DOCTYPE root [<!ENTITY text SYSTEM "file:///nonexistent">]><root>&text;</root>',
@@ -193,8 +219,9 @@ class SafeXmlTests(unittest.TestCase):
         for document in documents:
             for encoding in ("utf-8", "utf-16"):
                 with self.subTest(document=document, encoding=encoding):
-                    payload = ('<?xml version="1.0" encoding="' + encoding + '"?>'
-                               + document).encode(encoding)
+                    payload = (
+                        '<?xml version="1.0" encoding="' + encoding + '"?>' + document
+                    ).encode(encoding)
                     with self.assertRaises(DefusedXmlException):
                         safe_xml.fromstring(payload)
                     with self.assertRaises(DefusedXmlException):
@@ -225,7 +252,7 @@ class SafeXmlTests(unittest.TestCase):
                             for entry in source.infolist():
                                 data = source.read(entry)
                                 if entry.filename == part:
-                                    data = b'<!DOCTYPE unsafe>' + data
+                                    data = b"<!DOCTYPE unsafe>" + data
                                 target.writestr(entry, data)
                     before = path.read_bytes()
                     with self.assertRaises(DefusedXmlException):
@@ -235,7 +262,7 @@ class SafeXmlTests(unittest.TestCase):
     def test_malformed_xml_and_missing_parts_still_fail(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "broken.xlsx"
-            for data, error in ((b'<workbook>', ET.ParseError), (None, KeyError)):
+            for data, error in ((b"<workbook>", ET.ParseError), (None, KeyError)):
                 with self.subTest(data=data):
                     with ZipFile(path, "w") as archive:
                         if data is not None:

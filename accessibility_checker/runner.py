@@ -6,11 +6,11 @@ related: 2.4.6 Headings and Labels (worksheet-name results).
 """
 
 from os import PathLike
-from accessibility_checker.checks.color_contrast import check_color_contrast
 
+from accessibility_checker.checks.color_contrast import check_color_contrast
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
-from accessibility_checker.checks.merged_cells import check_merged_cells
 from accessibility_checker.checks.link_text import check_link_text
+from accessibility_checker.checks.merged_cells import check_merged_cells
 from accessibility_checker.checks.table_headers import check_table_headers
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.finding_ids import get_source_sha256

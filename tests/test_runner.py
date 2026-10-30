@@ -80,7 +80,9 @@ class RunnerTests(unittest.TestCase):
 
     def test_all_checkers_without_findings_return_empty(self):
         self.write_metadata(issues=False)
-        self.assertEqual([f["ruleId"] for f in check_workbook(str(self.path))], ["TABLE_HEADER"]) # Synthetic table omits required column metadata.
+        self.assertEqual(
+            [f["ruleId"] for f in check_workbook(str(self.path))], ["TABLE_HEADER"]
+        )  # Synthetic table omits required column metadata.
 
     def test_req03_ac03_source_bytes_unchanged(self):
         for issues in (True, False):
@@ -132,16 +134,16 @@ class RunnerTests(unittest.TestCase):
             ) as source_hash,
         ):
             findings = check_workbook(self.path)
-        self.assertEqual(
-            calls, [(name, self.path, "a" * 64) for name in ("image", "worksheet")]
-        )
+        self.assertEqual(calls, [(name, self.path, "a" * 64) for name in ("image", "worksheet")])
         self.assertEqual(findings, [d, e, c, b, a])
         source_hash.assert_called_once_with(self.path)
 
     @patch("accessibility_checker.runner.check_link_text", return_value=[])
     @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_exception_from_any_checker_propagates_without_partial_result(self, merged, table, link):
+    def test_exception_from_any_checker_propagates_without_partial_result(
+        self, merged, table, link
+    ):
         names = (
             "check_image_alt_text",
             "check_worksheet_names",
@@ -150,8 +152,7 @@ class RunnerTests(unittest.TestCase):
             with self.subTest(checker=name):
                 error = RuntimeError("Checker failed")
                 checkers = {
-                    key: Mock(return_value=[{"partial": "must not be returned"}])
-                    for key in names
+                    key: Mock(return_value=[{"partial": "must not be returned"}]) for key in names
                 }
                 checkers[name].side_effect = error
                 with (
@@ -166,9 +167,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertIs(raised.exception, error)
                 for index, key in enumerate(names):
                     if index <= failed_index:
-                        checkers[key].assert_called_once_with(
-                            self.path, source_sha256="a" * 64
-                        )
+                        checkers[key].assert_called_once_with(self.path, source_sha256="a" * 64)
                     else:
                         checkers[key].assert_not_called()
 
@@ -205,22 +204,32 @@ class RunnerTests(unittest.TestCase):
     @patch("accessibility_checker.runner.check_link_text", return_value=[])
     @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_limitations_are_exact_deduplicated_and_sorted_without_losing_findings(self, merged, table, link):
+    def test_limitations_are_exact_deduplicated_and_sorted_without_losing_findings(
+        self, merged, table, link
+    ):
         from accessibility_checker.results import Findings
 
         first = {
-            "findingId": "same-stored-id", "ruleId": "ALT_TEXT",
-            "worksheet": "予算", "target": "drawing.xml#xml=/pic[2]",
-            "category": "NON_TEXT_CONTENT", "classification": "MANUAL_REVIEW",
-            "message": "Review second object.", "recommendation": "Inspect it.",
+            "findingId": "same-stored-id",
+            "ruleId": "ALT_TEXT",
+            "worksheet": "予算",
+            "target": "drawing.xml#xml=/pic[2]",
+            "category": "NON_TEXT_CONTENT",
+            "classification": "MANUAL_REVIEW",
+            "message": "Review second object.",
+            "recommendation": "Inspect it.",
         }
         second = dict(first, target="drawing.xml#xml=/pic[1]", message="Review first object.")
         disclosures = ["é", "z", "e\u0301", "z", " z", "z ", "A", "予算"]
         with (
-            patch("accessibility_checker.runner.check_image_alt_text",
-                  return_value=Findings([first, second], disclosures)),
-            patch("accessibility_checker.runner.check_worksheet_names",
-                  return_value=Findings([], ["z", "A"])),
+            patch(
+                "accessibility_checker.runner.check_image_alt_text",
+                return_value=Findings([first, second], disclosures),
+            ),
+            patch(
+                "accessibility_checker.runner.check_worksheet_names",
+                return_value=Findings([], ["z", "A"]),
+            ),
             patch("accessibility_checker.runner.get_source_sha256", return_value="0" * 64),
         ):
             result = check_workbook(self.path)
@@ -231,10 +240,17 @@ class RunnerTests(unittest.TestCase):
     def test_reserved_order_does_not_register_unimplemented_rules(self):
         from accessibility_checker.runner import RULE_ORDER
 
-        self.assertEqual(RULE_ORDER, (
-            "ALT_TEXT", "WORKSHEET_NAME", "TABLE_HEADER", "MERGED_CELLS",
-            "LINK_TEXT", "COLOR_CONTRAST",
-        ))
+        self.assertEqual(
+            RULE_ORDER,
+            (
+                "ALT_TEXT",
+                "WORKSHEET_NAME",
+                "TABLE_HEADER",
+                "MERGED_CELLS",
+                "LINK_TEXT",
+                "COLOR_CONTRAST",
+            ),
+        )
         self.write_metadata(issues=True)
         with patch("accessibility_checker.runner.check_table_headers", return_value=[]) as table:
             result = check_workbook(self.path)

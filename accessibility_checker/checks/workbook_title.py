@@ -42,9 +42,7 @@ def check_workbook_title(path: str | PathLike[str]) -> list[dict[str, str]]:
 
     return [
         {
-            "findingId": make_finding_id(
-                _RULE_ID, _WORKBOOK_WORKSHEET, _WORKBOOK_TARGET
-            ),
+            "findingId": make_finding_id(_RULE_ID, _WORKBOOK_WORKSHEET, _WORKBOOK_TARGET),
             "ruleId": _RULE_ID,
             "category": _CATEGORY,
             "worksheet": _WORKBOOK_WORKSHEET,
