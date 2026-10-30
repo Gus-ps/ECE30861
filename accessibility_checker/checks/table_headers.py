@@ -6,7 +6,7 @@ The historical provisional detector remains in legacy_table_headers.py.
 from collections import Counter
 
 from accessibility_checker import safe_xml
-from accessibility_checker.cell_reader import WorkbookReader, _namespace, _part, _relationships
+from accessibility_checker.cell_reader import MAIN_NAMESPACES, WorkbookReader, _namespace, _part, _relationships
 from accessibility_checker.coordinates import cell_reference, range_sort_key, canonical_range
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
@@ -97,7 +97,7 @@ def _feature_reasons(reader, sheet, rectangle, *, formal=False):
     known = {'sheetPr', 'dimension', 'sheetViews', 'sheetFormatPr', 'cols', 'sheetCalcPr', 'sheetProtection', 'protectedRanges', 'scenarios', 'autoFilter', 'sortState', 'dataConsolidate', 'customSheetViews', 'mergeCells', 'phoneticPr', 'conditionalFormatting', 'dataValidations', 'hyperlinks', 'printOptions', 'pageMargins', 'pageSetup', 'headerFooter', 'rowBreaks', 'colBreaks', 'drawing', 'legacyDrawing', 'legacyDrawingHF', 'picture', 'oleObjects', 'controls', 'tableParts', 'extLst'}
     for item in worksheet_features(reader, sheet, None):
         namespace = item.tag.split('}')[0] + '}'
-        if item.tag not in {namespace + name for name in known} or item.tag.endswith('}scenarios') or item.tag.endswith('}dataConsolidate'):
+        if item.tag not in {'{'+ns+'}'+name for ns in MAIN_NAMESPACES for name in known} or item.tag.endswith('}scenarios') or item.tag.endswith('}dataConsolidate'):
             reasons.append('Unrecognized or reference-bearing worksheet metadata requires preservation review.')
     return reasons
 

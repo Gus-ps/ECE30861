@@ -147,3 +147,12 @@ class LinkTextTests(unittest.TestCase):
             for name,data in parts.items():archive.writestr(name,data)
         result=check_link_text(self.path)
         self.assertTrue(any('drawing90.xml#xml=/wsDr[1]/pic[1]/nvPicPr[1]/cNvPr[1]/hlinkClick[1]' in reason for reason in result.limitations))
+
+    def test_foreign_namespace_is_not_a_supported_hyperlink(self):
+        def foreign(root):
+            ET.SubElement(root,'{urn:foreign}hyperlinks').append(ET.Element('{urn:foreign}hyperlink',ref='B9',location='x'))
+        self.edit('xl/worksheets/sheet1.xml',foreign)
+        result=check_link_text(self.path)
+        self.assertEqual(len(result),2)
+        self.assertEqual(result[1]['classification'],'MANUAL_REVIEW')
+        self.assertEqual(result[1]['target'],'xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[2]')

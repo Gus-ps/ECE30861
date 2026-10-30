@@ -6,7 +6,7 @@ from openpyxl.formula import Tokenizer
 from openpyxl.formula.tokenizer import TokenizerError
 
 from accessibility_checker import safe_xml
-from accessibility_checker.cell_reader import WorkbookReader, _part, _relationships
+from accessibility_checker.cell_reader import MAIN_NAMESPACES, WorkbookReader, _part, _relationships
 from accessibility_checker.coordinates import canonical_range, range_sort_key, cell_reference
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
@@ -15,7 +15,7 @@ from accessibility_checker.worksheet_features import contains, indexed_paths, me
 
 WORDS = {'click here', 'here', 'link', 'more', 'read more', 'learn more', 'website', 'url'}
 WS = '[' + re.escape(UNICODE_WHITE_SPACE) + ']+'
-FUNCTION = re.compile(r'(?:_xlfn\.)?HYPERLINK\(', re.IGNORECASE | re.ASCII)
+FUNCTION = re.compile(r'(?:_xlfn\.)?HYPERLINK\s*\(', re.IGNORECASE | re.ASCII)
 
 
 def normalized_label(value):
@@ -112,7 +112,9 @@ def check_link_text(path, *, source_sha256=None):
             relationships = None
             # Direct-child occurrence indices count all same-local-name children.
             for feature, feature_path in worksheet_features(reader, sheet, None, with_paths=True):
-                if feature.tag.rsplit('}', 1)[-1] != 'hyperlinks':
+                if feature.tag not in {'{'+ns+'}hyperlinks' for ns in MAIN_NAMESPACES}:
+                    if any(item.tag.rsplit('}', 1)[-1] in {'hyperlink', 'hyperlinks'} for item in feature.iter()):
+                        _record(result, source, sheet, sheet.part + '#xml=' + feature_path, ['Wrapped or foreign-namespace hyperlink representation is unsupported.'])
                     continue
                 ns = feature.tag.split('}')[0] + '}'
                 locations = indexed_paths(feature)

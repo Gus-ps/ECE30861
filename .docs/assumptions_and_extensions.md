@@ -2,6 +2,8 @@
 
 ## AE-019 — Finite hyperlink label screening (2026-10-30)
 
+Review follow-up: namespace checks now explicitly reject foreign/wrapped link representations as manual at their actual indexed locations. Nine link tests pass; full working-tree regression is 139, including nine tests for the separately uncommitted, incomplete color helper. This does not complete stage 5.
+
 - Source: specification §§6, 7.1, 7.6, 8.5; partial 2.4.4 Link Purpose (In Context). Developer-authorized implementation; whole-spec team adoption and editor availability remain separate.
 - Element labels use resolved cell content, not display attributes. Comparisons trim/collapse only policy White_Space, casefold, ignore one trailing ASCII .!? for the finite word list, and check raw-address prefixes. Literal one/two argument HYPERLINK calls parse commas outside strings and doubled quotes; unsupported calls are manual without evaluation. Plain URLs outside hyperlinks are ignored.
 - Editable classification is limited to simple single-cell text/empty labels with unambiguous ownership. Unsupported/range/competing/merged/rich/formula representations are manual; indexed locations are based on actual XML. Drawing hyperlinks are disclosed as unperformed manual review, without fetching destinations.
