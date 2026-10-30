@@ -94,10 +94,15 @@ def _feature_reasons(reader, sheet, rectangle, *, formal=False):
                 reasons.append(f'Attached {kind} requires preservation review.')
         else:
             reasons.append(f'Unsupported worksheet feature {kind} may affect header confirmation.')
+    known = {'sheetPr', 'dimension', 'sheetViews', 'sheetFormatPr', 'cols', 'sheetCalcPr', 'sheetProtection', 'protectedRanges', 'scenarios', 'autoFilter', 'sortState', 'dataConsolidate', 'customSheetViews', 'mergeCells', 'phoneticPr', 'conditionalFormatting', 'dataValidations', 'hyperlinks', 'printOptions', 'pageMargins', 'pageSetup', 'headerFooter', 'rowBreaks', 'colBreaks', 'drawing', 'legacyDrawing', 'legacyDrawingHF', 'picture', 'oleObjects', 'controls', 'tableParts', 'extLst'}
+    for item in worksheet_features(reader, sheet, None):
+        namespace = item.tag.split('}')[0] + '}'
+        if item.tag not in {namespace + name for name in known} or item.tag.endswith('}scenarios') or item.tag.endswith('}dataConsolidate'):
+            reasons.append('Unrecognized or reference-bearing worksheet metadata requires preservation review.')
     return reasons
 
 
-def check_table_headers(path, *, source_sha256=None):
+def _formal_tables(path, *, source_sha256=None):
     """Inspect referenced formal tables only; unstructured screening follows later."""
     source = source_sha256 if source_sha256 is not None else get_source_sha256(path)
     result = Findings()
@@ -175,4 +180,57 @@ def check_table_headers(path, *, source_sha256=None):
                         if any('[' in (e.text or '') for e in xml.iter()):
                             reasons.append('Non-cell structured references may depend on table headers.')
             _record(result, source, sheet, target, reasons, safe=count == '0' and not reasons)
+    return finalize_findings(result)
+
+
+def check_table_headers(path, *, source_sha256=None):
+    """Inspect formal headers and sparse four-neighbor unstructured candidates."""
+    source = source_sha256 if source_sha256 is not None else get_source_sha256(path)
+    result = _formal_tables(path, source_sha256=source)
+    excluded_small_component = False
+    with WorkbookReader(path) as reader:
+        inventory = _tables(reader)
+        for sheet in reader.sheets:
+            if sheet.kind != 'worksheet':
+                continue
+            if sheet.external:
+                _record(result, source, sheet, reader.workbook_part + '#xml=/',
+                        ['External worksheet table content is not fetched.'])
+                continue
+            rectangles = [rectangle for owner, part, root, rectangle in inventory
+                          if owner == sheet and rectangle is not None]
+            cells = reader.read_cells(sheet)
+            remaining = {(c.row, c.column) for c in cells if c.populated and not any(
+                contains(rectangle, c.row, c.column) for rectangle in rectangles)}
+            while remaining:
+                first = remaining.pop()
+                component = {first}
+                pending = [first]
+                while pending:
+                    row, column = pending.pop()
+                    for adjacent in ((row-1, column), (row+1, column), (row, column-1), (row, column+1)):
+                        if adjacent in remaining:
+                            remaining.remove(adjacent)
+                            component.add(adjacent)
+                            pending.append(adjacent)
+                top = min(r for r, c in component)
+                bottom = max(r for r, c in component)
+                left = min(c for r, c in component)
+                right = max(c for r, c in component)
+                if top == bottom or left == right:
+                    excluded_small_component = True
+                    continue
+                rectangle = cell_reference(top, left) + ':' + cell_reference(bottom, right)
+                reasons = _feature_reasons(reader, sheet, rectangle)
+                if len(component) != (bottom-top+1)*(right-left+1):
+                    reasons.append('The connected component is not a dense rectangle.')
+                if _labels(cells, rectangle) is None:
+                    reasons.append('The first row lacks distinct nonblank plain-string labels of at most 255 characters.')
+                if any(overlaps(rectangle, other) for other in rectangles):
+                    reasons.append('The candidate bounding rectangle overlaps a formal table.')
+                if any(name.startswith(('_xmlsignatures/', 'xl/embeddings/')) for name in reader._archive.namelist()):
+                    reasons.append('Signed or opaque embedded package content prevents safe table creation.')
+                _record(result, source, sheet, sheet.part + '#range=' + rectangle, reasons, safe=not reasons)
+    if excluded_small_component:
+        result.limitations.append('TABLE_HEADER: Single cells, one-row regions and one-column lists are not inferred tables under this profile.')
     return finalize_findings(result)

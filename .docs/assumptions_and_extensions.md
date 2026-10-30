@@ -1,5 +1,12 @@
 # Assumptions and Extensions
 
+## AE-018 — Unstructured table candidates (2026-10-30)
+
+- Source: specification §§6, 7.4, 8.6; partial 1.3.1 Info and Relationships. Developer authorizes this increment; shared adoption is separate.
+- Four-neighbor components exclude formal-table cells. Bounding boxes of at least 2×2 are candidates; density uses count versus area, never empty rectangle expansion. Only dense, plain-label, unambiguous supported candidates request first-row confirmation. Merges, overlapping filters/formal tables, shared worksheet ownership and unsupported attached features prevent that classification. Small components produce one audit-level limitation. No semantic header inference or table creation.
+- TABLE_HEADER is now registered after names and before merges. Historical two-rule tests explicitly isolate their old execution profile rather than relabeling snapshots as four-rule results.
+- Eleven table tests and 121 regression tests pass, including sparse/diagonal/far-away cells, body formula/0/false, exclusions and unsafe boundaries. No Excel UI/manual verification or editing is claimed.
+
 ## AE-017 — Formal-table header classification (2026-10-30)
 
 - Source: specification §§6, 7.4, 8.3, 8.6; partial 1.3.1 Info and Relationships. Developer-authorized implementation, not whole-spec shared adoption.

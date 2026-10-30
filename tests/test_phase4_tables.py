@@ -130,3 +130,56 @@ class Phase4FormalTableTests(unittest.TestCase):
                 self.assertEqual({f['target'] for f in result}, {'xl/tables/table1.xml#xml=/table[1]', 'xl/tables/table9.xml#xml=/table[1]'})
             else:
                 self.assertTrue(any('multiple owning' in reason for reason in result.limitations))
+
+class UnstructuredTableTests(unittest.TestCase):
+    def run_cells(self, rows, *, merge=None, auto_filter=None, formal=False):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        path = Path(temp.name) / 'grid.xlsx'
+        book = Workbook()
+        sheet = book.active
+        sheet.title = 'Data'
+        for reference, value in rows.items():
+            sheet[reference] = value
+        if merge:
+            sheet.merge_cells(merge)
+        if auto_filter:
+            sheet.auto_filter.ref = auto_filter
+        if formal:
+            sheet.add_table(Table(displayName='Already', ref='A1:B2'))
+        book.save(path)
+        book.close()
+        return path, check_table_headers(path)
+
+    def test_dense_with_formula_body_and_false_zero(self):
+        path, result = self.run_cells({'A1':'Name', 'B1':'Amount', 'A2':False, 'B2':'=1'})
+        self.assertEqual([(f['target'], f['classification']) for f in result],
+                         [('xl/worksheets/sheet1.xml#range=A1:B2', 'REQUIRES_USER_INPUT')])
+        self.assertEqual(result.limitations, [])
+        before = path.read_bytes()
+        self.assertEqual(result, check_table_headers(path))
+        self.assertEqual(before, path.read_bytes())
+
+    def test_sparse_l_shape_and_diagonal_are_not_dense(self):
+        _, result = self.run_cells({'A1':'Name', 'B1':'Amount', 'A2':0})
+        self.assertEqual(result[0]['classification'], 'MANUAL_REVIEW')
+        self.assertTrue(any('not a dense' in x for x in result.limitations))
+        _, result = self.run_cells({'A1':'Name', 'B2':0, 'XFD1048576':False})
+        self.assertEqual(result, [])
+        self.assertEqual(len(result.limitations), 1)
+
+    def test_empty_row_separates_components_and_formal_is_excluded(self):
+        _, result = self.run_cells({'A1':'Name', 'B1':'Amount', 'A2':0, 'B2':False,
+                                   'A4':'Other', 'B4':'Value', 'A5':0, 'B5':1})
+        self.assertEqual([f['target'].split('#')[1] for f in result], ['range=A1:B2','range=A4:B5'])
+        _, result = self.run_cells({'A1':'Name', 'B1':'Amount', 'A2':0, 'B2':False}, formal=True)
+        self.assertEqual(result, [])
+
+    def test_filter_merge_and_header_formula_are_manual(self):
+        cells = {'A1':'Name', 'B1':'Amount', 'A2':0, 'B2':False}
+        for option in ({'auto_filter':'A1:B2'}, {'merge':'A1:B1'}):
+            _, result = self.run_cells(cells, **option)
+            self.assertEqual(result[0]['classification'], 'MANUAL_REVIEW')
+            self.assertTrue(result.limitations)
+        _, result = self.run_cells(dict(cells, A1='=1'))
+        self.assertEqual(result[0]['classification'], 'MANUAL_REVIEW')

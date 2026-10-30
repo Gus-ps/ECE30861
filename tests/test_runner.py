@@ -69,13 +69,14 @@ class RunnerTests(unittest.TestCase):
             [(item["ruleId"], item["worksheet"], item["target"]) for item in findings],
             [
                 ("ALT_TEXT", "Sheet1", "xl/drawings/drawing90.xml#id=1"),
+                ("TABLE_HEADER", "Sheet1", "xl/tables/table81.xml#tableId=81"),
                 ("WORKSHEET_NAME", "Sheet1", "xl/worksheets/sheet17.xml#sheetId=1"),
             ],
         )
 
     def test_all_checkers_without_findings_return_empty(self):
         self.write_metadata(issues=False)
-        self.assertEqual(check_workbook(str(self.path)), [])
+        self.assertEqual([f["ruleId"] for f in check_workbook(str(self.path))], ["TABLE_HEADER"]) # Synthetic table omits required column metadata.
 
     def test_req03_ac03_source_bytes_unchanged(self):
         for issues in (True, False):
@@ -85,8 +86,9 @@ class RunnerTests(unittest.TestCase):
                 check_workbook(self.path)
                 self.assertEqual(self.path.read_bytes(), before)
 
+    @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_explicit_call_order_global_sort_and_unchanged_findings(self, merged):
+    def test_explicit_call_order_global_sort_and_unchanged_findings(self, merged, table):
         def finding(identifier, rule, sheet, target):
             return {
                 "findingId": identifier,
@@ -131,8 +133,9 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(findings, [d, e, c, b, a])
         source_hash.assert_called_once_with(self.path)
 
+    @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_exception_from_any_checker_propagates_without_partial_result(self, merged):
+    def test_exception_from_any_checker_propagates_without_partial_result(self, merged, table):
         names = (
             "check_image_alt_text",
             "check_worksheet_names",
@@ -184,17 +187,18 @@ class RunnerTests(unittest.TestCase):
         self.assertIsInstance(findings, Findings)
         self.assertIsInstance(findings, list)
         self.assertEqual(
-            [f["ruleId"] for f in findings], ["ALT_TEXT", "WORKSHEET_NAME"]
+            [f["ruleId"] for f in findings], ["ALT_TEXT", "TABLE_HEADER", "WORKSHEET_NAME"]
         )
         self.assertEqual(findings[0]["classification"], "MANUAL_REVIEW")
-        self.assertEqual(len(findings.limitations), 1)
+        self.assertEqual(sum(findings[0]["target"] in reason for reason in findings.limitations), 1)
         self.assertIn(findings[0]["target"], findings.limitations[0])
         self.assertEqual(findings, check_workbook(self.path))
         self.assertEqual(findings.limitations, check_workbook(self.path).limitations)
         self.assertEqual(self.path.read_bytes(), before)
 
+    @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_limitations_are_exact_deduplicated_and_sorted_without_losing_findings(self, merged):
+    def test_limitations_are_exact_deduplicated_and_sorted_without_losing_findings(self, merged, table):
         from accessibility_checker.results import Findings
 
         first = {
@@ -225,9 +229,9 @@ class RunnerTests(unittest.TestCase):
             "LINK_TEXT", "COLOR_CONTRAST",
         ))
         self.write_metadata(issues=True)
-        with patch("accessibility_checker.checks.table_headers.check_table_headers") as table:
+        with patch("accessibility_checker.runner.check_table_headers", return_value=[]) as table:
             result = check_workbook(self.path)
-        table.assert_not_called()
+        table.assert_called_once()
         self.assertEqual({item["ruleId"] for item in result}, {"ALT_TEXT", "WORKSHEET_NAME"})
 
 

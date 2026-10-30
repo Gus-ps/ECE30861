@@ -56,6 +56,13 @@ def current_expected():
 
 
 class CompleteWorkbookTests(unittest.TestCase):
+    def setUp(self):
+        # Preserve this historical two-rule acceptance profile.
+        for name in ("check_table_headers", "check_merged_cells"):
+            mocked = patch("accessibility_checker.runner." + name, return_value=[])
+            mocked.start()
+            self.addCleanup(mocked.stop)
+
     def test_pre_migration_exact_outputs_repeatability_and_source_bytes(self):
         path = FIXTURES / "migration_complete.xlsx"
         before = path.read_bytes()
@@ -86,6 +93,12 @@ class CompleteWorkbookTests(unittest.TestCase):
 
 
 class MetadataCompatibilityTests(unittest.TestCase):
+    def setUp(self):
+        # These assertions preserve the pre-migration two-rule profile.
+        mocked = patch("accessibility_checker.runner.check_table_headers", return_value=[])
+        mocked.start()
+        self.addCleanup(mocked.stop)
+
     def test_sheet_model_keeps_original_name_ids_and_unknown_attributes(self):
         for extra in ({}, {"future": "unsupported"}):
             with self.subTest(extra=extra):

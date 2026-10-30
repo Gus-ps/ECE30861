@@ -15,9 +15,9 @@ def worksheet_features(reader, sheet, names):
             if event == "start":
                 if not stack:
                     namespace = _namespace(element, "worksheet")
-                if len(stack) == 1 and element.tag in {
+                if len(stack) == 1 and ((names is None and element.tag != f"{{{namespace}}}sheetData") or (names is not None and element.tag in {
                     f"{{{namespace}}}{name}" for name in names
-                }:
+                })):
                     selected = element
                 stack.append(element)
                 continue
