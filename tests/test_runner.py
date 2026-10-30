@@ -14,6 +14,10 @@ from accessibility_checker.runner import check_workbook
 
 class RunnerTests(unittest.TestCase):
     def setUp(self):
+        # Historical aggregation profile; current six-rule execution is tested separately.
+        color = patch("accessibility_checker.runner.check_color_contrast", return_value=[])
+        color.start()
+        self.addCleanup(color.stop)
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.path = Path(directory.name) / "workbook.xlsx"

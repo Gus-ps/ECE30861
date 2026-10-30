@@ -1,5 +1,7 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+COLOR_CONTRAST is now registered, completing six-rule execution (not Phase 4/remediation acceptance). Static low contrast/color meaning combine per cell; visual conditional ranges are deduplicated and suppress static results. Unknown visual extension scope receives whole-part manual disclosure, not an invented range/ratio. Formula caches are never calculated. Three color-check tests and all 147 tests pass. Historical two-rule mocks remain explicit; five-rule fixtures now run through the current six-rule runner without rewriting their bytes or five-rule tuples. Dedicated six-rule fixtures follow.
+
 Color foundation verified against corrected pack 2.1.1: exact Fraction HSL intermediates, final half-up channels, all supplied tint/contrast vectors, exact-half neighbors and frozen 64-color palette equality. Palette is packaged as code, independent of runtime .docs. Eleven helper tests and full 144-test regression pass. Unsupported rendering remains explicit; COLOR_CONTRAST is not yet registered. No Excel UI evidence or shared deployment claim.
 
 Current adoption: corrected pack revision 2.1.1 resolves AE-020; implementation resumes using CORRECTIONS.md. Specification remains 2.1.0, ruleset 2.0.0, suite target 2.1.1 (no executable tester created). All seven SHA256SUMS members verified. Earlier pending statements below are historical; neither team deployment nor complete implementation is established. See [corrected pack](phase4_agent_context_pack/README.md).

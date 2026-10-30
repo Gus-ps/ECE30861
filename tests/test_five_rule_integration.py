@@ -1,7 +1,7 @@
 """Real-runner five-rule integration, partial WCAG 1.1.1/1.3.1/2.4.2/2.4.4.
 
 Related 2.4.6; REQ-03/04/05/06/15, AC-03/04/05/06/18.
-Independent fixture/XML expectations; no success mocks or six-rule claim.
+Historical five-rule fixture expectations under the current six-rule runner; no success mocks or six-rule claim.
 """
 import hashlib
 import json
@@ -18,10 +18,11 @@ from accessibility_checker.checks.table_headers import check_table_headers
 from accessibility_checker.checks.merged_cells import check_merged_cells
 from accessibility_checker.checks.link_text import check_link_text
 from accessibility_checker.runner import check_workbook
+from accessibility_checker.checks.color_contrast import check_color_contrast
 
 FIXTURES = Path(__file__).parent / 'fixtures'
 CHECKERS = (check_image_alt_text, check_worksheet_names, check_table_headers,
-            check_merged_cells, check_link_text)
+            check_merged_cells, check_link_text, check_color_contrast)
 SMALL = 'TABLE_HEADER: Single cells, one-row regions and one-column lists are not inferred tables under this profile.'
 # Authored from the construction recipe and saved OOXML, not checker output.
 SEEDED = [
@@ -65,12 +66,12 @@ class FiveRuleIntegrationTests(unittest.TestCase):
         self.assertEqual([code for _, code in calls if code in {c.__code__ for c in CHECKERS}],
                          [c.__code__ for c in CHECKERS])
         self.assertFalse(any(any(name in filename for name in (
-            'color_styles.py', 'color_contrast.py', 'workbook_title.py', 'legacy_table_headers.py'))
+            'workbook_title.py', 'legacy_table_headers.py'))
             for filename, _ in calls))
         fields = ('ruleId', 'category', 'worksheet', 'target', 'classification')
         self.assertEqual([tuple(item[field] for field in fields) for item in result], SEEDED if seeded else [])
         self.assertEqual(result, sorted(result, key=lambda f: (f['ruleId'], f['worksheet'], f['target'])))
-        self.assertEqual(result.limitations, [SMALL])
+        self.assertEqual(result.limitations, ['COLOR_CONTRAST: Missing fill is screened as white.', SMALL])
         self.assertEqual(result.limitations, sorted(set(result.limitations)))
         for item in result:
             self.assertEqual(set(item), set(fields) | {'findingId', 'message', 'recommendation'})

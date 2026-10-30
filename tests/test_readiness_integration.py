@@ -26,7 +26,7 @@ from accessibility_checker.runner import check_workbook
 class ReadinessIntegrationTests(unittest.TestCase):
     def setUp(self):
         # Preserve this historical two-rule acceptance profile.
-        for name in ("check_table_headers", "check_merged_cells", "check_link_text"):
+        for name in ("check_table_headers", "check_merged_cells", "check_link_text", "check_color_contrast"):
             mocked = patch("accessibility_checker.runner." + name, return_value=[])
             mocked.start()
             self.addCleanup(mocked.stop)

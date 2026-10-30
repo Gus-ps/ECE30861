@@ -6,6 +6,7 @@ related: 2.4.6 Headings and Labels (worksheet-name results).
 """
 
 from os import PathLike
+from accessibility_checker.checks.color_contrast import check_color_contrast
 
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
 from accessibility_checker.checks.merged_cells import check_merged_cells
@@ -15,7 +16,7 @@ from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.finding_ids import get_source_sha256
 from accessibility_checker.results import Findings, finalize_findings
 
-# Ordering contract; COLOR_CONTRAST remains unimplemented.
+# Implemented six-rule execution order.
 RULE_ORDER = (
     "ALT_TEXT",
     "WORKSHEET_NAME",
@@ -27,7 +28,7 @@ RULE_ORDER = (
 
 
 def check_workbook(path: str | PathLike[str]) -> Findings:
-    """Aggregate the five implemented checks for a valid local .xlsx.
+    """Aggregate the six implemented checks for a valid local .xlsx.
 
     Compute the digest once. Unsupported objects produce manual-review findings;
     genuine execution failures propagate without a successful partial result.
@@ -41,6 +42,7 @@ def check_workbook(path: str | PathLike[str]) -> Findings:
         "TABLE_HEADER": check_table_headers,
         "MERGED_CELLS": check_merged_cells,
         "LINK_TEXT": check_link_text,
+        "COLOR_CONTRAST": check_color_contrast,
     }
     for rule_id in RULE_ORDER:
         if rule_id not in implemented:
