@@ -1,5 +1,12 @@
 # Assumptions and Extensions
 
+## AE-017 — Formal-table header classification (2026-10-30)
+
+- Source: specification §§6, 7.4, 8.3, 8.6; partial 1.3.1 Info and Relationships. Developer-authorized implementation, not whole-spec shared adoption.
+- All referenced formal tables are checked; omitted header count is 1. Invalid IDs use table-root paths; duplicate physical IDs affect all members. Shared ownership prevents user-input classification. Only disabled headers with matching distinct plain first-row strings, body, consistent metadata and no known unsafe features are candidates. Formula/header/query/extension/merge/overlap/totals/reference ambiguities are manual with limitations. No edits.
+- Existing historical provisional implementation moved intact to `checks/legacy_table_headers.py`; its tests and saved observations use that explicit historical import. No snapshot bytes changed. Common reader now retains shared/inline rich-text provenance.
+- Seven focused tests and 117 regression tests pass. No new dependencies; no Excel UI evidence. Unstructured screening and runner registration are deferred to stage 3; TABLE_HEADER as a whole is not complete at this increment.
+
 ## AE-016 — Populated merges (2026-10-30)
 
 - Source: specification 2.1.0 §§6, 7.5, partial 1.3.1 Info and Relationships.

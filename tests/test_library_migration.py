@@ -20,7 +20,7 @@ from openpyxl import load_workbook
 
 from accessibility_checker import excel_metadata, safe_xml
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
-from accessibility_checker.checks.table_headers import check_table_headers
+from accessibility_checker.checks.legacy_table_headers import check_table_headers
 from accessibility_checker.checks.workbook_title import check_workbook_title
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.runner import check_workbook

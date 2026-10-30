@@ -61,6 +61,7 @@ class CellData:
     raw_value: str | None
     formula: Formula | None
     style_id: str | None
+    rich_text: bool = False
 
     @property
     def has_formula(self) -> bool:
@@ -244,7 +245,7 @@ class WorkbookReader:
                         stack.append(element)
                     else:
                         if len(stack) == 2 and element.tag == f"{{{namespace}}}si":
-                            strings.append(_body_text(element, namespace))
+                            strings.append((_body_text(element, namespace), element.find(f"{{{namespace}}}r") is not None))
                             stack[0].remove(element)
                             element.clear()
                         stack.pop()
@@ -266,6 +267,7 @@ class WorkbookReader:
         inline = element.findall(f"{{{namespace}}}is")
         if len(values) > 1 or len(formulas) > 1 or len(inline) > 1:
             raise WorkbookReadError(f"Ambiguous cell content: {reference}")
+        rich_text = False
         raw = (values[0].text or "") if values else None
         kind = element.get("t", "n")
         if kind == "s" and formulas and raw in (None, ""):
@@ -284,9 +286,10 @@ class WorkbookReader:
                 raise WorkbookReadError(
                     f"Shared string index out of bounds: {reference}"
                 )
-            value = strings[index]
+            value, rich_text = strings[index]
         elif kind == "inlineStr":
             value = _body_text(inline[0], namespace) if inline else None
+            rich_text = bool(inline and inline[0].find(f"{{{namespace}}}r") is not None)
         elif kind == "b":
             if raw not in (None, "", "0", "1", "false", "true"):
                 raise WorkbookReadError(f"Invalid boolean: {reference}")
@@ -308,7 +311,7 @@ class WorkbookReader:
             Formula(formulas[0].text, dict(formulas[0].attrib)) if formulas else None
         )
         return CellData(
-            reference, row, column, kind, value, raw, formula, element.get("s")
+            reference, row, column, kind, value, raw, formula, element.get("s"), rich_text
         )
 
     def read_cells(self, sheet: SheetInfo) -> tuple[CellData, ...]:

@@ -9,7 +9,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from accessibility_checker.checks.table_headers import check_table_headers
+from accessibility_checker.checks.legacy_table_headers import check_table_headers
 from accessibility_checker.finding_ids import make_finding_id
 
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
