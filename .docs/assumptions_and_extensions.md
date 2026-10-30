@@ -1,5 +1,7 @@
 # Assumptions and Extensions
 
+Current adoption: corrected pack revision 2.1.1 resolves AE-020; implementation resumes using CORRECTIONS.md. Specification remains 2.1.0, ruleset 2.0.0, suite target 2.1.1 (no executable tester created). All seven SHA256SUMS members verified. Earlier pending statements below are historical; neither team deployment nor complete implementation is established. See [corrected pack](phase4_agent_context_pack/README.md).
+
 ## AE-020 — Tint rounding conflict; pod decision pending (2026-10-30)
 
 - **Source/scope:** Specification 2.1.0 §7.7, partial 1.4.1 Use of Color and
@@ -30,6 +32,16 @@
 
 
 ## Historical records (superseded status statements below)
+
+### Earlier AE-020 draft — historical missing-palette investigation (2026-10-30)
+
+**Revised after developer supplied the companion file:** missing-data blocker resolved; normative conflict remains. The 64 fallback entries match installed `openpyxl.styles.colors.COLOR_INDEX` (the earlier question used the incorrect constant name COLOR_INDEXED). Whitespace, ID and label vectors match. Tint vectors for 336699 disagree with §7.7 half-up: -0.5 requires 1A334D (file 19334D), +0.5 requires 8CB3D9 (file 8CB2D9). Exact Fraction arithmetic independently yields pre-round channels (25.5,51,76.5) and (140.25,178.5,216.75). Contrast vectors agree within floating-point precision. Do not silently privilege either normative source or alter the supplied user file. Await a decision to correct the two vectors to half-up, or explicitly revise the rounding policy. All 140 existing tests pass; the direct new-vector comparison has two mismatches, not a successful complete policy test. Stage 5 remains uncommitted/incomplete; stages 6/7 remain pending. Earlier absence statements below are historical.
+
+
+- Source: specification 2.1.0 §7.7, partial 1.4.1 Use of Color and 1.4.3 Contrast (Minimum). The text normatively selects indices 0–63 from `phase4-policy-vectors.json`, but the companion file is absent from this repository (including hidden/ignored-file search). Workstation theme or another implementation's palette cannot establish that frozen choice.
+- Developer authorized implementing the checks, not silently replacing missing normative data. A question is pending: supply the frozen vectors, or explicitly adopt the installed openpyxl 3.1.5 COLOR_INDEXED values for this implementation. Such local authorization would remain distinct from cross-team adoption. No substitute has been adopted.
+- Independent draft helper code resolves explicit workbook colors/theme/palette and the specified tint/luminance math, retains rich-run and custom-row provenance, and refuses unsupported rendering. Missing fallback indexed colors raise UnsupportedRendering; they are not reported as passing. This is a temporary unresolved profile, not completed color detection.
+- Nine helper tests and full working-tree 140-test regression pass; no frozen-vector equality is claimed. Existing dependencies pass pip check, whitespace checks pass. No dependency added. Stage 5 draft code/docs remain uncommitted; COLOR_CONTRAST is unregistered. Stages 6/7, full six-rule fixtures and Microsoft Excel no-repair verification are outstanding.
 
 ## AE-019 — Finite hyperlink label screening (2026-10-30)
 

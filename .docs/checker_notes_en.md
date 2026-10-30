@@ -1,5 +1,7 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+Current adoption: corrected pack revision 2.1.1 resolves AE-020; implementation resumes using CORRECTIONS.md. Specification remains 2.1.0, ruleset 2.0.0, suite target 2.1.1 (no executable tester created). All seven SHA256SUMS members verified. Earlier pending statements below are historical; neither team deployment nor complete implementation is established. See [corrected pack](phase4_agent_context_pack/README.md).
+
 ## Current status — five-rule integration (2026-10-30)
 
 The runner executes ALT_TEXT → WORKSHEET_NAME → TABLE_HEADER → MERGED_CELLS →
@@ -30,6 +32,10 @@ whole-spec cross-team adoption.
 
 
 ## Historical records (superseded status statements below)
+
+Update: the developer supplied `phase4-policy-vectors.json`. Its 64-color palette matches openpyxl 3.1.5 `COLOR_INDEX`; whitespace, identity and label vectors match. Stage 5 remains blocked by two tint vectors contradicting §7.7 half-up rounding: 336699 at -0.5 gives exact channels (25.5,51,76.5) → 1A334D, but the file says 19334D; +0.5 gives (140.25,178.5,216.75) → 8CB3D9, but says 8CB2D9. Confirmed independently with Fraction arithmetic. Contrast vectors agree within floating-point precision. The supplied file is unchanged. All 140 existing tests pass; this does not mean all supplied vectors pass. No commit/push or stage 6/7 work.
+
+Stage 5 is **incomplete and uncommitted** (2026-10-30). The draft `color_styles.py` and reader provenance additions cover explicit/row/column/default styles, base/apply flags, concrete RGB/ARGB, workbook theme/system lastClr, Decimal HSL tint with half-up channels, explicit workbook indexed palettes, font defaults, unsupported patterns/rich/table overlays, and luminance math. Nine independent helper tests pass; total working-tree regression is 140. These are not the absent frozen vectors. The normative `phase4-policy-vectors.json` was not found even with ignored/hidden repository files included. No fallback palette is silently substituted. The draft rejects that unresolved case; this does not satisfy the full required indexed-color profile. No COLOR_CONTRAST check is registered, and stages 6–7 have not been completed. Supply the frozen pack or explicitly resolve the normative palette before continuing. Excel no-repair manual inspection is unperformed.
 
 Section 11 safety follow-up: detected hyperlink label issues in signed packages are manual; a descriptive link does not acquire a new finding merely because the package is signed. Ten link tests pass. Current regression: 140 passing (including nine incomplete/uncommitted color-helper tests).
 

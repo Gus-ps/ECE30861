@@ -1,5 +1,7 @@
 # Phase 4 common checker foundation
 
+Current adoption: corrected pack revision 2.1.1 resolves AE-020; implementation resumes using CORRECTIONS.md. Specification remains 2.1.0, ruleset 2.0.0, suite target 2.1.1 (no executable tester created). All seven SHA256SUMS members verified. Earlier pending statements below are historical; neither team deployment nor complete implementation is established. See [corrected pack](phase4_agent_context_pack/README.md).
+
 ## Current status — five-rule integration (2026-10-30)
 
 The runner executes ALT_TEXT → WORKSHEET_NAME → TABLE_HEADER → MERGED_CELLS →
@@ -30,6 +32,8 @@ whole-spec cross-team adoption.
 
 
 ## Historical records (superseded status statements below)
+
+Stage 5 is **incomplete and uncommitted** (2026-10-30). The draft `color_styles.py` and reader provenance additions cover explicit/row/column/default styles, base/apply flags, concrete RGB/ARGB, workbook theme/system lastClr, Decimal HSL tint with half-up channels, explicit workbook indexed palettes, font defaults, unsupported patterns/rich/table overlays, and luminance math. Nine independent helper tests pass; total working-tree regression is 140. These are not the absent frozen vectors. The normative `phase4-policy-vectors.json` was not found even with ignored/hidden repository files included. No fallback palette is silently substituted. The draft rejects that unresolved case; this does not satisfy the full required indexed-color profile. No COLOR_CONTRAST check is registered, and stages 6–7 have not been completed. Supply the frozen pack or explicitly resolve the normative palette before continuing. Excel no-repair manual inspection is unperformed.
 
 Current extension status (2026-10-30): five rules are active, in order ALT_TEXT, WORKSHEET_NAME, TABLE_HEADER, MERGED_CELLS, LINK_TEXT. The following two-rule readiness results are historical. New screening stages have 129 passing tests; COLOR_CONTRAST and remediation are not implemented. See AE-016–AE-019 and checker notes. No complete six-rule clean/seeded claim is made.
 
