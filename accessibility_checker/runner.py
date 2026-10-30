@@ -7,6 +7,7 @@ related: 2.4.6 Headings and Labels (worksheet-name results).
 from os import PathLike
 
 from accessibility_checker.checks.image_alt_text import check_image_alt_text
+from accessibility_checker.checks.merged_cells import check_merged_cells
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.finding_ids import get_source_sha256
 from accessibility_checker.results import Findings, finalize_findings
@@ -34,6 +35,7 @@ def check_workbook(path: str | PathLike[str]) -> Findings:
     implemented = {
         "ALT_TEXT": check_image_alt_text,
         "WORKSHEET_NAME": check_worksheet_names,
+        "MERGED_CELLS": check_merged_cells,
     }
     for rule_id in RULE_ORDER:
         if rule_id not in implemented:

@@ -1,5 +1,7 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+Current increment (2026-10-30): MERGED_CELLS is now active after ALT_TEXT and WORKSHEET_NAME. It screens populated declared merges (including titles), deduplicates identical rectangles, and discloses overlapping declarations, including empty conflicts. Sparse stored cells are used; chartsheets are excluded from grid inspection. Direct call: `checks.merged_cells.check_merged_cells(path, *, source_sha256=None)`. Four focused tests and all 110 tests pass. The remaining three new rules and remediation are not implemented. Earlier two-rule evidence below is historical.
+
 ## Current decisions and usage
 
 All four readiness increments are verified: **106 tests pass**, including

@@ -1,5 +1,13 @@
 # Assumptions and Extensions
 
+## AE-016 — Populated merges (2026-10-30)
+
+- Source: specification 2.1.0 §§6, 7.5, partial 1.3.1 Info and Relationships.
+- Developer explicitly authorizes the four new checks; shared adoption is separate.
+- Identical canonical declarations are one target. Overlapping declarations each receive manual review and a limitation even if empty; ordinary non-conflicting empty/style-only and single-cell declarations produce no finding. No rectangle expansion or editing. External worksheets are disclosed without fetching.
+- Implemented in `checks/merged_cells.py`, using the existing reader and a streaming worksheet-feature reader. `tests/test_merged_cells.py`: 4 tests; full regression: 110 passing. Original fixtures/snapshots preserved. Existing runner mock tests isolate merge execution explicitly; their synthetic root relationship now includes the required officeDocument relationship.
+- Excel UI, minimum-Python execution and performance benchmarks remain unverified. No dependencies added.
+
 Readiness stage 4 verification (2026-10-29): all 106 tests pass, including
 24 ALT_TEXT, 14 rename-preflight and 2 new generated/complete-package integration
 tests. No new production behavior was added in stage 4. Historical XLSX/JSON
