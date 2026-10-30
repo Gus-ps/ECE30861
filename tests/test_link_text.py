@@ -156,3 +156,11 @@ class LinkTextTests(unittest.TestCase):
         self.assertEqual(len(result),2)
         self.assertEqual(result[1]['classification'],'MANUAL_REVIEW')
         self.assertEqual(result[1]['target'],'xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[2]')
+
+    def test_signed_package_label_issue_is_manual_without_extra_clean_link(self):
+        with ZipFile(self.path,'a') as archive:
+            archive.writestr('_xmlsignatures/sig1.xml','<Signature/>')
+        result=check_link_text(self.path)
+        self.assertEqual(len(result),1)
+        self.assertEqual(result[0]['classification'],'MANUAL_REVIEW')
+        self.assertTrue(any('Signed package' in reason for reason in result.limitations))

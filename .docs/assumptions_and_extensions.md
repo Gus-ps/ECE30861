@@ -2,6 +2,8 @@
 
 ## AE-019 — Finite hyperlink label screening (2026-10-30)
 
+Section 11 follow-up: signed-package link-label defects are manual; descriptive links get no signature-only defect. Ten LINK_TEXT tests pass; full working tree: 140 passing, including nine incomplete color-helper tests.
+
 Review follow-up: namespace checks now explicitly reject foreign/wrapped link representations as manual at their actual indexed locations. Nine link tests pass; full working-tree regression is 139, including nine tests for the separately uncommitted, incomplete color helper. This does not complete stage 5.
 
 - Source: specification §§6, 7.1, 7.6, 8.5; partial 2.4.4 Link Purpose (In Context). Developer-authorized implementation; whole-spec team adoption and editor availability remain separate.

@@ -1,5 +1,7 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+Section 11 safety follow-up: detected hyperlink label issues in signed packages are manual; a descriptive link does not acquire a new finding merely because the package is signed. Ten link tests pass. Current regression: 140 passing (including nine incomplete/uncommitted color-helper tests).
+
 Stage 4 review follow-up: foreign/wrapped hyperlink representations are manual at their actual indexed element locations; local-name matches alone cannot select a supported namespace. Formula recognition also preserves spaced function syntax. Nine LINK_TEXT tests pass; the current working tree passes 139 tests including nine uncommitted color-helper tests. Stage 5 remains incomplete pending normative fallback-palette data.
 
 Stage 4: LINK_TEXT is active after merges. It screens resolved cell labels and literal HYPERLINK/_xlfn.HYPERLINK calls using the finite vocabulary and exact whitespace policy. Unsupported formula/range/competing/rich/merged/shared-owner representations are manual with XML targets and limitations; no destinations are visited. Drawing links have explicit manual-review disclosures. Eight link tests and all 129 tests pass. The runner now executes five rules; COLOR_CONTRAST remains unimplemented. Earlier stage records below are historical. No remediation/editor is implemented.

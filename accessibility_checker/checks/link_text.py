@@ -154,6 +154,8 @@ def check_link_text(path, *, source_sha256=None):
                     reasons.append('The label is not a simple editable text cell.')
                 label = '' if cell is None or cell.value is None else str(cell.value)
                 if reasons or ambiguous_label(label, destination):
+                    if any(name.startswith('_xmlsignatures/') for name in reader._archive.namelist()):
+                        reasons.append('Signed package prevents safe hyperlink label editing.')
                     target = fallback if reasons else sheet.part + '#cell=' + address
                     _record(result, source, sheet, target, reasons, safe=not reasons)
             for address, cell in formula_cells.items():
