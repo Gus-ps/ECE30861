@@ -32,3 +32,27 @@ Partial criterion references: 1.1.1 Non-text Content, 1.3.1 Info and Relationshi
 The test reads complete packages with openpyxl; no Microsoft Excel manual
 no-repair inspection has occurred. No COLOR_CONTRAST or six-rule clean claim,
 remediation, rendering or legal/WCAG compliance certification is made.
+
+## Dedicated six-rule fixtures (corrected pack 2.1.1)
+
+The five-rule inputs above retain their original bytes. The existing five-rule
+integration test now exercises their five expected findings under the current
+six-rule runner, also checking color assumptions and all six direct calls.
+
+`six_rule_clean.xlsx` is a byte-identical new copy of the five-rule clean package,
+now independently asserted clean within all six implemented screening rules.
+`six_rule_seeded.xlsx` copies the five-rule seeded package and changes only:
+styles.xml gets a new font (11pt, RGB 777777) and a new cellXf referencing it;
+sheet1.xml cell B2 references that new style. Existing cells/styles are retained.
+The exact six-rule oracle adds COLOR_CONTRAST / COLOR_OR_CONTRAST / Data /
+xl/worksheets/sheet1.xml#cell=B2 / MANUAL_REVIEW to the five tuples above.
+777777 on assumed white has ratio 4.478089453577214, below 4.5, per the independent
+pack vector. It is grayscale, so this finding has only the low-contrast reason.
+The expected limitation set is the table inference disclosure plus missing-fill
+white assumption. No invented header or color meaning is involved.
+
+`test_six_rule_integration.py` reuses the contract assertions (six actual calls,
+five repeats, eight fields, independent IDs, immutable bytes, direct aggregation),
+and adds sparse huge-dimension and malformed-XML failure checks. Shared use of
+assertions does not copy production output into the oracle. Openpyxl reading is
+verified; Microsoft Excel no-repair manual validation is still unperformed.

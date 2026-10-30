@@ -35,8 +35,11 @@ SEEDED = [
 
 
 class FiveRuleIntegrationTests(unittest.TestCase):
+    clean_name = "five_rule_clean.xlsx"
+    seeded_name = "five_rule_seeded.xlsx"
+    expected_seeded = SEEDED
     def verify(self, seeded):
-        path = FIXTURES / ('five_rule_seeded.xlsx' if seeded else 'five_rule_clean.xlsx')
+        path = FIXTURES / (self.seeded_name if seeded else self.clean_name)
         before = path.read_bytes()
         source = hashlib.sha256(before).hexdigest()
         book = load_workbook(path)
@@ -69,7 +72,7 @@ class FiveRuleIntegrationTests(unittest.TestCase):
             'workbook_title.py', 'legacy_table_headers.py'))
             for filename, _ in calls))
         fields = ('ruleId', 'category', 'worksheet', 'target', 'classification')
-        self.assertEqual([tuple(item[field] for field in fields) for item in result], SEEDED if seeded else [])
+        self.assertEqual([tuple(item[field] for field in fields) for item in result], self.expected_seeded if seeded else [])
         self.assertEqual(result, sorted(result, key=lambda f: (f['ruleId'], f['worksheet'], f['target'])))
         self.assertEqual(result.limitations, ['COLOR_CONTRAST: Missing fill is screened as white.', SMALL])
         self.assertEqual(result.limitations, sorted(set(result.limitations)))
