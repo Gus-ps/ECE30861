@@ -1,5 +1,7 @@
 # Phase 4 common checker foundation
 
+Current extension status (2026-10-30): five rules are active, in order ALT_TEXT, WORKSHEET_NAME, TABLE_HEADER, MERGED_CELLS, LINK_TEXT. The following two-rule readiness results are historical. New screening stages have 129 passing tests; COLOR_CONTRAST and remediation are not implemented. See AE-016–AE-019 and checker notes. No complete six-rule clean/seeded claim is made.
+
 Current readiness: the two existing checks now include safe group traversal,
 drawing ownership and whole-workbook rename classification (AE-013–AE-015).
 See [the final readiness evidence](checker_readiness.md) and

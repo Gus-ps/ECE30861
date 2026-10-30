@@ -1,5 +1,12 @@
 # Assumptions and Extensions
 
+## AE-019 — Finite hyperlink label screening (2026-10-30)
+
+- Source: specification §§6, 7.1, 7.6, 8.5; partial 2.4.4 Link Purpose (In Context). Developer-authorized implementation; whole-spec team adoption and editor availability remain separate.
+- Element labels use resolved cell content, not display attributes. Comparisons trim/collapse only policy White_Space, casefold, ignore one trailing ASCII .!? for the finite word list, and check raw-address prefixes. Literal one/two argument HYPERLINK calls parse commas outside strings and doubled quotes; unsupported calls are manual without evaluation. Plain URLs outside hyperlinks are ignored.
+- Editable classification is limited to simple single-cell text/empty labels with unambiguous ownership. Unsupported/range/competing/merged/rich/formula representations are manual; indexed locations are based on actual XML. Drawing hyperlinks are disclosed as unperformed manual review, without fetching destinations.
+- Eight focused tests, full 129-test regression pass; original bytes and historical snapshots are preserved. Runner now has five active checks. No color rule, editor, API or new dependency. Generated xlsx reader checks are not Microsoft Excel no-repair evidence.
+
 ## AE-018 — Unstructured table candidates (2026-10-30)
 
 - Source: specification §§6, 7.4, 8.6; partial 1.3.1 Info and Relationships. Developer authorizes this increment; shared adoption is separate.

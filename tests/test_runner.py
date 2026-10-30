@@ -86,9 +86,10 @@ class RunnerTests(unittest.TestCase):
                 check_workbook(self.path)
                 self.assertEqual(self.path.read_bytes(), before)
 
+    @patch("accessibility_checker.runner.check_link_text", return_value=[])
     @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_explicit_call_order_global_sort_and_unchanged_findings(self, merged, table):
+    def test_explicit_call_order_global_sort_and_unchanged_findings(self, merged, table, link):
         def finding(identifier, rule, sheet, target):
             return {
                 "findingId": identifier,
@@ -133,9 +134,10 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(findings, [d, e, c, b, a])
         source_hash.assert_called_once_with(self.path)
 
+    @patch("accessibility_checker.runner.check_link_text", return_value=[])
     @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_exception_from_any_checker_propagates_without_partial_result(self, merged, table):
+    def test_exception_from_any_checker_propagates_without_partial_result(self, merged, table, link):
         names = (
             "check_image_alt_text",
             "check_worksheet_names",
@@ -196,9 +198,10 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(findings.limitations, check_workbook(self.path).limitations)
         self.assertEqual(self.path.read_bytes(), before)
 
+    @patch("accessibility_checker.runner.check_link_text", return_value=[])
     @patch("accessibility_checker.runner.check_table_headers", return_value=[])
     @patch("accessibility_checker.runner.check_merged_cells", return_value=[])
-    def test_limitations_are_exact_deduplicated_and_sorted_without_losing_findings(self, merged, table):
+    def test_limitations_are_exact_deduplicated_and_sorted_without_losing_findings(self, merged, table, link):
         from accessibility_checker.results import Findings
 
         first = {

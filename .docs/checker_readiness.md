@@ -1,5 +1,7 @@
 # Existing-checker readiness before adding four Phase 4 checks
 
+Current extension status (2026-10-30): five rules are active, in order ALT_TEXT, WORKSHEET_NAME, TABLE_HEADER, MERGED_CELLS, LINK_TEXT. The following two-rule readiness results are historical. New screening stages have 129 passing tests; COLOR_CONTRAST and remediation are not implemented. See AE-016–AE-019 and checker notes. No complete six-rule clean/seeded claim is made.
+
 The developer authorized these four increments on 2026-10-29. This records
 implementation and executed evidence, separately from cross-team adoption.
 Criterion coverage remains partial: `1.1.1 Non-text Content`, `2.4.2 Page Titled`,
