@@ -7,7 +7,7 @@ formula metadata, resolves text without phonetics and never saves a workbook.
 
 import posixpath
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from os import PathLike
 from urllib.parse import unquote, urlsplit
@@ -62,6 +62,8 @@ class CellData:
     formula: Formula | None
     style_id: str | None
     rich_text: bool = False
+    rich_runs: tuple = ()
+    row_style_id: str | None = None
 
     @property
     def has_formula(self) -> bool:
@@ -121,6 +123,19 @@ def _body_text(element, namespace):
         }:
             raise WorkbookReadError(f"Unsupported string representation: {child.tag}")
     return "".join(fragments)
+
+
+def _text_runs(element, namespace):
+    result = []
+    for child in element:
+        if child.tag == f"{{{namespace}}}t":
+            result.append((child.text or '', ()))
+        elif child.tag == f"{{{namespace}}}r":
+            props = child.find(f"{{{namespace}}}rPr")
+            signature = () if props is None else tuple(
+                (item.tag, tuple(sorted(item.attrib.items()))) for item in props)
+            result.append((''.join(t.text or '' for t in child.findall(f"{{{namespace}}}t")), signature))
+    return tuple(result)
 
 
 def _part(base, target):
@@ -245,7 +260,7 @@ class WorkbookReader:
                         stack.append(element)
                     else:
                         if len(stack) == 2 and element.tag == f"{{{namespace}}}si":
-                            strings.append((_body_text(element, namespace), element.find(f"{{{namespace}}}r") is not None))
+                            strings.append((_body_text(element, namespace), element.find(f"{{{namespace}}}r") is not None, _text_runs(element, namespace)))
                             stack[0].remove(element)
                             element.clear()
                         stack.pop()
@@ -268,6 +283,7 @@ class WorkbookReader:
         if len(values) > 1 or len(formulas) > 1 or len(inline) > 1:
             raise WorkbookReadError(f"Ambiguous cell content: {reference}")
         rich_text = False
+        rich_runs = ()
         raw = (values[0].text or "") if values else None
         kind = element.get("t", "n")
         if kind == "s" and formulas and raw in (None, ""):
@@ -286,10 +302,11 @@ class WorkbookReader:
                 raise WorkbookReadError(
                     f"Shared string index out of bounds: {reference}"
                 )
-            value, rich_text = strings[index]
+            value, rich_text, rich_runs = strings[index]
         elif kind == "inlineStr":
             value = _body_text(inline[0], namespace) if inline else None
             rich_text = bool(inline and inline[0].find(f"{{{namespace}}}r") is not None)
+            rich_runs = _text_runs(inline[0], namespace) if inline else ()
         elif kind == "b":
             if raw not in (None, "", "0", "1", "false", "true"):
                 raise WorkbookReadError(f"Invalid boolean: {reference}")
@@ -311,7 +328,7 @@ class WorkbookReader:
             Formula(formulas[0].text, dict(formulas[0].attrib)) if formulas else None
         )
         return CellData(
-            reference, row, column, kind, value, raw, formula, element.get("s"), rich_text
+            reference, row, column, kind, value, raw, formula, element.get("s"), rich_text, rich_runs
         )
 
     def read_cells(self, sheet: SheetInfo) -> tuple[CellData, ...]:
@@ -330,6 +347,7 @@ class WorkbookReader:
         rows = set()
         previous_row = 0
         current_row = None
+        row_style_id = None
         previous_column = 0
         cell_depth = None
         stack = []
@@ -350,6 +368,10 @@ class WorkbookReader:
                             or stack[-1].tag != f"{{{namespace}}}sheetData"
                         ):
                             raise CoordinateError("Row outside worksheet sheetData")
+                        custom = element.get("customFormat", "0")
+                        if custom not in {"0", "1", "false", "true"}:
+                            raise WorkbookReadError("Invalid row customFormat")
+                        row_style_id = element.get("s") if custom in {"1", "true"} else None
                         raw_row = element.get("r")
                         if (
                             raw_row is not None
@@ -385,6 +407,7 @@ class WorkbookReader:
                     continue
                 if cell_depth == len(stack):
                     cell = self._cell(element, namespace, current_row, previous_column)
+                    cell = replace(cell, row_style_id=row_style_id)
                     key = (cell.row, cell.column)
                     if key in cells:
                         raise CoordinateError(
