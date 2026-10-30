@@ -1,5 +1,36 @@
 # Assumptions and Extensions
 
+## AE-020 — Tint rounding conflict; pod decision pending (2026-10-30)
+
+- **Source/scope:** Specification 2.1.0 §7.7, partial 1.4.1 Use of Color and
+  1.4.3 Contrast (Minimum), versus the developer-supplied policy vectors.
+- **Current evidence:** The previously absent 64-color palette has been supplied;
+  missing data is no longer the blocker. Comparison found two tint conflicts for
+  base 336699. At −0.5 the vector says 19334D, but exact channels
+  (25.5,51,76.5) with half-up give 1A334D. At +0.5 the vector says 8CB2D9,
+  but exact channels (140.25,178.5,216.75) give 8CB3D9. Fraction arithmetic
+  independently confirmed these pre-round values. Palette/whitespace/identity/
+  label comparisons matched; contrast comparisons agreed within floating precision.
+- **Proposal/authority:** Correct the two vector values to the half-up results,
+  or explicitly revise the rounding policy. Neither alternative is approved.
+  The pod's response is pending; developer implementation authorization alone
+  does not establish shared adoption. No normative file/vector is changed here.
+- **Implementation:** Stage 5 color helper, its tests and reader additions remain
+  uncommitted/incomplete. COLOR_CONTRAST is not registered; stages 6–7 are not
+  complete. No further color implementation is part of this increment.
+- **Verification:** Committed baseline 131, additional five-rule integration 2,
+  proposed snapshot 133; working tree with nine draft color tests 142 passing.
+  These regression results do not resolve the two normative vector mismatches.
+  New fixtures are generated complete XLSX packages with independent tuple/ID
+  expectations; no Microsoft Excel manual no-repair evidence exists.
+- **History:** Initial stage-5 investigation stopped for missing companion data.
+  The developer subsequently supplied it; the blocker changed to the concrete
+  rounding conflict above. Earlier absence statements are historical, not the
+  current reason for waiting. See `tests/fixtures/five_rule_fixtures.md`.
+
+
+## Historical records (superseded status statements below)
+
 ## AE-019 — Finite hyperlink label screening (2026-10-30)
 
 Section 11 follow-up: signed-package link-label defects are manual; descriptive links get no signature-only defect. Ten LINK_TEXT tests pass; full working tree: 140 passing, including nine incomplete color-helper tests.

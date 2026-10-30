@@ -1,5 +1,36 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+## Current status — five-rule integration (2026-10-30)
+
+The runner executes ALT_TEXT → WORKSHEET_NAME → TABLE_HEADER → MERGED_CELLS →
+LINK_TEXT. COLOR_CONTRAST is unregistered; six-rule integration and remediation
+are not complete. Color helper/reader extensions remain incomplete, uncommitted
+work and are excluded from this integration commit.
+
+The 64-color policy palette has been supplied. Missing reference material is no
+longer the blocker: two tint vectors conflict with the specification's half-up
+rule, and the pod's rounding decision is pending. Proposed corrections are not
+approved; neither the specification nor vectors have been changed. See AE-020
+in [the assumptions log](assumptions_and_extensions.md) for exact values/history.
+
+Executed verification: committed HEAD baseline **131 tests**; new real-runner
+five-rule integration **2 tests**; proposed commit snapshot **133 tests**; working
+tree including the nine uncommitted color-helper tests **142 tests**. Passing
+regression does not establish color completion or agreement with all vectors;
+the two previously observed normative tint mismatches remain unresolved.
+
+The new complete clean/seeded packages verify exact finding tuples and independent
+IDs, both classifications, hidden/veryHidden tabs, five repeated executions,
+unchanged source bytes, direct-call aggregation, and actual call order/exclusion
+of color and legacy Title/Table. No checker is mocked to succeed. See
+[fixture recipe and scope](../tests/fixtures/five_rule_fixtures.md).
+Openpyxl reading is automated evidence, not Microsoft Excel no-repair inspection;
+that manual check remains unperformed. Developer authorization is distinct from
+whole-spec cross-team adoption.
+
+
+## Historical records (superseded status statements below)
+
 Section 11 safety follow-up: detected hyperlink label issues in signed packages are manual; a descriptive link does not acquire a new finding merely because the package is signed. Ten link tests pass. Current regression: 140 passing (including nine incomplete/uncommitted color-helper tests).
 
 Stage 4 review follow-up: foreign/wrapped hyperlink representations are manual at their actual indexed element locations; local-name matches alone cannot select a supported namespace. Formula recognition also preserves spaced function syntax. Nine LINK_TEXT tests pass; the current working tree passes 139 tests including nine uncommitted color-helper tests. Stage 5 remains incomplete pending normative fallback-palette data.
