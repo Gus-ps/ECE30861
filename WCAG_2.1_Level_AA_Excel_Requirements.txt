@@ -1,0 +1,478 @@
+WCAG 2.1 — LEVEL AA REQUIREMENTS RELEVANT TO EXCEL WORKBOOKS
+============================================================
+
+Derived from: WCAG_2.1_Level_AA_Requirements.txt
+Source: W3C "How to Meet WCAG (Quick Reference)", filtered to WCAG 2.1
+        https://www.w3.org/WAI/WCAG22/quickref/?versions=2.1
+Compiled: October 16, 2026
+
+HOW THIS LIST WAS BUILT
+-----------------------
+WCAG is written for web content. To apply it to an Excel file (.xlsx), each
+Level A / AA criterion was kept if workbook content can pass or fail it, and
+dropped if Excel itself controls the behavior, the criterion only covers
+markup languages or sets of web pages, or the content type (audio/video)
+doesn't normally occur in a spreadsheet. This follows the same approach as
+W3C's WCAG2ICT guidance for non-web documents. Each kept criterion has an
+"EXCEL:" note on how it applies to a workbook.
+
+Criteria are grouped as:
+  Part 1: Applies to every workbook
+  Part 2: Applies only when the workbook contains certain features
+  Part 3: Not applicable to Excel (with reasons)
+
+SUMMARY
+-------
+Relevant criteria: 28 of 50  (Level A: 21, Level AA: 7)
+  Part 1, always applicable:  14
+  Part 2, conditional:        14
+  Part 3, not applicable:     22
+
+  PART 1: ALWAYS APPLICABLE
+  1.1.1   Non-text Content                              A
+  1.3.1   Info and Relationships                        A
+  1.3.2   Meaningful Sequence                           A
+  1.3.3   Sensory Characteristics                       A
+  1.4.1   Use of Color                                  A
+  1.4.3   Contrast (Minimum)                            AA
+  1.4.4   Resize Text                                   AA
+  1.4.5   Images of Text                                AA
+  1.4.11  Non-text Contrast                             AA
+  2.4.2   Page Titled                                   A
+  2.4.3   Focus Order                                   A
+  2.4.4   Link Purpose (In Context)                     A
+  2.4.6   Headings and Labels                           AA
+  3.1.1   Language of Page                              A
+
+  PART 2: WORKBOOKS WITH FORM CONTROLS, ACTIVEX CONTROLS, BUTTONS OR VBA MACROS
+  2.1.1   Keyboard                                      A
+  2.1.2   No Keyboard Trap                              A
+  2.1.4   Character Key Shortcuts                       A
+  2.2.1   Timing Adjustable                             A
+  2.5.3   Label in Name                                 A
+  3.2.1   On Focus                                      A
+  3.2.2   On Input                                      A
+  4.1.2   Name, Role, Value                             A
+
+  PART 2: WORKBOOKS THAT COLLECT USER INPUT (FORMS, TEMPLATES, DATA-ENTRY SHEETS)
+  3.3.1   Error Identification                          A
+  3.3.2   Labels or Instructions                        A
+  3.3.3   Error Suggestion                              AA
+  3.3.4   Error Prevention (Legal, Financial, Data)     AA
+
+  PART 2: WORKBOOKS WITH ANIMATED IMAGES (E.G. ANIMATED GIFS)
+  2.2.2   Pause, Stop, Hide                             A
+  2.3.1   Three Flashes or Below Threshold              A
+
+
+==============================================================================
+PART 1: APPLIES TO EVERY WORKBOOK
+==============================================================================
+
+1.1.1 Non-text Content — Level A
+  All non-text content that is presented to the user has a text alternative
+  that serves the equivalent purpose, except for the situations listed below.
+    - Controls, Input: If non-text content is a control or accepts user input,
+      then it has a name that describes its purpose. (Refer to Success
+      Criterion 4.1.2 for additional requirements for controls and content
+      that accepts user input.)
+    - Time-Based Media: If non-text content is time-based media, then text
+      alternatives at least provide descriptive identification of the
+      non-text content. (Refer to Guideline 1.2 for additional requirements
+      for media.)
+    - Test: If non-text content is a test or exercise that would be invalid if
+      presented in text, then text alternatives at least provide descriptive
+      identification of the non-text content.
+    - Sensory: If non-text content is primarily intended to create a specific
+      sensory experience, then text alternatives at least provide descriptive
+      identification of the non-text content.
+    - CAPTCHA: If the purpose of non-text content is to confirm that content
+      is being accessed by a person rather than a computer, then text
+      alternatives that identify and describe the purpose of the non-text
+      content are provided, and alternative forms of CAPTCHA using output
+      modes for different types of sensory perception are provided to
+      accommodate different disabilities.
+    - Decoration, Formatting, Invisible: If non-text content is pure
+      decoration, is used only for visual formatting, or is not presented to
+      users, then it is implemented in a way that it can be ignored by
+      assistive technology.
+  >> EXCEL: Images, charts, shapes, SmartArt, icons and text boxes need alt
+     text. Purely decorative objects should be marked as decorative.
+
+1.3.1 Info and Relationships — Level A
+  Information, structure, and relationships conveyed through presentation can
+  be programmatically determined or are available in text.
+  >> EXCEL: Data tables should be formatted as Excel Tables (Insert > Table)
+     with a header row. Avoid merged or split cells inside data, and don't use
+     blank rows or columns just for spacing. Title cells and header rows
+     should be real header cells, not just bold text.
+
+1.3.2 Meaningful Sequence — Level A
+  When the sequence in which content is presented affects its meaning, a
+  correct reading sequence can be programmatically determined.
+  >> EXCEL: Content should read in a logical order (left to right, top to
+     bottom, starting at A1). Sheets should be ordered logically. Notes,
+     totals and floating objects shouldn't sit where a screen reader would
+     reach them out of order.
+
+1.3.3 Sensory Characteristics — Level A
+  Instructions provided for understanding and operating content do not rely
+  solely on sensory characteristics of components such as shape, color, size,
+  visual location, orientation, or sound.
+  Note: For requirements related to color, refer to Guideline 1.4.
+  >> EXCEL: Instructions shouldn't rely only on color, position or shape (e.g.
+     "fill in the green cells" or "see the box on the right") without also
+     naming the cells or labels.
+
+1.4.1 Use of Color — Level A
+  Color is not used as the only visual means of conveying information,
+  indicating an action, prompting a response, or distinguishing a visual
+  element.
+  Note: This success criterion addresses color perception specifically. Other
+  forms of perception are covered in Guideline 1.3 including programmatic
+  access to color and other visual presentation coding.
+  >> EXCEL: Fills, font colors, conditional formatting and chart series
+     shouldn't be the only way meaning is shown. Add text, symbols, patterns
+     or data labels as well.
+
+1.4.3 Contrast (Minimum) — Level AA
+  The visual presentation of text and images of text has a contrast ratio of
+  at least 4.5:1, except for the following:
+    - Large Text: Large-scale text and images of large-scale text have a
+      contrast ratio of at least 3:1;
+    - Incidental: Text or images of text that are part of an inactive user
+      interface component, that are pure decoration, that are not visible to
+      anyone, or that are part of a picture that contains significant other
+      visual content, have no contrast requirement.
+    - Logotypes: Text that is part of a logo or brand name has no contrast
+      requirement.
+  >> EXCEL: Cell text against its fill color (and text in shapes, text boxes
+     and charts) must reach 4.5:1, or 3:1 for large text (18pt, or 14pt bold).
+
+1.4.4 Resize Text — Level AA
+  Except for captions and images of text, text can be resized without
+  assistive technology up to 200 percent without loss of content or
+  functionality.
+  >> EXCEL: Excel's zoom handles most of this. Check that text in shapes, text
+     boxes and fixed-size objects doesn't get clipped or overlap when zoomed
+     to 200%, and that cell text isn't cut off by fixed row heights.
+
+1.4.5 Images of Text — Level AA
+  If the technologies being used can achieve the visual presentation, text is
+  used to convey information rather than images of text except for the
+  following:
+    - Customizable: The image of text can be visually customized to the
+      user's requirements;
+    - Essential: A particular presentation of text is essential to the
+      information being conveyed.
+  Note: Logotypes (text that is part of a logo or brand name) are considered
+  essential.
+  >> EXCEL: Don't paste screenshots of tables or text. Use real cell text
+     instead. Logos are exempt.
+
+1.4.11 Non-text Contrast — Level AA (New in 2.1)
+  The visual presentation of the following have a contrast ratio of at least
+  3:1 against adjacent color(s):
+    - User Interface Components: Visual information required to identify user
+      interface components and states, except for inactive components or
+      where the appearance of the component is determined by the user agent
+      and not modified by the author;
+    - Graphical Objects: Parts of graphics required to understand the content,
+      except when a particular presentation of graphics is essential to the
+      information being conveyed.
+  >> EXCEL: Chart lines, bars, pie slices, markers and meaningful borders or
+     icons need 3:1 contrast against adjacent colors. Form controls (check
+     boxes, buttons) need 3:1 too.
+
+2.4.2 Page Titled — Level A
+  Web pages have titles that describe topic or purpose.
+  >> EXCEL: Set the workbook Title in File > Info > Properties. Give every
+     sheet a descriptive tab name (not "Sheet1"), and remove blank or unused
+     sheets.
+
+2.4.3 Focus Order — Level A
+  If a web page can be navigated sequentially and the navigation sequences
+  affect meaning or operation, focusable components receive focus in an
+  order that preserves meaning and operability.
+  >> EXCEL: Keyboard / screen reader navigation through cells, sheets and any
+     controls should follow a sensible order. Place content starting at A1 and
+     avoid scattered floating objects.
+
+2.4.4 Link Purpose (In Context) — Level A
+  The purpose of each link can be determined from the link text alone or from
+  the link text together with its programmatically determined link context,
+  except where the purpose of the link would be ambiguous to users in
+  general.
+  >> EXCEL: Hyperlink display text should describe where it goes (not a raw
+     URL or "click here"). ScreenTips can add context.
+
+2.4.6 Headings and Labels — Level AA
+  Headings and labels describe topic or purpose.
+  >> EXCEL: Column and row headers, sheet names, chart titles, axis titles and
+     input labels should clearly describe their content.
+
+3.1.1 Language of Page — Level A
+  The default human language of each web page can be programmatically
+  determined.
+  >> EXCEL: Set the workbook's language (Office authoring/proofing language,
+     the dc:language document property) so assistive technology reads it
+     correctly.
+
+==============================================================================
+PART 2: APPLIES ONLY WHEN THE WORKBOOK CONTAINS CERTAIN FEATURES
+==============================================================================
+
+------------------------------------------------------------------------------
+Workbooks with form controls, ActiveX controls, buttons or VBA macros
+------------------------------------------------------------------------------
+
+2.1.1 Keyboard — Level A
+  All functionality of the content is operable through a keyboard interface
+  without requiring specific timings for individual keystrokes, except where
+  the underlying function requires input that depends on the path of the
+  user's movement and not just the endpoints.
+  Note 1: This exception relates to the underlying function, not the input
+  technique. For example, if using handwriting to enter text, the input
+  technique (handwriting) requires path-dependent input but the underlying
+  function (text input) does not.
+  Note 2: This does not forbid and should not discourage providing mouse
+  input or other input methods in addition to keyboard operation.
+  >> EXCEL: Everything a button, shape-with-macro, form control or UserForm
+     does must also work by keyboard alone.
+
+2.1.2 No Keyboard Trap — Level A
+  If keyboard focus can be moved to a component of the page using a keyboard
+  interface, then focus can be moved away from that component using only a
+  keyboard interface, and, if it requires more than unmodified arrow or tab
+  keys or other standard exit methods, the user is advised of the method for
+  moving focus away.
+  Note: Since any content that does not meet this success criterion can
+  interfere with a user's ability to use the whole page, all content on the
+  web page (whether it is used to meet other success criteria or not) must
+  meet this success criterion. See Conformance Requirement 5:
+  Non-Interference.
+  >> EXCEL: UserForms, dialogs and controls must let keyboard focus leave
+     (e.g. Tab, Esc, a Close button).
+
+2.1.4 Character Key Shortcuts — Level A (New in 2.1)
+  If a keyboard shortcut is implemented in content using only letter
+  (including upper- and lower-case letters), punctuation, number, or symbol
+  characters, then at least one of the following is true:
+    - Turn off: A mechanism is available to turn the shortcut off;
+    - Remap: A mechanism is available to remap the shortcut to include one or
+      more non-printable keyboard keys (e.g., Ctrl, Alt);
+    - Active only on focus: The keyboard shortcut for a user interface
+      component is only active when that component has focus.
+  >> EXCEL: Single-key shortcuts assigned with VBA (Application.OnKey) must be
+     removable, remappable, or active only when focused.
+
+2.2.1 Timing Adjustable — Level A
+  For each time limit that is set by the content, at least one of the
+  following is true:
+    - Turn off: The user is allowed to turn off the time limit before
+      encountering it; or
+    - Adjust: The user is allowed to adjust the time limit before encountering
+      it over a wide range that is at least ten times the length of the
+      default setting; or
+    - Extend: The user is warned before time expires and given at least 20
+      seconds to extend the time limit with a simple action (for example,
+      "press the space bar"), and the user is allowed to extend the time
+      limit at least ten times; or
+    - Real-time Exception: The time limit is a required part of a real-time
+      event (for example, an auction), and no alternative to the time limit
+      is possible; or
+    - Essential Exception: The time limit is essential and extending it would
+      invalidate the activity; or
+    - 20 Hour Exception: The time limit is longer than 20 hours.
+  Note: This success criterion helps ensure that users can complete tasks
+  without unexpected changes in content or context that are a result of a
+  time limit. This success criterion should be considered in conjunction
+  with Success Criterion 3.2.1, which puts limits on changes of content or
+  context as a result of user action.
+  >> EXCEL: Macro-driven time limits (auto-close, timed quizzes) need a way to
+     turn them off, adjust them or extend them.
+
+2.5.3 Label in Name — Level A (New in 2.1)
+  For user interface components with labels that include text or images of
+  text, the name contains the text that is presented visually.
+  Note: A best practice is to have the text of the label at the start of the
+  name.
+  >> EXCEL: A control's accessible name (alt text / caption) must include its
+     visible label text.
+
+3.2.1 On Focus — Level A
+  When any user interface component receives focus, it does not initiate a
+  change of context.
+  >> EXCEL: Selecting or tabbing to a cell or control must not trigger a
+     change of context (e.g. a SelectionChange macro that jumps to another
+     sheet or opens a dialog).
+
+3.2.2 On Input — Level A
+  Changing the setting of any user interface component does not
+  automatically cause a change of context unless the user has been advised
+  of the behavior before using the component.
+  >> EXCEL: Changing a value (dropdown, check box, cell entry) must not cause
+     an unexpected change of context unless users are warned beforehand.
+
+4.1.2 Name, Role, Value — Level A
+  For all user interface components (including but not limited to: form
+  elements, links and components generated by scripts), the name and role
+  can be programmatically determined; states, properties, and values that
+  can be set by the user can be programmatically set; and notification of
+  changes to these items is available to user agents, including assistive
+  technologies.
+  Note: This success criterion is primarily for web authors who develop or
+  script their own user interface components. For example, standard HTML
+  controls already meet this success criterion when used according to
+  specification.
+  >> EXCEL: Custom controls need an accessible name and role, and their state
+     must be exposed. Prefer built-in form controls and data validation over
+     ActiveX or custom UI.
+
+------------------------------------------------------------------------------
+Workbooks that collect user input (forms, templates, data-entry sheets)
+------------------------------------------------------------------------------
+
+3.3.1 Error Identification — Level A
+  If an input error is automatically detected, the item that is in error is
+  identified and the error is described to the user in text.
+  >> EXCEL: When data validation rejects an entry, the error alert should say
+     in text which field is wrong and why.
+
+3.3.2 Labels or Instructions — Level A
+  Labels or instructions are provided when content requires user input.
+  >> EXCEL: Input cells need a visible label next to them, and data validation
+     Input Messages can give instructions. Instructions shouldn't live only in
+     a hover comment.
+
+3.3.3 Error Suggestion — Level AA
+  If an input error is automatically detected and suggestions for correction
+  are known, then the suggestions are provided to the user, unless it would
+  jeopardize the security or purpose of the content.
+  >> EXCEL: Data validation error messages should suggest the correct format
+     or range (e.g. "Enter a date as MM/DD/YYYY").
+
+3.3.4 Error Prevention (Legal, Financial, Data) — Level AA
+  For web pages that cause legal commitments or financial transactions for
+  the user to occur, that modify or delete user-controllable data in data
+  storage systems, or that submit user test responses, at least one of the
+  following is true:
+    - Reversible: Submissions are reversible.
+    - Checked: Data entered by the user is checked for input errors and the
+      user is provided an opportunity to correct them.
+    - Confirmed: A mechanism is available for reviewing, confirming, and
+      correcting information before finalizing the submission.
+  >> EXCEL: For legal, financial or test submissions, provide a review or
+     confirmation step, input checking, or a way to undo.
+
+------------------------------------------------------------------------------
+Workbooks with animated images (e.g. animated GIFs)
+------------------------------------------------------------------------------
+
+2.2.2 Pause, Stop, Hide — Level A
+  For moving, blinking, scrolling, or auto-updating information, all of the
+  following are true:
+    - Moving, blinking, scrolling: For any moving, blinking or scrolling
+      information that (1) starts automatically, (2) lasts more than five
+      seconds, and (3) is presented in parallel with other content, there is
+      a mechanism for the user to pause, stop, or hide it unless the
+      movement, blinking, or scrolling is part of an activity where it is
+      essential; and
+    - Auto-updating: For any auto-updating information that (1) starts
+      automatically and (2) is presented in parallel with other content,
+      there is a mechanism for the user to pause, stop, or hide it or to
+      control the frequency of the update unless the auto-updating is part of
+      an activity where it is essential.
+  Note 1: For requirements related to flickering or flashing content, refer
+  to Guideline 2.3.
+  Note 2: Since any content that does not meet this success criterion can
+  interfere with a user's ability to use the whole page, all content on the
+  web page (whether it is used to meet other success criteria or not) must
+  meet this success criterion. See Conformance Requirement 5:
+  Non-Interference.
+  Note 3: Content that is updated periodically by software or that is
+  streamed to the user agent is not required to preserve or present
+  information that is generated or received between the initiation of the
+  pause and resuming presentation, as this may not be technically possible,
+  and in many situations could be misleading to do so.
+  Note 4: An animation that occurs as part of a preload phase or similar
+  situation can be considered essential if interaction cannot occur during
+  that phase for all users and if not indicating progress could confuse
+  users or cause them to think that content was frozen or broken.
+  >> EXCEL: Animation that runs more than 5 seconds needs a way to pause, stop
+     or hide it. Static images are safer.
+
+2.3.1 Three Flashes or Below Threshold — Level A
+  Web pages do not contain anything that flashes more than three times in any
+  one second period, or the flash is below the general flash and red flash
+  thresholds.
+  Note: Since any content that does not meet this success criterion can
+  interfere with a user's ability to use the whole page, all content on the
+  web page (whether it is used to meet other success criteria or not) must
+  meet this success criterion. See Conformance Requirement 5:
+  Non-Interference.
+  >> EXCEL: No content may flash more than 3 times per second.
+
+==============================================================================
+PART 3: NOT APPLICABLE TO EXCEL WORKBOOKS
+==============================================================================
+
+1.2.1–1.2.5 Time-based media (captions, audio description)
+  Reason: Applies only if audio or video is embedded as an object. That's rare
+  in Excel, so treat it as N/A unless you find media. If you do, captions and
+  transcripts are required.
+
+1.3.4 Orientation
+  Reason: Excel content can't lock the display orientation; the app controls
+  it.
+
+1.3.5 Identify Input Purpose
+  Reason: Excel has no mechanism for tagging input purpose (like HTML
+  autocomplete), so the criterion's technology condition isn't met.
+
+1.4.2 Audio Control
+  Reason: Spreadsheets don't auto-play audio.
+
+1.4.10 Reflow
+  Reason: Data tables are explicitly exempt as content that needs a two-
+  dimensional layout, and Excel controls the layout.
+
+1.4.12 Text Spacing
+  Reason: Limited to markup-language content; users can't override text
+  spacing in Excel.
+
+1.4.13 Content on Hover or Focus
+  Reason: Comment, note and ScreenTip popups are controlled by Excel itself
+  (user-agent exception).
+
+2.4.1 Bypass Blocks
+  Reason: Written for repeated blocks across sets of web pages. A single
+  workbook has none (sheet tabs and Go To provide navigation).
+
+2.4.5 Multiple Ways
+  Reason: Applies to sets of web pages, not a single file.
+
+2.4.7 Focus Visible
+  Reason: Excel draws the cell-selection and control focus indicator itself.
+
+2.5.1, 2.5.2, 2.5.4 Pointer Gestures, Pointer Cancellation, Motion Actuation
+  Reason: Pointer and motion handling is done by Excel, not by the workbook
+  content.
+
+3.1.2 Language of Parts
+  Reason: Excel can't set a language on individual cells or passages. (If you
+  need a strict check, flag mixed-language content manually.)
+
+3.2.3, 3.2.4 Consistent Navigation / Identification
+  Reason: Written for sets of web pages. Within one workbook it's still good
+  practice to keep sheet layouts and labels consistent.
+
+4.1.1 Parsing
+  Reason: Markup-only, and considered always satisfied (removed in WCAG 2.2).
+
+4.1.3 Status Messages
+  Reason: Limited to markup-language content.
+
+==============================================================================
+END OF LIST: 28 relevant success criteria
+==============================================================================

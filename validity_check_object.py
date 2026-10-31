@@ -163,12 +163,13 @@ def check_protection(archive):
     for name, part in get_worksheet_parts(archive, workbook):
         if part not in archive.namelist():
             continue
-        for _, elem in ET.iterparse(archive.open(part)):
-            if (elem.tag == f"{{{MAIN_NS}}}sheetProtection"
-                    and is_true(elem.get("sheet"))):
-                protected_sheets.append(name)
-                break
-            elem.clear()
+        with archive.open(part) as stream:
+            for _, elem in ET.iterparse(stream):
+                if (elem.tag == f"{{{MAIN_NS}}}sheetProtection"
+                        and is_true(elem.get("sheet"))):
+                    protected_sheets.append(name)
+                    break
+                elem.clear()
     if protected_sheets:
         errors.append("File is password protected: the following worksheet(s) "
                       f"are protected: {', '.join(protected_sheets)}. Unprotect "
@@ -226,11 +227,12 @@ def check_cell_count(archive):
     for _, part in get_worksheet_parts(archive, workbook):
         if part not in archive.namelist():
             raise ET.ParseError(f"worksheet part '{part}' is missing")
-        for _, elem in ET.iterparse(archive.open(part)):
-            if elem.tag == cell_tag:
-                if any(child.tag in content_tags for child in elem):
-                    total += 1
-                elem.clear()
+        with archive.open(part) as stream:
+            for _, elem in ET.iterparse(stream):
+                if elem.tag == cell_tag:
+                    if any(child.tag in content_tags for child in elem):
+                        total += 1
+                    elem.clear()
     if total > MAX_NONEMPTY_CELLS:
         return [f"Too many nonempty cells: {total:,} cells exceeds the limit "
                 f"of {MAX_NONEMPTY_CELLS:,}."]
