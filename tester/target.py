@@ -13,7 +13,7 @@ uncertain outcome on the target and is never retried.
 import json
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -46,6 +46,7 @@ class Deadline:
 class TargetResponse:
     status: int
     body: bytes
+    headers: httpx.Headers = field(default_factory=httpx.Headers)
 
     def json(self):
         ##  Parsed JSON body, or None when the body is not JSON.
@@ -65,13 +66,24 @@ class TargetClient:
     def close(self):
         self._client.close()
 
-    def request(self, method, path, *, budget, deadline, role=None, session_id=None,
-                json_body=None, params=None, files=None, data=None):
+    def request(self, method, path, *, budget, deadline, role=None, session_id=None, bearer=None,
+                json_body=None, params=None, files=None, data=None, binary=False, idempotency_key=None):
+        ##  binary=True marks a workbook or report download, capped separately from JSON.
+        ##  bearer sends that literal token instead of a role's (negative authentication cases).
         headers = {}
-        if role is not None:
+        if bearer is not None:
+            headers["Authorization"] = f"Bearer {bearer}"
+        elif role is not None:
             headers["Authorization"] = f"Bearer {self._tokens[role].get_secret_value()}"
         if session_id is not None:
             headers[self._profile.session_transport.header] = session_id
+        if idempotency_key is not None:
+            headers["Idempotency-Key"] = idempotency_key
+        if binary:
+            ##  Downloads are compared byte for byte against Content-Length, so ask for no transfer coding.
+            headers["Accept-Encoding"] = "identity"
+        limits = self._profile.response_limits
+        limit = limits.binary_bytes if binary else limits.json_bytes
         ##  Retries share one budget for the whole call, and only GETs retry.
         call = Deadline(budget)
         attempts = 1 + (self._profile.timing.get_retries if method == "GET" else 0)
@@ -82,7 +94,7 @@ class TargetClient:
             if timeout <= 0:
                 break
             try:
-                return self._bounded(method, path, timeout, headers, json_body, params, files, data)
+                return self._bounded(method, path, timeout, limit, headers, json_body, params, files, data)
             except httpx.TimeoutException as error:
                 last_error = self._timed_out(method, path, budget, error)
             except httpx.TransportError as error:
@@ -118,8 +130,7 @@ class TargetClient:
             raise outcome["error"]
         return outcome["response"]
 
-    def _send(self, method, path, timeout, headers, json_body, params, files, data):
-        limit = self._profile.max_response_bytes
+    def _send(self, method, path, timeout, limit, headers, json_body, params, files, data):
         with self._client.stream(method, self.base_url + path, headers=headers, timeout=timeout,
                                  json=json_body, params=params, files=files, data=data) as response:
             body = bytearray()
@@ -127,12 +138,13 @@ class TargetClient:
                 body += chunk
                 if len(body) > limit:
                     raise ResponseTooLarge(f"{method} {path} returned more than {limit} bytes.")
-            return TargetResponse(response.status_code, bytes(body))
+            return TargetResponse(response.status_code, bytes(body), response.headers)
 
     ##  ---- System test endpoints (test-admin credential, no session header) ----
 
-    def system_setup(self, session_id, setup, deadline):
-        return self.request("POST", "/test/setup", role="test-admin", deadline=deadline,
+    def system_setup(self, session_id, setup, deadline, role="test-admin", bearer=None):
+        ##  role/bearer other than test-admin only for the fault cases' credential checks.
+        return self.request("POST", "/test/setup", role=role, bearer=bearer, deadline=deadline,
                             budget=self._profile.timing.system_setup_seconds,
                             json_body={"session_id": session_id, "setup": setup})
 

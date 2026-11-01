@@ -55,7 +55,8 @@ def _xml_path(root, element):
 def worksheet_name_finding(name, part, sheet_id, profile):
     policy = profile.worksheet_name
     trimmed = trim(name)
-    if not re.fullmatch(policy.pattern, trimmed):
+    ##  The contract's pattern is ASCII; without re.ASCII, (?i) also matches U+017F long s as s.
+    if not re.fullmatch(policy.pattern, trimmed, re.ASCII):
         return None
     suffix = re.search(r"[0-9]+$", trimmed)
     if policy.suffix_must_exceed_zero and (suffix is None or int(suffix.group()) == 0):

@@ -98,6 +98,18 @@ def test_oversized_response_is_refused():
             "GET", "/x", budget=5, deadline=Deadline(60))
 
 
+def test_binary_downloads_use_their_own_cap():
+    from pydantic import SecretStr
+    data = json.loads((FIXTURES / "pod_profile.json").read_text(encoding="utf-8"))
+    data["response_limits"] = {"json_bytes": 10, "binary_bytes": 100}
+    body = b"x" * 50
+    capped = TargetClient(TARGET, {k: SecretStr(v) for k, v in TOKENS.items()}, PodProfile.model_validate(data),
+                          transport=httpx.MockTransport(lambda request: httpx.Response(200, content=body)))
+    with pytest.raises(ResponseTooLarge, match="more than 10 bytes"):
+        capped.request("GET", "/x", budget=5, deadline=Deadline(60))
+    assert capped.request("GET", "/x", budget=5, deadline=Deadline(60), binary=True).body == body
+
+
 def test_redirects_are_not_followed_and_headers_are_set():
     seen = []
 

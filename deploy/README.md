@@ -19,7 +19,9 @@ Fixed requirements, whichever option you pick:
 - **One process.** Run a single uvicorn worker per SQLite file; restart recovery assumes it.
 - **Strip the prefix.** The proxy removes `/tester` before forwarding, and uvicorn runs with
   `--root-path /tester`. An unstripped `/tester/test/setup` returns 404 (checked by the rehearsal).
-- **Long read timeout.** A run waits for the whole suite (600 s budget). Allow at least 660 s.
+- **Long read timeout.** A run waits for the whole suite before answering: the profile's suite
+  budget plus a 30 s guard, so up to 1,830 s with the Phase 4 profile (1,800 s budget) and 630 s
+  with the Phase 3 profile. The proxy files allow 1,860 s; never set less than 1,830 s.
 - **Persistent, private database.** Reports live only in the SQLite file; losing it loses them.
 - **Loopback only.** The tester listens on 127.0.0.1:8001; only the proxy is public.
 
@@ -107,7 +109,7 @@ Fill in Team 12's row in the instructor endpoint registry:
 | Field | Value |
 | --- | --- |
 | Tester base URL | `https://<host>/tester` (no `/test` suffix) |
-| Access / run notes | How to request an operator token (never the token itself); time limits: tester setup 45 s, tester run 630 s, system setup 30 s |
+| Access / run notes | How to request an operator token (never the token itself); time limits: tester setup 45 s, tester run up to 1,830 s (Phase 4; 630 s with the Phase 3 profile), system setup 30 s |
 
 ## Operating notes
 
@@ -116,7 +118,14 @@ Fill in Team 12's row in the instructor endpoint registry:
 - **Pod profile or manifest changes:** each setup reads `tester/fixtures/pod_profile.json` and
   the manifest fresh, so new sessions pick up edits without affecting existing ones. With
   Docker, the files are baked into the image, so rebuild it (or mount overrides via
-  `POD_PROFILE_PATH` / `MANIFEST_PATH`).
+  `POD_PROFILE_PATH` / `MANIFEST_PATH`). A fixture pack (`EXPECTATIONS_PATH`) is re-hashed at
+  each setup; a changed workbook refuses setup with a 500 naming the fixture.
+- **Run records:** each finished run stores a record beside its report (versions, fixture
+  hashes, revisions, start and end times, counts, per-operation outcomes, coverage evidence,
+  fails and errors). Read one with `uv run python scripts/run_record.py --db <TESTER_DB_PATH>
+  --session <id>` (Docker: `docker compose exec tester python scripts/run_record.py --db
+  /data/tester.db --session <id>`); set `TESTER_REVISION` and `TARGET_REVISIONS_JSON` so it
+  names the revisions.
 - **Updating:** pull the new revision, then either rebuild the container, or run
   `uv sync --locked --no-dev` and `systemctl restart team12-tester`. Avoid updating during a run.
 - **Backups:** copy the SQLite file while the tester is stopped, or use

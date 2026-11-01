@@ -9,11 +9,13 @@ suite budget aborts the run: the interrupted case is an error with source
 
 import json
 import time
+import uuid
 from dataclasses import dataclass
 
 from ..models import CoverageMeasure, SuiteReport
 from ..target import CommunicationError, Deadline, DeadlineExceeded, ResponseTooLarge
-from .plan import manifest_of, profile_of
+from .plan import PlanError, fixture_bytes, manifest_of, profile_of
+from .transfer import upload_files
 
 NOT_RETRIEVED = {"covered": None, "total": None,
                  "basis": "Not measured: the target's code-coverage report was not retrieved in this run."}
@@ -46,6 +48,7 @@ class CaseContext:
         self.session_id = run.session_id
         self.target = run.target
         self.deadline = run.deadline
+        self.manifest = run.manifest
         self.profile = run.profile
         self.state = run.state
         self.provided = False
@@ -61,22 +64,61 @@ class CaseContext:
             raise ValueError(f"{self.case.test_id} does not declare {', '.join(sorted(undeclared))}")
         self._run.components.update(components)
         self._run.acceptance.update(acceptance)
+        for catalog, ids in (("components", components), ("acceptance", acceptance)):
+            for item in ids:
+                cases = self._run.evidence[catalog].setdefault(item, [])
+                if self.case.test_id not in cases:
+                    cases.append(self.case.test_id)
+
+    def fixture(self, key):
+        ##  (bytes, expectations entry) for a fixture in the session's frozen pack.
+        return fixture_bytes(self._run.plan, key), self._run.plan["fixtures"]["entries"][key]
+
+    def fixture_entry(self, key):
+        ##  The frozen expectations entry, or None when no pack (or no such entry) was frozen at setup.
+        return (self._run.plan.get("fixtures") or {}).get("entries", {}).get(key)
 
     def provide(self):
         ##  This case produced a usable resource for later cases, even if it failed.
         self.provided = True
+
+    def record_fault_session(self, session_id):
+        ##  A separate system session this case created (or may have created); it goes into the
+        ##  run record and is queued for cleanup once the run is stored. Its coverage is never
+        ##  added to the main session's.
+        if session_id not in self._run.fault_sessions:
+            self._run.fault_sessions.append(session_id)
 
     def record_code_coverage(self, measure):
         self._run.code = CoverageMeasure.model_validate(measure).model_dump()
 
     def call(self, method, path, *, role, budget=None, session=True, **kwargs):
         ##  A project API call: user role token plus the session header (per pod profile).
+        ##  session=False omits the header; a string sends that session ID instead of this one.
         timing = self.profile.timing
         if budget is None:
             budget = timing.upload_seconds if method == "POST" else timing.get_seconds
         send_session = session and (path != "/api/v1/health" or self.profile.session_transport.send_on_health)
+        session_id = (session if isinstance(session, str) else self.session_id) if send_session else None
         return self.target.request(method, path, budget=budget, deadline=self.deadline, role=role,
-                                   session_id=self.session_id if send_session else None, **kwargs)
+                                   session_id=session_id, **kwargs)
+
+    def upload(self, path, *, role, fixture=None, name=None, content=None, **kwargs):
+        ##  POST a one-part multipart upload: a frozen fixture (sent under its upload_name)
+        ##  or explicit name and bytes. Uploads are never retried.
+        if fixture is not None:
+            content, entry = self.fixture(fixture)
+            name = entry["upload_name"] if name is None else name
+        return self.call("POST", path, role=role, files=upload_files(name, content), **kwargs)
+
+    def download(self, path, *, role, **kwargs):
+        ##  GET a workbook or report download under the binary size cap and download budget.
+        budget = self.profile.timing.download_seconds or self.profile.timing.get_seconds
+        return self.call("GET", path, role=role, budget=budget, binary=True, **kwargs)
+
+    def new_idempotency_key(self):
+        ##  A fresh key for one remediation request; a replay case reuses it on purpose.
+        return f"tester-{uuid.uuid4().hex}"
 
     def poll(self, fetch, finished, budget=None):
         ##  Calls fetch() until finished(value) or the poll budget runs out.
@@ -111,12 +153,16 @@ class SuiteRun:
         self.results = []
         self.components = set()
         self.acceptance = set()
+        ##  catalog item -> test IDs whose qualifying assertion earned it, in run order
+        self.evidence = {"components": {}, "acceptance": {}}
         self.code = None
+        self.fault_sessions = []
         self.abort_reason = None
 
     def progress(self):
         return {"results": self.results, "components": sorted(self.components),
-                "acceptance": sorted(self.acceptance), "code": self.code}
+                "acceptance": sorted(self.acceptance), "evidence": self.evidence, "code": self.code,
+                "fault_sessions": self.fault_sessions}
 
     def execute(self):
         provided = set()
@@ -156,6 +202,8 @@ class SuiteRun:
             return CaseResult.error("communication", f"{error} No response was available to evaluate.")
         except ResponseTooLarge as error:
             return CaseResult.error("tester", f"{error} The tester's response-size limit prevented evaluation.")
+        except PlanError as error:
+            return CaseResult.error("tester", f"The tester could not use its frozen plan: {error}.")
         except Exception as error:
             return CaseResult.error("tester", f"The tester failed while running this test ({type(error).__name__}).")
 
@@ -183,22 +231,17 @@ def build_report(session_id, target_url, plan, progress, interrupted_reason=None
     components = set((progress or {}).get("components", []))
     acceptance = set((progress or {}).get("acceptance", []))
     code = (progress or {}).get("code") or NOT_RETRIEVED
+    catalogs = profile_of(plan).coverage
     report = {
         "session_id": session_id,
         "target_url": target_url,
         "results": results,
         "coverage": {
             "code": code,
-            "component": {
-                "covered": len(components), "total": len(manifest.components),
-                "basis": f"Pod components {', '.join(manifest.components)} (Team 9 profile, pending pod "
-                         f"confirmation); counted when a qualifying assertion executed, pass or fail.",
-            },
-            "system": {
-                "covered": len(acceptance), "total": len(manifest.acceptance),
-                "basis": f"Phase 3 portions of {', '.join(manifest.acceptance)} (Team 9 profile, pending pod "
-                         f"confirmation); counted when a qualifying assertion executed, pass or fail.",
-            },
+            "component": {"covered": len(components), "total": len(manifest.components),
+                          "basis": catalogs.component_basis},
+            "system": {"covered": len(acceptance), "total": len(manifest.acceptance),
+                       "basis": catalogs.system_basis},
         },
     }
     SuiteReport.model_validate(report)

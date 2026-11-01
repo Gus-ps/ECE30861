@@ -9,4 +9,5 @@
 deploy/*.env
 ref
 scripts
+!scripts/run_record.py
 tests

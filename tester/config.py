@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     target_auth_map_json: dict[str, dict[str, SecretStr]] = {}
     manifest_path: Path = FIXTURES / "manifest.json"
     pod_profile_path: Path = FIXTURES / "pod_profile.json"
+    ##  expectations.json of the adopted fixture pack; unset means no fixture pack
+    expectations_path: Path | None = None
+    ##  deployment evidence for the run record, supplied by the operator
+    tester_revision: str | None = None
+    ##  exact base URL -> the target's deployed revision
+    target_revisions_json: dict[str, str] = {}
 
     @field_validator("tester_operator_token_hashes_json")
     @classmethod

@@ -35,6 +35,8 @@ TOKENS = {"userA": "tok-a", "userB": "tok-b", "reviewer": "tok-r", "test-admin":
 sys.path.insert(0, str(REPO))
 from tester.models import SuiteReport  # noqa: E402
 
+##  The stand-in never fails an audit, so the controlled-failure case has nothing to inspect.
+NOT_PASSING = ["P3-AUDIT-FAILURE-ENVELOPE"]
 results = []
 
 
@@ -59,7 +61,8 @@ def tester_env(db):
     env.update(APP_ENV="development", TESTER_DB_PATH=str(db),
                TESTER_OPERATOR_TOKEN_HASHES_JSON=json.dumps({hashlib.sha256(OPERATOR.encode()).hexdigest(): "rehearsal"}),
                ALLOWED_TARGET_URLS=json.dumps([TARGET, DEAD_TARGET]),
-               TARGET_AUTH_MAP_JSON=json.dumps({TARGET: TOKENS, DEAD_TARGET: TOKENS}))
+               TARGET_AUTH_MAP_JSON=json.dumps({TARGET: TOKENS, DEAD_TARGET: TOKENS}),
+               EXPECTATIONS_PATH=str(REPO / "tester" / "fixtures" / "shared" / "expectations.json"))
     return env
 
 
@@ -128,9 +131,12 @@ def main():
         for item in report["results"]:
             counts[item["outcome"]] = counts.get(item["outcome"], 0) + 1
         by_id = outcomes(report)
-        check("2 pass (P3-SESSION-DUPLICATE, P3-CODE-REPORT), 51 skip",
-              counts == {"pass": 2, "skip": 51} and by_id["P3-SESSION-DUPLICATE"]["outcome"] == "pass"
-              and by_id["P3-CODE-REPORT"]["outcome"] == "pass", json.dumps(counts))
+        others = [t for t, r in by_id.items() if r["outcome"] != "pass"]
+        check("52 pass with the shared fixture pack; only the controlled-failure case skips (none occurred)",
+              counts == {"pass": 52, "skip": 1} and others == NOT_PASSING, json.dumps(counts))
+        sizes = [e["content_length"] for e in system_log() if e["path"] == "/system/api/v1/workbooks"]
+        check("31 uploads reached the stand-in, two of them over 25,000,000 bytes",
+              len(sizes) == 31 and sum(size > 25_000_000 for size in sizes) == 2, str(sizes))
         check("code coverage 40/50 read from the system report",
               report["coverage"]["code"]["covered"] == 40 and report["coverage"]["code"]["total"] == 50,
               json.dumps(report["coverage"]))

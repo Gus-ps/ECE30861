@@ -1,0 +1,59 @@
+{
+  "profile_version": "phase4-spec-2.1.0",
+  "pod_approved": false,
+  "note": "Phase 4 values from ref/Phase4_Agent_Context_Pack/Phase4_Shared_Specification.md (spec 2.1.0, ruleset 2.0.0). Set pod_approved once both teams record adoption. Pairs only with a Phase 4 manifest (C1-C9, AC-01 to AC-11); select it with POD_PROFILE_PATH.",
+  "session_transport": {
+    "header": "X-Test-Session",
+    "send_on_health": true,
+    "unknown_session_status": 400
+  },
+  "unsupported_types": {
+    "status": 415,
+    "cases": ["csv", "xls", "missing_extension"]
+  },
+  "xlsm": {
+    "status": 422,
+    "code": "MACRO_ENABLED_WORKBOOK_UNSUPPORTED"
+  },
+  "assert_other_error_codes": false,
+  "limits": {
+    "max_file_bytes": 25000000,
+    "max_worksheets": 50,
+    "max_nonempty_cells": 250000
+  },
+  "protected_workbook_status": 422,
+  "alt_text": {
+    "require_title": true,
+    "require_description": true,
+    "decorative_classification": "MANUAL_REVIEW"
+  },
+  "worksheet_name": {
+    "pattern": "(?i)^Sheet[0-9]+$",
+    "suffix_must_exceed_zero": true
+  },
+  "coverage": {
+    "components": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9"],
+    "acceptance": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-07", "AC-08", "AC-09", "AC-10", "AC-11"],
+    "component_basis": "Shared suite components C1-C9 (Phase 4 specification 2.1.0); counted when a qualifying assertion executed, pass or fail. HTTP-only run: C9 (review user interface) requires browser or manual evidence and is not counted.",
+    "system_basis": "Exercised-criterion coverage of AC-01 to AC-11 (Phase 4 specification 2.1.0): a criterion counts when a mapped qualifying assertion executed, pass or fail; this is not acceptance success. AC-09 counts only the automated preservation checks; Microsoft Excel inspection remains a separate acceptance gate."
+  },
+  "timing": {
+    "system_setup_seconds": 30,
+    "tester_setup_seconds": 45,
+    "upload_seconds": 35,
+    "get_seconds": 10,
+    "audit_poll_seconds": 80,
+    "poll_interval_seconds": 1,
+    "suite_seconds": 1800,
+    "get_retries": 2,
+    "remediation_poll_seconds": 210,
+    "download_seconds": 30
+  },
+  "response_limits": {
+    "json_bytes": 67108864,
+    "binary_bytes": 33554432
+  },
+  "cleanup": {
+    "send_failed_setup_ids": true
+  }
+}

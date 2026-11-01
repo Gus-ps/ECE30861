@@ -1,0 +1,419 @@
+{
+  "ruleset_version": "2.0.0",
+  "specification_version": "2.1.0",
+  "manual_review": "Not reviewed. Expectations were hand-authored by Team 12 on 2026-11-01 from the cell, style, table, merge, link and object definitions in scripts/build_phase4_fixtures.py and shared specification 2.1.0 sections 6-9, before any engine was run. The ALT_TEXT and WORKSHEET_NAME rows were then cross-checked against tester/suite/pod_rules.py; the other four rules have no independent oracle and are checked against the package XML by tests/test_phase4_fixtures.py. Spec 15.2 requires review by two members of the other implementation team (Team 9); that has not happened. No file in this pack has been opened in Excel. The five correction fixtures (alt_supported, rename_references, link_supported, header_range, header_disabled_table) were added the same day under the same process.",
+  "fixtures": {
+    "clean_all_six": {
+      "kind": "accepted",
+      "file": "clean_all_six.xlsx",
+      "sha256": "216a3e157b63888c855a699ca00b4acb712d614b9abf4079a4dfc7b9b9ecfbcd",
+      "origin": "team12",
+      "upload_name": "clean_all_six.xlsx",
+      "http_status": 202,
+      "expected_status": "AUDIT_COMPLETE",
+      "findings": [],
+      "limitation_facts": [],
+      "notes": "Budget (sheetId 1, sheet1.xml) holds formal table 1 (BudgetItems, A1:B4, header Item/Amount) and drawing1.xml with Picture 1 (id 2), Rectangle 2 (id 3) and Chart 3 (id 4), each with a nonblank title and description. Sources (sheetId 2, sheet2.xml) holds formal table 2 (Sources, A1:B2) whose A2 links externally with the label 'Team 12 budget guidance'. Every populated cell is inside a table; every style is black text on an explicit solid white fill; no merges; no table style overlay.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "seeded_all_six": {
+      "kind": "accepted",
+      "file": "seeded_all_six.xlsx",
+      "sha256": "90ad5e877e933f60466ceb1fb1b685386fa41b356b3ac0fd1ebfb17a26eaac32",
+      "origin": "team12",
+      "upload_name": "seeded_all_six.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A11",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A9",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#merge=E1:F1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Summary",
+          "target": "xl/tables/table1.xml#tableId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [
+        "Populated single-cell, one-row or one-column components (Sheet1 E1, A7, A9 and A11) are not inferred as tables; spec 7.4 requires this disclosure once per audit."
+      ],
+      "notes": "Sheet1 (sheetId 1, sheet1.xml): dense A1:C4 block outside any table; E1:F1 merged with 'Notes' in E1; A7 'click here' linked externally; A9 'Overdue' in red FF0000 (3.9985:1, nonneutral); A11 'Draft' in grey 999999 (2.849:1); drawing1.xml has Picture 1 (id 2, title only), decorative Picture 2 (id 3), and Chart 3 (id 4, both fields). Summary (sheetId 2, sheet2.xml): formal table 1 (QuarterTotals, A1:B3) with headerRowCount 0 whose first row Item/Total matches its column names; B2:B3 are formulas referencing Sheet1. Rename safety: no 3D, external-workbook, INDIRECT, shared/array formula, HYPERLINK formula or pivot references, so the rename is a supported correction.",
+      "corrections": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "effect": "AltText: set cNvPr title and descr of Picture 1"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "value": {
+            "text": "Team 12 budget guidance"
+          },
+          "effect": "LinkLabel: A7 becomes an inline string; no shared-string table exists"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "HeaderRow: new table 2 (A11yTable2, xl/tables/table1.xml is taken, so xl/tables/table2.xml), worksheet relationship rId3, columns Item/Q1/Q2"
+        },
+        {
+          "target": "xl/tables/table1.xml#tableId=1",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "EnableHeader: headerRowCount 0 to 1"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "value": {
+            "name": "Quarterly costs"
+          },
+          "effect": "Rename: rewrite Summary!B2:B3 formulas (Sheet1!B2, C2, B3, C3) and the chart series references 'Sheet1'!$B$1, 'Sheet1'!$A$2:$A$4 and 'Sheet1'!$B$2:$B$4"
+        }
+      ],
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "alt_supported": {
+      "kind": "accepted",
+      "file": "alt_supported.xlsx",
+      "sha256": "c7d5716f10dbc930f94b0d2d097b9dda69ffcf515c5cc85970498b68093e691c",
+      "origin": "team12",
+      "upload_name": "alt_supported.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/drawing1.xml#id=4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/drawing1.xml#id=5",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/drawing1.xml#id=6",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "effect": "Picture 1: title becomes 'Team logo', descr is added"
+        },
+        {
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "value": {
+            "title": "Costs by item",
+            "description": "Column chart: rent $1,200, travel $300, supplies $200."
+          },
+          "effect": "Chart 2 graphic frame: both attributes added"
+        },
+        {
+          "target": "xl/drawings/drawing1.xml#id=4",
+          "value": {
+            "title": "Budget note",
+            "description": "Callout noting that rent is the largest cost."
+          },
+          "effect": "Rectangle 3: the empty title is replaced; the existing description is approved unchanged"
+        },
+        {
+          "target": "xl/drawings/drawing1.xml#id=5",
+          "value": {
+            "title": "Arrow to rent",
+            "description": "Arrow pointing from the note to the rent row."
+          },
+          "effect": "Connector 4 (cxnSp): both attributes added"
+        },
+        {
+          "target": "xl/drawings/drawing1.xml#id=6",
+          "value": {
+            "title": "Instructions",
+            "description": "Text box explaining that amounts are in US dollars. "
+          },
+          "effect": "TextBox 5: descr added with its trailing space preserved"
+        }
+      ],
+      "notes": "Budget (sheetId 1, sheet1.xml) holds formal table 1 (BudgetItems, A1:B4) and drawing1.xml: Picture 1 (id 2, title only), Chart 2 (id 3, neither field), Rectangle 3 (id 4, empty title), Straight Arrow Connector 4 (cxnSp, id 5, neither field), TextBox 5 (sp txBox=1, id 6, title only), and Group 6 (id 7, complete) containing Picture 7 (id 8) and Rectangle 8 (id 9), both complete. Only the five cNvPr title/descr pairs may change; ids, names, anchors, media, chart body, the group and its children stay byte-for-byte.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "rename_references": {
+      "kind": "accepted",
+      "file": "rename_references.xlsx",
+      "sha256": "81f528ede4f9ce11e4980cf46841dea3911841c9899acd6dc04e26d16a174194",
+      "origin": "team12",
+      "upload_name": "rename_references.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [
+        {
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "value": {
+            "name": "Q1 Bob's Costs"
+          },
+          "effect": {
+            "xl/workbook.xml": [
+              "sheet sheetId=1 name: Q1 Bob's Costs",
+              "definedName LocalRent (localSheetId 1): 'Q1 Bob''s Costs'!$B$2",
+              "definedName Totals: 'Q1 Bob''s Costs'!$B$2:$B$4"
+            ],
+            "xl/worksheets/sheet2.xml": [
+              "B2: SUM('Q1 Bob''s Costs'!B2:B4)",
+              "B3: 'Q1 Bob''s Costs'!B2+'Bob''s Notes'!B2",
+              "B4: 'Sheet1 (old)'!B2+'Q1 Bob''s Costs'!$B$3",
+              "B5: \"Sheet1!B2 is rent\" (string literal, unchanged)",
+              "A6: Sheet1 (plain text, unchanged)",
+              "conditional formatting B2:B4: 'Q1 Bob''s Costs'!$B$2>1000",
+              "data validation D2: 'Q1 Bob''s Costs'!$A$2:$A$4",
+              "hyperlink A7 location: 'Q1 Bob''s Costs'!A1"
+            ],
+            "xl/charts/chart1.xml": [
+              "'Q1 Bob''s Costs'!$B$1",
+              "'Q1 Bob''s Costs'!$A$2:$A$4",
+              "'Q1 Bob''s Costs'!$B$2:$B$4"
+            ],
+            "unchanged": "cached values and string caches; sheets Bob's Notes and Sheet1 (old); every table part"
+          }
+        }
+      ],
+      "notes": "Sheets: Sheet1 (sheetId 1, table 1 A1:B4, chart in drawing1.xml), Summary (sheetId 2, table 2 A1:B7 with formulas, a bold-only conditional format and an internal link; validation on empty D2), Bob's Notes (sheetId 3, table 3), Sheet1 (old) (sheetId 4, table 4). Defined names Totals (workbook) and LocalRent (Summary). Every reference kind a rename must rewrite points at Sheet1; references to Bob's Notes and Sheet1 (old), the string literal in B5 and the plain text in A6 must not change. The new name contains an apostrophe, so rewritten references double it. No 3D, external, INDIRECT, shared or HYPERLINK-formula references: the rename is supported.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "link_supported": {
+      "kind": "accepted",
+      "file": "link_supported.xlsx",
+      "sha256": "66583d64645641d3060e972ed0531afe8cbc9a66997ed13997d9e1b3b0d4e9e4",
+      "origin": "team12",
+      "upload_name": "link_supported.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Resources",
+          "target": "xl/worksheets/sheet1.xml#cell=A2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Resources",
+          "target": "xl/worksheets/sheet1.xml#cell=A3",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [
+        {
+          "target": "xl/worksheets/sheet1.xml#cell=A2",
+          "value": {
+            "text": "Team 12 budget guidance"
+          },
+          "effect": "A2 becomes an inline string 'Team 12 budget guidance' with its style kept; the hyperlink's display attribute becomes the same text; xl/sharedStrings.xml is unchanged, so B2 still shows 'click here'"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#cell=A3",
+          "value": {
+            "text": "=Board minutes 2026"
+          },
+          "effect": "A3 becomes an inline string '=Board minutes 2026' (text, not a formula, no leading apostrophe); a display attribute may be added with the same text"
+        }
+      ],
+      "notes": "Resources (sheetId 1, sheet1.xml) holds formal table 1 (A1:B4). A2 and B2 both use shared string 0 'click here'; only A2 is a link (display 'click here'). A3 'here' is an inline-string link without display. A4 'Annual accessibility report' is a descriptive link and stays unflagged.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "header_range": {
+      "kind": "accepted",
+      "file": "header_range.xlsx",
+      "sha256": "de6d5676ce94da75872da2f8ecf57540d3e6ebfa9511ad452f4756a982cd09c7",
+      "origin": "team12",
+      "upload_name": "header_range.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Costs",
+          "target": "xl/worksheets/sheet1.xml#range=A1:D4",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [
+        {
+          "target": "xl/worksheets/sheet1.xml#range=A1:D4",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "new xl/tables/table2.xml: table id 2, name and displayName A11yTable2_1 (the defined name A11yTable2 takes A11yTable2), ref A1:D4, headerRowCount 1 or omitted, columns Item/Q1/Q2/Total, no filter, style or totals; new xl/worksheets/_rels/sheet1.xml.rels with rId1 (table, ../tables/table2.xml); tableParts with rId1 in sheet1.xml; a content-type override for /xl/tables/table2.xml; every cell, formula and cached value in A1:D4 unchanged"
+        }
+      ],
+      "notes": "Costs (sheetId 1, sheet1.xml) has no relationships part and a dense A1:D4 block (Item/Q1/Q2/Total, D2:D4 formulas =B+C with cached values) outside any table. Reference (sheetId 2, sheet2.xml) holds formal table 1 (Rates, A1:B2). The workbook defined name A11yTable2 forces the _1 suffix on the new table's name.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "header_disabled_table": {
+      "kind": "accepted",
+      "file": "header_disabled_table.xlsx",
+      "sha256": "b9677afe084e7d65b375c9f0e239b377cb54dda778a3913e75e1621374d17cd3",
+      "origin": "team12",
+      "upload_name": "header_disabled_table.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Ledger",
+          "target": "xl/tables/table1.xml#tableId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [
+        {
+          "target": "xl/tables/table1.xml#tableId=1",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "xl/tables/table1.xml headerRowCount 0 becomes 1 (or is removed, meaning 1); nothing else changes, including table 2 and the C2:C4 formulas"
+        }
+      ],
+      "notes": "Ledger (sheetId 1, sheet1.xml) holds formal table 1 (Ledger, A1:C4, headerRowCount 0) whose first row Item/Amount/Running total matches its column names, with three body rows and running-total formulas in C2:C4. Archive (sheetId 2, sheet2.xml) holds an ordinary table 2 that must stay unchanged.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    }
+  }
+}

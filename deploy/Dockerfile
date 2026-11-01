@@ -19,6 +19,8 @@ RUN uv sync --locked --no-dev --no-install-project
 
 COPY tester ./tester
 RUN uv sync --locked --no-dev
+# Reads run records from the database volume: docker compose exec tester python scripts/run_record.py ...
+COPY scripts/run_record.py ./scripts/run_record.py
 
 RUN useradd --system --uid 10001 --no-create-home tester \
     && mkdir /data && chown tester /data

@@ -33,7 +33,9 @@
   },
   "coverage": {
     "components": ["C1", "C2", "C3", "C4", "C5", "C6"],
-    "acceptance": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-14", "AC-15", "AC-18"]
+    "acceptance": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-14", "AC-15", "AC-18"],
+    "component_basis": "Pod components C1, C2, C3, C4, C5, C6 (Team 9 profile, pending pod confirmation); counted when a qualifying assertion executed, pass or fail.",
+    "system_basis": "Phase 3 portions of AC-01, AC-02, AC-03, AC-04, AC-05, AC-14, AC-15, AC-18 (Team 9 profile, pending pod confirmation); counted when a qualifying assertion executed, pass or fail."
   },
   "timing": {
     "system_setup_seconds": 30,
@@ -45,7 +47,10 @@
     "suite_seconds": 600,
     "get_retries": 3
   },
-  "max_response_bytes": 2097152,
+  "response_limits": {
+    "json_bytes": 2097152,
+    "binary_bytes": 2097152
+  },
   "cleanup": {
     "send_failed_setup_ids": true
   }

@@ -1,19 +1,27 @@
-"""Rehearsal-only stand-in target system: system /test/setup and /test/report only.
+"""Rehearsal-only stand-in target system: system /test/setup and /test/report, plus the
+fake project API from tests/fake_project.py (health, upload intake, version reads).
 
 Not part of the tester and never deployed; scripts/rehearsal/rehearse.py starts it on 127.0.0.1.
 
 Mounted under /system so the tester sees a base path, like a real deployment.
-POST /control sets delays and canned failures; GET /control/log returns every request seen.
+POST /control sets delays and canned failures; GET /control/log returns every request seen
+(project calls are logged without their bodies).
 """
 
 import asyncio
+import sys
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tests.fake_project import FakeProject  # noqa: E402
+
 ADMIN_TOKEN = "tok-admin"
 state = {"sessions": set(), "log": [], "setup_delay": 0, "duplicate_delay": 0, "report_delay": 0,
          "setup_reply": None}
+project = FakeProject(state["sessions"])
 
 control = FastAPI()
 system = FastAPI()
@@ -41,7 +49,8 @@ def record(request, body):
     state["log"].append({"method": request.method, "path": request.url.path,
                          "query": dict(request.query_params),
                          "authorization": request.headers.get("authorization"),
-                         "x_test_session": request.headers.get("x-test-session"), "body": body})
+                         "x_test_session": request.headers.get("x-test-session"),
+                         "content_length": int(request.headers.get("content-length") or 0), "body": body})
 
 
 def unauthorized(request):
@@ -76,6 +85,13 @@ async def report(request: Request, session_id: str):
         return JSONResponse({"message": "Unknown session.", "source": "system"}, 404)
     return {"session_id": session_id,
             "coverage": {"code": {"covered": 40, "total": 50, "basis": "Stand-in system: fixed test constant"}}}
+
+
+@system.api_route("/api/v1/{rest:path}", methods=["GET", "POST"])
+async def project_api(request: Request, rest: str):
+    record(request, None)
+    status, reply = project.handle(request.method, f"/api/v1/{rest}", dict(request.headers), await request.body())
+    return JSONResponse(reply, status)
 
 
 control.mount("/system", system)

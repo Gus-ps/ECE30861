@@ -25,7 +25,8 @@ def main():
     parser.add_argument("--tester-url", required=True, help="tester base URL, without /test")
     parser.add_argument("--target-url", required=True, help="system base URL exactly as allowlisted")
     parser.add_argument("--setup-timeout", type=float, default=60)
-    parser.add_argument("--run-timeout", type=float, default=700)
+    ##  Longer than the tester's own run ceiling (Phase 4 suite budget 1,800 s plus its 30 s guard).
+    parser.add_argument("--run-timeout", type=float, default=1900)
     args = parser.parse_args()
     token = os.environ.get("TESTER_TOKEN")
     if not token:

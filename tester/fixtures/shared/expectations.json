@@ -1,11 +1,11 @@
 {
   "ruleset_version": "1.0.0",
   "pod_profile": "team9-defaults-1.0.0",
-  "manual_review": "Complete. Expectations were hand-authored by Team 12 from the object definitions in scripts/build_shared_fixtures.py and the audit policy in ref/phase3.md, then cross-checked against tester/suite/pod_rules.py. A two-member Team 12 review of these expectations and a manual Excel open of clean.xlsx and seeded_issues.xlsx (no repair prompt) were recorded complete on 2026-10-17. Seven seeded rows depend on pod-pending policy (profile team9-defaults-1.0.0, not yet pod-approved); see README.md, 'Policy-dependent rows'.",
+  "manual_review": "Complete. Expectations were hand-authored by Team 12 from the object definitions in scripts/build_shared_fixtures.py and the audit policy in ref/phase3.md, then cross-checked against tester/suite/pod_rules.py. A two-member Team 12 review of these expectations and a manual Excel open of clean.xlsx and seeded_issues.xlsx (no repair prompt) were recorded complete on 2026-10-17. Seven seeded rows depend on pod-pending policy (profile team9-defaults-1.0.0, not yet pod-approved); see README.md, 'Policy-dependent rows'. The ten fixtures added on 2026-10-31 (unicode, repeated_ids, multiple_drawings and the seven rejected files zip_traversal through protected_structure) have not been reviewed or opened in Excel yet. An accepted entry without limitations_required expects an empty limitations array.",
   "fixtures": {
     "clean": {
       "kind": "accepted",
-      "file": "shared/clean.xlsx",
+      "file": "clean.xlsx",
       "sha256": "20feed4783615c2ef5f5579a53b25524fc75a7316c108e1fc25bf1b5278aeca2",
       "origin": "team12",
       "upload_name": "clean.xlsx",
@@ -15,7 +15,7 @@
     },
     "seeded_issues": {
       "kind": "accepted",
-      "file": "shared/seeded_issues.xlsx",
+      "file": "seeded_issues.xlsx",
       "sha256": "24dd6a6da19f4676d3bce27f3d5b4b8d285369beecb3926454c71f2ed0ea692c",
       "origin": "team12",
       "upload_name": "seeded_issues.xlsx",
@@ -80,13 +80,215 @@
         }
       ]
     },
+    "unicode": {
+      "kind": "accepted",
+      "file": "unicode.xlsx",
+      "sha256": "1b2c03d81c1e0998e375f733f852fdc074aa3e581e7328649b30297cfe72a8ab",
+      "origin": "team12",
+      "upload_name": "unicode.xlsx",
+      "notes": "Six sheets. 'Café costs' (NFD, sheetId 1) holds drawing1.xml: id 2 descr is only U+200B and id 6 title is only U+FEFF (neither is White_Space, so both count as present); id 3 title, id 4 descr and id 7 descr are White_Space only; id 5 has non-ASCII title and descr. '　Sheet2　' trims to Sheet2. 'Sheet３' (fullwidth digit) and 'ſheet4' (long s) do not match the ASCII pattern. '📊 Summary' (drawing2.xml) sorts after 'ｾｰﾙｽ' (drawing3.xml) by code point, though not by UTF-16 unit. Per-object intent is in README.md.",
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Café costs",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Café costs",
+          "target": "xl/drawings/drawing1.xml#id=4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Café costs",
+          "target": "xl/drawings/drawing1.xml#id=7",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "ｾｰﾙｽ",
+          "target": "xl/drawings/drawing3.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "📊 Summary",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "　Sheet2　",
+          "target": "xl/worksheets/sheet2.xml#sheetId=2",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ]
+    },
+    "repeated_ids": {
+      "kind": "accepted",
+      "file": "repeated_ids.xlsx",
+      "sha256": "35cfc7580bff622018741ca9dc7f72da2cadd9998e02948360ebc55aabc10424",
+      "origin": "team12",
+      "upload_name": "repeated_ids.xlsx",
+      "notes": "Expenses (drawing1.xml) repeats id 2 on two top-level pictures and id 4 on a group and its child picture; those four objects take #xml= targets and must be disclosed as limitations (wording is not compared). Rectangle 3 (id 3) and the group's second child (id 5) are unique. Receipts (drawing2.xml) reuses id 2 in another part, which is not a repeat.",
+      "expected_status": "REVIEW_REQUIRED",
+      "limitations_required": true,
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[1]/pic[1]/nvPicPr[1]/cNvPr[1]",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[4]/grpSp[1]/pic[1]/nvPicPr[1]/cNvPr[1]",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Receipts",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ]
+    },
+    "multiple_drawings": {
+      "kind": "accepted",
+      "file": "multiple_drawings.xlsx",
+      "sha256": "82fff168f7569daabea4951859c8828f8d1deca6055f468e4b443b45d1f9870a",
+      "origin": "team12",
+      "upload_name": "multiple_drawings.xlsx",
+      "notes": "Summary (sheet1.xml) uses drawing3.xml, Expenses (sheet2.xml) drawing1.xml, hidden 'Hidden costs' (sheet3.xml) drawing2.xml, veryHidden Archive (sheet5.xml) drawing4.xml through an absolute relationship target; Notes has no drawing. Object ids restart at 2 in each part. Each drawing has exactly one object with a missing or whitespace-only field.",
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Archive",
+          "target": "xl/drawings/drawing4.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Hidden costs",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Summary",
+          "target": "xl/drawings/drawing3.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ]
+    },
     "corrupt": {
       "kind": "rejected",
-      "file": "shared/corrupt.xlsx",
+      "file": "corrupt.xlsx",
       "sha256": "9cf891ba569c9de0a6b006bca6f481c9e3c17e3eb53342691ecea9f253e2dd09",
       "origin": "team12",
       "upload_name": "corrupt.xlsx",
       "notes": "A ZIP local-file signature followed by plain text; not a readable package. Only status and error envelope are asserted because no error code is agreed.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "zip_traversal": {
+      "kind": "rejected",
+      "file": "zip_traversal.xlsx",
+      "sha256": "b2d07b501310ca89cc38c4dfa9dae6c35451f7a53c15be0630dbe79fc3942af5",
+      "origin": "team12",
+      "upload_name": "zip_traversal.xlsx",
+      "notes": "Valid one-sheet workbook plus one extra entry named ../outside.xml, a path that leaves the package root. Only status and error envelope are asserted.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "zip_duplicate": {
+      "kind": "rejected",
+      "file": "zip_duplicate.xlsx",
+      "sha256": "d97e27eea8d46d69d96cab1eeba004932768992dd7f2e6fcdd066d67f2f2af83",
+      "origin": "team12",
+      "upload_name": "zip_duplicate.xlsx",
+      "notes": "Valid one-sheet workbook with a second entry at the same path xl/worksheets/sheet1.xml holding different contents. Only status and error envelope are asserted.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "xml_dtd": {
+      "kind": "rejected",
+      "file": "xml_dtd.xlsx",
+      "sha256": "0b05bf86d94eb855ab4db603a56d88822fcddaa8acbe66d7ec53ea396c187108",
+      "origin": "team12",
+      "upload_name": "xml_dtd.xlsx",
+      "notes": "Valid one-sheet workbook whose xl/worksheets/sheet1.xml declares a DOCTYPE with one internal entity (team = \"Team 12\") and uses it in a cell. No external entity. Only status and error envelope are asserted.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "macro_parts": {
+      "kind": "rejected",
+      "file": "macro_parts.xlsx",
+      "sha256": "d5fb9d0fca22aaee67ae5cb387b068a5daaa73d892da62a1290a45e33a946d06",
+      "origin": "team12",
+      "upload_name": "macro_parts.xlsx",
+      "notes": "Named .xlsx with the ordinary (non-macro) main content type, but carrying xl/vbaProject.bin with its vbaProject content type and workbook relationship. The part is a compound-file signature plus inert padding; it holds no macro code. Only status and error envelope are asserted.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "encrypted_zip": {
+      "kind": "rejected",
+      "file": "encrypted_zip.xlsx",
+      "sha256": "58a2d8c291c64c8184c4d86c631e1638823843dfd1bec975ec2a43e600859551",
+      "origin": "team12",
+      "upload_name": "encrypted_zip.xlsx",
+      "notes": "Valid one-sheet workbook with every ZIP entry encrypted using traditional PKWARE (ZipCrypto) encryption and a fixture-only password. Not Office CFB encryption. Only status and error envelope are asserted.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "protected_sheet": {
+      "kind": "rejected",
+      "file": "protected_sheet.xlsx",
+      "sha256": "1bbe7342deae053aedd301d69010aec0aa6d86cb8fbf021b1d9faefd4942ee43",
+      "origin": "team12",
+      "upload_name": "protected_sheet.xlsx",
+      "notes": "Valid one-sheet workbook whose worksheet has active protection (sheetProtection sheet=\"1\", real SHA-512 password hash). Workbook structure is not protected. Only status and error envelope are asserted.",
+      "http_status": 422,
+      "error_code": null
+    },
+    "protected_structure": {
+      "kind": "rejected",
+      "file": "protected_structure.xlsx",
+      "sha256": "53835c995e98201b2a097c2115ad168c211337a20fad9ddeb574ab6acd6e948d",
+      "origin": "team12",
+      "upload_name": "protected_structure.xlsx",
+      "notes": "Valid one-sheet workbook with locked structure (workbookProtection lockStructure=\"1\", real SHA-512 password hash). No worksheet protection. Only status and error envelope are asserted.",
       "http_status": 422,
       "error_code": null
     }

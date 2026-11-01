@@ -1,4 +1,6 @@
-"""Builds Team 12's shared Phase 3 fixtures: clean.xlsx, seeded_issues.xlsx, corrupt.xlsx.
+"""Builds Team 12's shared Phase 3 fixtures: clean.xlsx, seeded_issues.xlsx, corrupt.xlsx,
+the three accepted edge workbooks (unicode, repeated_ids, multiple_drawings), and the seven rejected workbooks (zip_traversal, zip_duplicate, xml_dtd, macro_parts,
+encrypted_zip, protected_sheet, protected_structure).
 
 Every part is written by hand so each object and attribute is deliberate.
 Entries are stored uncompressed with fixed timestamps, so the bytes (and the
@@ -16,9 +18,12 @@ tester/fixtures/shared/expectations.json and README.md.
     uv run python scripts/build_shared_fixtures.py --check  # verify committed bytes
 """
 
+import base64
+import hashlib
 import io
 import struct
 import sys
+import warnings
 import zipfile
 import zlib
 from pathlib import Path
@@ -379,15 +384,201 @@ def seeded_issues():
         {1: chart("Sheet1", "Costs by item")}, media)
 
 
+##  ---- Accepted edge fixtures ----
+##  Expected findings for these are listed per object in tester/fixtures/shared/README.md.
+
+def unicode_edges():
+    ##  White_Space trimming against near-whitespace characters, raw (unnormalized) worksheet
+    ##  names, ASCII-only worksheet-name matching, and code-point (not UTF-16) ordering.
+    media = Media()
+    costs, summary, sales = Drawing(media), Drawing(media), Drawing(media)
+    costs_xml = drawing_xml(
+        (picture(props(2, "Picture 1", "Team logo", "​"), costs.image("logo")), 2, 6),             # ZWSP is not White_Space
+        (picture(props(3, "Picture 2", "  ", "Scanned receipt placeholder."),
+                 costs.image("receipt")), 2, 6),                                                     # title whitespace only
+        (shape(props(4, "Rectangle 3", "Totals", "\u0085  "), "Totals"), 3, 4),           # descr whitespace only
+        (shape(props(5, "Rectangle 4", "東京オフィス", "Büro München: Übersicht der Kosten."),
+               "東京"), 3, 4),                                                                       # both present
+        (picture(props(6, "Picture 5", "﻿", "Divider line placeholder."), costs.image("divider")), 2, 6),  # U+FEFF is not White_Space
+        (picture(props(7, "Picture 6", "Chart icon", "\t\n\r "), costs.image("chart_icon")), 2, 6))  # descr ASCII whitespace
+    summary_xml = drawing_xml(
+        (picture(props(2, "Picture 1", title="Chart icon"), summary.image("chart_icon")), 2, 6))      # descr absent
+    sales_xml = drawing_xml(
+        (shape(props(2, "Rectangle 1", "Sales", ""), "Sales"), 3, 4))                               # descr empty
+    return package("Unicode fixture", [
+        ("Café costs", 1, None, 1, budget_rows(), 1),                       # NFD: e + combining acute
+        ("　Sheet2　", 2, None, 2, note_rows("Note", "Ideographic spaces around a generic name."), None),
+        ("Sheet３", 3, None, 3, note_rows("Note", "Fullwidth digit three."), None),
+        ("ſheet4", 4, None, 4, note_rows("Note", "Long s, not an ASCII s."), None),
+        ("\U0001f4ca Summary", 5, None, 5, note_rows("Summary", "Totals by month."), 2),
+        ("ｾｰﾙｽ", 6, None, 6, note_rows("Sales", "Halfwidth katakana name."), 3),
+    ], {1: (costs_xml, costs), 2: (summary_xml, summary), 3: (sales_xml, sales)}, {}, media)
+
+
+def repeated_ids():
+    ##  Object IDs repeated within one drawing part, so those objects need #xml= path targets.
+    ##  The same ID in a different drawing part is not a repeat.
+    media = Media()
+    expenses, receipts = Drawing(media), Drawing(media)
+    expenses_xml = drawing_xml(
+        (picture(props(2, "Picture 1", title="Receipt"), expenses.image("receipt")), 2, 6),           # descr absent; id repeated
+        (picture(props(2, "Picture 2", "Team logo", "Team 12 logo placeholder."), expenses.image("logo")), 2, 6),  # complete; id repeated
+        (shape(props(3, "Rectangle 3", title="Totals"), "Totals"), 3, 4),                           # descr absent; id unique
+        (group(props(4, "Group 4", "Totals group", "Totals icon beside a status label."), 2743200, 914400,
+               picture(props(4, "Picture 5", descr="Small totals icon placeholder."),                 # title absent; id repeats group
+                       expenses.image("totals_icon"), 0, 0, 914400, 914400),
+               shape(props(5, "Rectangle 6", "Status", "Status label reading OK."), "Status: OK", "rect",
+                     "E2EFDA", "385723", 1097280, 76200, 1645920, 762000)), 5, 5))
+    receipts_xml = drawing_xml(
+        (picture(props(2, "Picture 1", title="Archive"), receipts.image("archive")), 2, 6))           # descr absent; id 2 unique here
+    return package("Repeated IDs fixture", [
+        ("Expenses", 1, None, 1, budget_rows(), 1),
+        ("Receipts", 2, None, 2, note_rows("Receipts", "Scanned receipts for travel."), 2),
+    ], {1: (expenses_xml, expenses), 2: (receipts_xml, receipts)}, {}, media)
+
+
+def multiple_drawings():
+    ##  Four drawings on four sheets, including hidden and veryHidden sheets; drawing numbers do not
+    ##  follow sheet order, object IDs restart in each part, and one relationship uses an absolute target.
+    media = Media()
+    expenses, hidden, summary, archive = Drawing(media), Drawing(media), Drawing(media), Drawing(media)
+    expenses_xml = drawing_xml(
+        (picture(props(2, "Picture 1", "Receipt", "Scanned travel receipt placeholder."), expenses.image("receipt")), 2, 6),
+        (shape(props(3, "Rectangle 2", descr="Callout noting that rent is the largest cost."),
+               "Rent is the largest cost"), 3, 4))                                                   # title absent
+    hidden_xml = drawing_xml(
+        (picture(props(2, "Picture 1"), hidden.image("archive")), 2, 6))                              # both absent
+    summary_xml = drawing_xml(
+        (chart_frame(props(2, "Chart 1", "Costs by item", "Column chart: rent $1,200, travel $300, supplies $200."),
+                     summary.chart(1)), 6, 14),
+        (picture(props(3, "Picture 2", title="Team logo", descr=" "), summary.image("logo")), 2, 6))  # descr whitespace only
+    archive_xml = drawing_xml(
+        (picture(props(2, "Picture 1", title="Divider"), archive.image("divider")), 2, 6))            # descr absent
+    parts = package("Multiple drawings fixture", [
+        ("Summary", 1, None, 1, budget_rows(), 3),
+        ("Expenses", 2, None, 2, budget_rows(), 1),
+        ("Hidden costs", 3, "hidden", 3, note_rows("Hidden", "Costs kept off the main view."), 2),
+        ("Notes", 4, None, 4, note_rows("Note", "Figures are illustrative test data."), None),
+        ("Archive", 5, "veryHidden", 5, note_rows("Archive", "Old figures kept for reference."), 4),
+    ], {1: (expenses_xml, expenses), 2: (hidden_xml, hidden), 3: (summary_xml, summary), 4: (archive_xml, archive)},
+        {1: chart("Summary", "Costs by item")}, media)
+    archive_rels = "xl/worksheets/_rels/sheet5.xml.rels"
+    parts[archive_rels] = parts[archive_rels].replace('"../drawings/drawing4.xml"', '"/xl/drawings/drawing4.xml"')
+    return parts
+
+
+ACCEPTED_EDGES = {"unicode": unicode_edges, "repeated_ids": repeated_ids, "multiple_drawings": multiple_drawings}
+
+
 def corrupt():
     ##  A ZIP local-file signature followed by bytes that are not a valid package.
     return b"PK\x03\x04" + b"Team 12 corrupt fixture: deliberately unreadable workbook bytes.\n" * 4
 
 
+##  ---- Rejected fixtures: one defect each on an otherwise valid one-sheet workbook ----
+##  Isolating the defect means a rejection can only be caused by the property under test.
+
+FIXTURE_PASSWORD = "team12-fixture"          # fixture-only; protects nothing
+VBA_PROJECT = "http://schemas.microsoft.com/office/2006/relationships/vbaProject"
+
+
+def rejected_base(key):
+    return package(f"Rejected fixture: {key}",
+                   [("Notes", 1, None, 1, note_rows("Note", f"Team 12 rejected fixture: {key}."), None)],
+                   {}, {}, Media())
+
+
+def password_hash(password, salt, spin_count=100_000):
+    ##  ECMA-376 agile password hash (SHA-512), as stored in sheet and workbook protection.
+    digest = hashlib.sha512(salt + password.encode("utf-16-le")).digest()
+    for iteration in range(spin_count):
+        digest = hashlib.sha512(digest + iteration.to_bytes(4, "little")).digest()
+    return digest
+
+
+def protection_attrs(prefix, key):
+    ##  Real hash attributes; the salt is fixed per fixture so the bytes are reproducible.
+    salt = hashlib.sha256(f"team12 {key} salt".encode()).digest()[:16]
+    digest = password_hash(FIXTURE_PASSWORD, salt)
+    names = ("algorithmName", "hashValue", "saltValue", "spinCount")
+    if prefix:
+        names = tuple(prefix + n[0].upper() + n[1:] for n in names)
+    values = ("SHA-512", base64.b64encode(digest).decode(), base64.b64encode(salt).decode(), "100000")
+    return " ".join(f'{n}="{v}"' for n, v in zip(names, values))
+
+
+def zip_traversal():
+    ##  An extra entry whose name climbs out of the package root.
+    parts = rejected_base("zip_traversal")
+    parts["../outside.xml"] = f"{HEAD}<outside>This entry's path leaves the package root.</outside>"
+    return zipped(parts)
+
+
+def zip_duplicate():
+    ##  Two entries with the same path and different contents; readers disagree on which wins.
+    parts = rejected_base("zip_duplicate")
+    sheet = "xl/worksheets/sheet1.xml"
+    second = parts[sheet].replace("Team 12 rejected fixture: zip_duplicate.", "Second copy of the same path.")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)          # zipfile warns about the duplicate name
+        return zipped([*parts.items(), (sheet, second)])
+
+
+def xml_dtd():
+    ##  The worksheet declares a DTD with an internal entity and uses it. No external entity.
+    parts = rejected_base("xml_dtd")
+    sheet = "xl/worksheets/sheet1.xml"
+    parts[sheet] = (parts[sheet].replace(HEAD, HEAD + '<!DOCTYPE worksheet [<!ENTITY team "Team 12">]>', 1)
+                    .replace("Team 12 rejected fixture", "&team; rejected fixture"))
+    return zipped(parts)
+
+
+def macro_parts():
+    ##  A .xlsx (non-macro main content type) that still carries a VBA project part.
+    ##  The part is a compound-file signature plus inert padding: no macro code.
+    parts = rejected_base("macro_parts")
+    parts["xl/vbaProject.bin"] = bytes.fromhex("d0cf11e0a1b11ae1") + b"Team 12 inert vbaProject placeholder.".ljust(504, b"\0")
+    parts["[Content_Types].xml"] = parts["[Content_Types].xml"].replace(
+        "</Types>", '<Override PartName="/xl/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/></Types>')
+    parts["xl/_rels/workbook.xml.rels"] = parts["xl/_rels/workbook.xml.rels"].replace(
+        "</Relationships>", f'<Relationship Id="rId9" Type="{VBA_PROJECT}" Target="vbaProject.bin"/></Relationships>')
+    return zipped(parts)
+
+
+def encrypted_zip():
+    ##  Every entry encrypted with traditional PKWARE (ZipCrypto) encryption. Not Office CFB encryption.
+    return zipcrypto(rejected_base("encrypted_zip"), FIXTURE_PASSWORD.encode())
+
+
+def protected_sheet():
+    ##  Active worksheet protection (sheet="1") with a real password hash; workbook structure unprotected.
+    parts = rejected_base("protected_sheet")
+    sheet = "xl/worksheets/sheet1.xml"
+    lock = f'<sheetProtection {protection_attrs("", "protected_sheet")} sheet="1" objects="1" scenarios="1"/>'
+    parts[sheet] = parts[sheet].replace("<pageMargins", lock + "<pageMargins", 1)
+    return zipped(parts)
+
+
+def protected_structure():
+    ##  Workbook structure locked with a real password hash; no worksheet protection.
+    parts = rejected_base("protected_structure")
+    lock = f'<workbookProtection {protection_attrs("workbook", "protected_structure")} lockStructure="1"/>'
+    parts["xl/workbook.xml"] = parts["xl/workbook.xml"].replace("<bookViews>", lock + "<bookViews>", 1)
+    return zipped(parts)
+
+
+REJECTED = {"zip_traversal": zip_traversal, "zip_duplicate": zip_duplicate, "xml_dtd": xml_dtd,
+            "macro_parts": macro_parts, "encrypted_zip": encrypted_zip, "protected_sheet": protected_sheet,
+            "protected_structure": protected_structure}
+
+
+##  ---- ZIP writers ----
+
 def zipped(parts):
+    ##  parts: {name: content} or [(name, content)] (a list allows a repeated name).
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
-        for name, content in parts.items():
+        for name, content in (parts.items() if isinstance(parts, dict) else parts):
             info = zipfile.ZipInfo(name, STAMP)
             info.compress_type = zipfile.ZIP_STORED
             info.external_attr = 0o600 << 16
@@ -395,14 +586,74 @@ def zipped(parts):
     return buffer.getvalue()
 
 
+def _crc_table():
+    table = []
+    for n in range(256):
+        c = n
+        for _ in range(8):
+            c = (c >> 1) ^ 0xEDB88320 if c & 1 else c >> 1
+        table.append(c)
+    return table
+
+
+CRC_TABLE = _crc_table()
+
+
+class ZipCrypto:
+    ##  Traditional PKWARE encryption (APPNOTE 6.1). zipfile can decrypt it but cannot write it.
+    def __init__(self, password):
+        self.keys = [0x12345678, 0x23456789, 0x34567890]
+        for byte in password:
+            self._update(byte)
+
+    def _update(self, byte):
+        k0, k1, k2 = self.keys
+        k0 = (k0 >> 8) ^ CRC_TABLE[(k0 ^ byte) & 0xFF]
+        k1 = ((k1 + (k0 & 0xFF)) * 134775813 + 1) & 0xFFFFFFFF
+        k2 = (k2 >> 8) ^ CRC_TABLE[(k2 ^ (k1 >> 24)) & 0xFF]
+        self.keys = [k0, k1, k2]
+
+    def encrypt(self, data):
+        out = bytearray()
+        for byte in data:
+            temp = (self.keys[2] | 2) & 0xFFFF
+            out.append(byte ^ (((temp * (temp ^ 1)) >> 8) & 0xFF))
+            self._update(byte)
+        return bytes(out)
+
+
+def zipcrypto(parts, password):
+    ##  A stored ZIP with every entry encrypted. The 12-byte encryption header is derived from the
+    ##  entry name instead of random bytes, so the output is reproducible.
+    dos_time, dos_date = 0, (STAMP[0] - 1980) << 9 | STAMP[1] << 5 | STAMP[2]
+    body, central = bytearray(), bytearray()
+    for name, content in parts.items():
+        data = content.encode("utf-8") if isinstance(content, str) else content
+        raw_name = name.encode("utf-8")
+        crc = zlib.crc32(data)
+        header = hashlib.sha256(b"team12 zipcrypto " + raw_name).digest()[:11] + bytes([crc >> 24])
+        sealed = ZipCrypto(password).encrypt(header + data)
+        fields = struct.pack("<HHHHHIII", 20, 1, 0, dos_time, dos_date, crc, len(sealed), len(data))
+        central += (struct.pack("<IH", 0x02014B50, 20) + fields
+                    + struct.pack("<HHHHHII", len(raw_name), 0, 0, 0, 0, 0o600 << 16, len(body)) + raw_name)
+        body += struct.pack("<I", 0x04034B50) + fields + struct.pack("<HH", len(raw_name), 0) + raw_name + sealed
+    count = len(parts)
+    end = struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, count, count, len(central), len(body), 0)
+    return bytes(body + central + end)
+
+
 def build():
-    return {"clean.xlsx": zipped(clean()), "seeded_issues.xlsx": zipped(seeded_issues()), "corrupt.xlsx": corrupt()}
+    files = {"clean.xlsx": zipped(clean()), "seeded_issues.xlsx": zipped(seeded_issues()), "corrupt.xlsx": corrupt()}
+    files.update({f"{key}.xlsx": zipped(make()) for key, make in ACCEPTED_EDGES.items()})
+    files.update({f"{key}.xlsx": make() for key, make in REJECTED.items()})
+    return files
 
 
 def main(argv):
     files = build()
     if "--check" in argv:
-        stale = [name for name, data in files.items() if (OUT / name).read_bytes() != data]
+        stale = [name for name, data in files.items()
+                 if not (OUT / name).exists() or (OUT / name).read_bytes() != data]
         if stale:
             print("Committed fixtures differ from the builder: " + ", ".join(stale))
             return 1

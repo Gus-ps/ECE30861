@@ -128,12 +128,15 @@ def test_run_returns_complete_report_and_report_is_identical(make_client, fake):
     results = results_by_id(body)
     assert results["P3-SESSION-DUPLICATE"]["outcome"] == "pass"
     assert results["P3-CODE-REPORT"]["outcome"] == "pass"
-    assert results["P3-HEALTH"]["outcome"] == "skip"
-    assert "not implemented" in results["P3-HEALTH"]["message"]
+    assert results["P3-HEALTH"]["outcome"] == "pass"
+    assert results["P3-INPUT-CORRUPT"]["outcome"] == "skip"
+    assert "no fixture pack" in results["P3-INPUT-CORRUPT"]["message"]
+    assert results["P3-AUDIT-FAILURE-ENVELOPE"]["outcome"] == "skip"
+    assert "no controlled audit failure" in results["P3-AUDIT-FAILURE-ENVELOPE"]["message"]
     assert results["P3-VERSION-VALID"]["outcome"] == "skip"
     assert body["coverage"]["code"] == {"covered": 40, "total": 50, "basis": "Fake target source lines"}
-    assert body["coverage"]["component"]["covered"] == 1 and body["coverage"]["component"]["total"] == 6
-    assert body["coverage"]["system"]["covered"] == 0 and body["coverage"]["system"]["total"] == 8
+    assert body["coverage"]["component"]["covered"] == 4 and body["coverage"]["component"]["total"] == 6
+    assert body["coverage"]["system"]["covered"] == 3 and body["coverage"]["system"]["total"] == 8
 
     stored = report(client, session_id)
     assert stored.status_code == 200

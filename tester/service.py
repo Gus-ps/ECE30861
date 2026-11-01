@@ -9,9 +9,10 @@ from pydantic import ValidationError
 from .config import target_url_problem
 from .errors import TesterError
 from .models import SetupResponse, TestEndpointError
-from .store import ENDED, Store
+from .store import ENDED, Store, now
 from .suite.checks import CHECKS
-from .suite.plan import load_plan, profile_of
+from .suite.plan import PlanError, load_plan, profile_of
+from .suite.record import build_record
 from .suite.runner import SuiteRun, build_report
 from .target import CommunicationError, Deadline, DeadlineExceeded, ResponseTooLarge, TargetClient
 
@@ -25,9 +26,12 @@ class TesterService:
         self.store = store
         self.transport = transport
         self.checks = CHECKS if checks is None else checks
-        ##  Validate the shipped plan at startup; each setup reloads and freezes it.
-        load_plan(settings.manifest_path, settings.pod_profile_path)
+        ##  Validate the shipped plan and fixture pack at startup; each setup reloads and freezes them.
+        self._load_plan()
         self.recover()
+
+    def _load_plan(self):
+        return load_plan(self.settings.manifest_path, self.settings.pod_profile_path, self.settings.expectations_path)
 
     def _client(self, target_url, plan):
         return TargetClient(target_url, self.settings.target_auth_map_json[target_url],
@@ -51,7 +55,16 @@ class TesterService:
             self.store.queue_cleanup(row.target_url, row.session_id)
         for row in self.store.sessions_in("RUNNING"):
             report = build_report(row.session_id, row.target_url, row.plan, row.progress, RESTART_REASON)
-            self.store.finish(row.session_id, "ABORTED", report, RESTART_REASON)
+            self._finish(row, "ABORTED", report, row.progress, RESTART_REASON)
+
+    def _finish(self, row, state, report, progress, reason):
+        ended_at = now()
+        record = build_record(row.session_id, row.target_url, row.plan, report, progress, state=state,
+                              started_at=row.started_at, ended_at=ended_at, abort_reason=reason)
+        self.store.finish(row.session_id, state, report, reason, record, ended_at)
+        ##  Fault sessions keep their evidence until the run is recorded, then the next setup cleans them.
+        for fault_session in record["fault_session_ids"]:
+            self.store.queue_cleanup(row.target_url, fault_session)
 
     ##  ---- POST /test/setup ----
 
@@ -62,9 +75,13 @@ class TesterService:
         if target_url not in self.settings.allowed_target_urls:
             raise TesterError(400, "target_url is not an approved target system for this tester.")
         try:
-            plan = load_plan(self.settings.manifest_path, self.settings.pod_profile_path)
+            plan = self._load_plan()
+        except PlanError as error:
+            raise TesterError(500, f"The tester's suite plan is unusable: {error}.")
         except (OSError, ValueError) as error:
             raise TesterError(500, f"The tester's suite plan could not be loaded ({type(error).__name__}).")
+        plan["provenance"] = {"tester_revision": self.settings.tester_revision,
+                              "target_revision": self.settings.target_revisions_json.get(target_url)}
         profile = profile_of(plan)
         session_id = str(uuid.uuid4())
         self.store.create(session_id, subject, target_url, plan)
@@ -163,9 +180,9 @@ class TesterService:
             aborted, reason = True, f"an internal tester failure ({type(error).__name__})"
         finally:
             client.close()
-        report = build_report(row.session_id, row.target_url, row.plan, suite.progress(),
-                              reason if aborted else None)
-        self.store.finish(row.session_id, "ABORTED" if aborted else "COMPLETE", report, reason)
+        progress = suite.progress()
+        report = build_report(row.session_id, row.target_url, row.plan, progress, reason if aborted else None)
+        self._finish(row, "ABORTED" if aborted else "COMPLETE", report, progress, reason if aborted else None)
         outcome.update(report=report, aborted=aborted, reason=reason)
 
     ##  ---- GET /test/report ----
@@ -174,6 +191,7 @@ class TesterService:
         row = self._owned(subject, session_id)
         if row.state not in ENDED:
             raise TesterError(409, _no_report(row.state))
+        self.store.record_retrieval(session_id)
         return row.report
 
 
