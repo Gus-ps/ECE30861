@@ -879,7 +879,7 @@
           "why": "duplicate object ID"
         },
         {
-          "target": "xl/worksheets/sheet1.xml#cell=B3",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
           "value": {
             "text": "Team 12 guidance"
           },

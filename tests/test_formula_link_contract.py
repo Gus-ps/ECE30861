@@ -52,3 +52,16 @@ def test_rename_rejection_vectors_distinguish_invalid_unsupported_and_conflictin
     assert codes['sheet1']=='UNSUPPORTED_CORRECTION'
     assert codes['Summary']=='CONFLICTING_CORRECTIONS'
     assert codes[' Costs']=='INVALID_CORRECTION'
+
+
+def test_manual_apply_attempts_reference_existing_manual_findings():
+    from tester.suite.checks_phase4 import _invalid_bodies
+    entry=json.loads((PACK/'expectations.json').read_text(encoding='utf-8'))['fixtures']['unsupported_edits']
+    findings=[dict(f, findingId=hashlib.sha256(f['target'].encode()).hexdigest()) for f in entry['findings']]
+    record={'entry':entry,'audit':{'auditId':'audit-vector','findings':findings}}
+    variants=_invalid_bodies(None,record,'MANUAL-APPLY')
+    manual_ids={f['findingId'] for f in findings if f['classification']=='MANUAL_REVIEW'}
+    assert len(variants)==len(entry['apply_attempts'])
+    for label, body, status, code in variants:
+        assert body['decisions'][0]['findingId'] in manual_ids, label
+        assert status==422 and code=='UNSUPPORTED_CORRECTION'
