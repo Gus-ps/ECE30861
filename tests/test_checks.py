@@ -83,7 +83,52 @@ def test_a_target_that_accepts_everything_fails_every_rejection(make_client, fak
     by_id, _ = results(make_client())
     for test_id in ["P3-AUTH-UPLOAD", "P3-INPUT-CSV", "P3-INPUT-XLSM", "P3-INPUT-BYTES-OVER", "P3-INPUT-CELLS-OVER"]:
         assert by_id[test_id]["outcome"] == "fail" and "accepting the upload" in by_id[test_id]["message"]
-    assert by_id["P3-INPUT-BYTES-AT"]["outcome"] == "pass"
+    ##  Its at-limit uploads are accepted, but their audits cannot be read, so the wait fails them.
+    at_limit = by_id["P3-INPUT-BYTES-AT"]
+    assert at_limit["outcome"] == "fail" and "was accepted (202), but: Expected 200" in at_limit["message"]
+
+
+##  ---- Boundary uploads wait for their audits (Team 9 feedback, 2026-11-01) ----
+
+BOUNDARY = ["at-limit.xlsx", "worksheets-at.xlsx", "cells-at.xlsx"]
+
+
+def test_each_boundary_audit_finishes_before_the_next_case_starts(make_client, fake, tmp_path):
+    fake.project.processing_polls = 2
+    by_id, _ = results(make_client(settings=make_settings(tmp_path, FAST_POLL)))
+    for test_id in ("P3-INPUT-BYTES-AT", "P3-INPUT-SHEETS-AT", "P3-INPUT-CELLS-AT"):
+        assert by_id[test_id]["outcome"] == "pass" and "its audit finished as" in by_id[test_id]["message"]
+    ##  After each boundary upload, its audit is read until finished (2 PROCESSING reads, then the
+    ##  result) and nothing else is sent to the project API in between.
+    sequence = [r for r in fake.requests if "/api/v1/" in r[1]]
+    for name in BOUNDARY:
+        start = next(i for i, (method, _p, headers, body) in enumerate(sequence) if method == "POST"
+                     and next(iter(multipart(headers["content-type"], body).values()))[0] == name)
+        following = sequence[start + 1:start + 4]
+        assert [m for m, *_ in following] == ["GET"] * 3 and all("/audits/" in p for _m, p, *_ in following), name
+        assert len({p for _m, p, *_ in following}) == 1, name
+    assert len(audit_reads(fake)) == 3 * len(BOUNDARY)
+
+
+def test_a_boundary_audit_still_processing_at_the_deadline_fails_the_case(make_client, fake, tmp_path):
+    fake.project.processing_polls = 10 ** 6
+    settings = make_settings(tmp_path, {"timing": {"poll_interval_seconds": 0.01, "audit_poll_seconds": 0.1}})
+    result = results(make_client(checks=only("upload_worksheets_at"), settings=settings))[0]["P3-INPUT-SHEETS-AT"]
+    assert result["outcome"] == "fail"
+    assert result["message"] == ("A workbook with 50 worksheets was accepted (202), but: The audit of a workbook with "
+                                 "50 worksheets was still PROCESSING after 0.1 s.")
+    assert len(uploads(fake)) == 1          # never re-uploaded
+
+
+def test_a_failed_boundary_audit_fails_the_case_without_a_retry(make_client, fake, tmp_path):
+    mutate_audits(fake, lambda b: b.update(status="PROCESSING_FAILED", findings=[], error={
+        "code": "AUDIT_FAILED", "message": "No.", "requestId": "r1", "details": {}}))
+    settings = make_settings(tmp_path, FAST_POLL)
+    result = results(make_client(checks=only("upload_worksheets_at"), settings=settings))[0]["P3-INPUT-SHEETS-AT"]
+    assert result == {"test_id": "P3-INPUT-SHEETS-AT", "outcome": "fail", "message":
+                      "A workbook with 50 worksheets was accepted (202), but its audit ended PROCESSING_FAILED "
+                      "(AUDIT_FAILED)."}
+    assert len(uploads(fake)) == 1 and len(audit_reads(fake)) == 1
 
 
 @pytest.mark.parametrize("reply, problem", [

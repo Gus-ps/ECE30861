@@ -241,7 +241,7 @@ Limitation facts: Populated single-cell, one-row or one-column components are no
 
 ### `unsupported_edits`
 
-Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("https://example.edu/team12","click here"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT("Sheet1!A2"). Target questions for pod contract 1.1: the HYPERLINK formula finding uses #cell=B3.
+Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("https://example.edu/team12","click here"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT("Sheet1!A2"). The HYPERLINK formula finding uses the indexed XML path /worksheet[1]/sheetData[1]/row[3]/c[2] (spec 7.6; same rule Team 9 confirmed for link_vectors on 2026-11-01).
 
 | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- |
@@ -249,7 +249,7 @@ Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("ht
 | ALT_TEXT | Sheet1 | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]` | MANUAL_REVIEW | `1b50cc5e80b846a006acfd92dfcf5717f26599f770c44e31552c579c65b5a182` |
 | ALT_TEXT | Sheet1 | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[3]/pic[1]` | MANUAL_REVIEW | `570ac22c217edb80ac81e07b190ea4cf4c5f80e80da45d6ed4bf23d1771b63bf` |
 | COLOR_CONTRAST | Sheet1 | `xl/worksheets/sheet1.xml#cell=B2` | MANUAL_REVIEW | `5c15d89dc94b46f3f9a7f079dbce34e1a2429a846bbf8641216d1ef3b7641a1a` |
-| LINK_TEXT | Sheet1 | `xl/worksheets/sheet1.xml#cell=B3` | MANUAL_REVIEW | `c503e3bd88cd421d9ef871bbc4a97d41ee68b681a39f3bcc119d4b925f0c879a` |
+| LINK_TEXT | Sheet1 | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]` | MANUAL_REVIEW | `e7130509c54d02321df4b62c4928993dda57fb2cacb390428ed377528b38b716` |
 | MERGED_CELLS | Sheet1 | `xl/worksheets/sheet1.xml#merge=D1:E1` | MANUAL_REVIEW | `400d86ae13aad3d97504b55d7072158cb2f24fa3a641a0e87da8fcb4181f1bd8` |
 | WORKSHEET_NAME | Sheet1 | `xl/worksheets/sheet1.xml#sheetId=1` | MANUAL_REVIEW | `4d4f537d1f7efd84fc98dfc6b60219efbdc3181a188e9325fe66bc9b9c2d8d0a` |
 
@@ -365,7 +365,7 @@ Limitation facts: Populated single-cell, one-row or one-column components are no
 
 ### `link_vectors`
 
-Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,"here"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,"link"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Pending pod contract 1.1: the #cell= targets for formula links and the indexed-path targets for range and duplicate links.
+Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,"here"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,"link"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Formula links use indexed XML cell paths (spec 7.6, confirmed by Team 9 on 2026-11-01): A11-A13 are /worksheet[1]/sheetData[1]/row[11..13]/c[1]. Pending pod contract 1.1: the indexed-path targets for range and duplicate links.
 
 | Case | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- | --- |
@@ -377,9 +377,9 @@ Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read mor
 | P4-RULE-LINK-RAW-ADDRESS | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#cell=A8` | REQUIRES_USER_INPUT | `e49b3784839ea4ca92bdee360ee9cee24d418357dacf1eaf09b3c5c4d99b9591` |
 | P4-RULE-LINK-RAW-ADDRESS | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#cell=A9` | REQUIRES_USER_INPUT | `1c9392856a578993e21e19575a3e8c29f6d0b1151343efb130b9245bf00592ef` |
 | P4-RULE-LINK-CELL-DISPLAY | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#cell=A10` | REQUIRES_USER_INPUT | `092491a31182c4b083583bbc985880d4b0d125256554bd594cc4ffb10a09b70e` |
-| P4-RULE-LINK-FORMULA-LITERAL | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#cell=A11` | MANUAL_REVIEW | `d570e50283d6abf075cc9182094aae5e851fbfeb7ad53df87e23f0996085a3fc` |
-| P4-RULE-LINK-FORMULA-LITERAL | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#cell=A12` | MANUAL_REVIEW | `f9f64004f61edd6f60b1dd0566075eecc1e956dbae22962ec8b561636ff08659` |
-| P4-RULE-LINK-FORMULA-DYNAMIC | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#cell=A13` | MANUAL_REVIEW | `b36a19996181571f911cf9a579efa90333c39a940a18d0aebb3c9c7a95ebfcc7` |
+| P4-RULE-LINK-FORMULA-LITERAL | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[11]/c[1]` | MANUAL_REVIEW | `1d423a59f9227fd8304cf7982b7138af1557a9b4c569c00ffd9a8fe2d14d93b0` |
+| P4-RULE-LINK-FORMULA-LITERAL | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[12]/c[1]` | MANUAL_REVIEW | `ade7d1e48d06087c1c734b488ed76e82e207a5dcd68e5f556e68e11eff9aa776` |
+| P4-RULE-LINK-FORMULA-DYNAMIC | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[13]/c[1]` | MANUAL_REVIEW | `6f4892fa45cc49b9e44294bb7e281e360c06a064711dfb2731f9f42ae3df6995` |
 | P4-RULE-LINK-RANGE-DUPLICATE | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[10]` | MANUAL_REVIEW | `e9048b0a2f1e9dcd90ce451617f541de9e35153589d438deb1b0aafd9e55114c` |
 | P4-RULE-LINK-RANGE-DUPLICATE | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[11]` | MANUAL_REVIEW | `9cd08b06c3c8764aac96a1a9354cf9c6bfe428e27bd97dee9a140e6e150cda7d` |
 | P4-RULE-LINK-RANGE-DUPLICATE | LINK_TEXT | Links | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[12]` | MANUAL_REVIEW | `fee5e3f89a798ed9e373e5787667bce802576d3f94507c076153bccf89315663` |

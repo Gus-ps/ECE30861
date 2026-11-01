@@ -156,6 +156,24 @@ def upload_protected(case, ctx):
 
 ##  ---- Intake limits (exactly at a limit is valid; one over is rejected) ----
 
+def _accepted_boundary(ctx, response, what):
+    ##  A valid boundary upload: the 202 is the qualifying assertion, then its audit is polled to a
+    ##  finished state (contract deadline, no retry) so it never holds the system's worker while
+    ##  later cases queue behind it. An audit that fails or never finishes fails the case;
+    ##  _finished_audit keeps a PROCESSING_FAILED audit with the run's other audit failures.
+    result = _accepted(ctx, response, what)
+    if result.outcome != "pass":
+        return result
+    upload = UploadResponse.model_validate(response.json()).model_dump()
+    audit, problem = _finished_audit(ctx, upload, f"The audit of {what[0].lower()}{what[1:]}", mark=False)
+    if problem:
+        return CaseResult(problem.outcome, f"{what} was accepted (202), but: {problem.message}", problem.source)
+    if audit.status == "PROCESSING_FAILED":
+        code = audit.error.code if audit.error else "no error body"
+        return CaseResult.failed(f"{what} was accepted (202), but its audit ended PROCESSING_FAILED ({code}).")
+    return CaseResult.passed(f"{result.message[:-1]}; its audit finished as {audit.status} before the next case.")
+
+
 def upload_over_limit(case, ctx):
     ##  P3-INPUT-BYTES-OVER
     size = ctx.profile.limits.max_file_bytes + 1
@@ -166,7 +184,7 @@ def upload_over_limit(case, ctx):
 def upload_at_limit(case, ctx):
     ##  P3-INPUT-BYTES-AT
     size = ctx.profile.limits.max_file_bytes
-    return _accepted(ctx, _upload(ctx, "at-limit.xlsx", workbook(size=size)), f"A {size:,}-byte workbook")
+    return _accepted_boundary(ctx, _upload(ctx, "at-limit.xlsx", workbook(size=size)), f"A {size:,}-byte workbook")
 
 
 def upload_worksheets_over(case, ctx):
@@ -180,14 +198,14 @@ def upload_worksheets_at(case, ctx):
     ##  P3-INPUT-SHEETS-AT
     count = ctx.profile.limits.max_worksheets
     response = _upload(ctx, "worksheets-at.xlsx", workbook(worksheets=count))
-    return _accepted(ctx, response, f"A workbook with {count} worksheets")
+    return _accepted_boundary(ctx, response, f"A workbook with {count} worksheets")
 
 
 def upload_worksheets_chartsheet(case, ctx):
     ##  P3-INPUT-SHEETS-CHARTSHEET (Phase 4 plan): chartsheets do not count toward the limit.
     count = ctx.profile.limits.max_worksheets
     response = _upload(ctx, "worksheets-chartsheet.xlsx", workbook(worksheets=count, cells=3, chartsheet=True))
-    return _accepted(ctx, response, f"A workbook with {count} worksheets and one chartsheet")
+    return _accepted_boundary(ctx, response, f"A workbook with {count} worksheets and one chartsheet")
 
 
 def upload_cells_over(case, ctx):
@@ -201,7 +219,7 @@ def upload_cells_at(case, ctx):
     ##  P3-INPUT-CELLS-AT
     count = ctx.profile.limits.max_nonempty_cells
     response = _upload(ctx, "cells-at.xlsx", workbook(cells=count))
-    return _accepted(ctx, response, f"A workbook with {count:,} nonempty cells")
+    return _accepted_boundary(ctx, response, f"A workbook with {count:,} nonempty cells")
 
 
 ##  ---- Fixtures from the session's frozen pack ----
