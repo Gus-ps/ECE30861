@@ -64,7 +64,7 @@ rollback() {
 docker rename workbook "$previous"
 trap rollback ERR
 docker stop --time 200 "$previous"
-docker run -d --restart unless-stopped --name workbook --env-file /opt/workbook/app.env -e DATABASE_PATH=/service/data/workbooks.sqlite3 -v /opt/workbook/data:/service/data -p 127.0.0.1:8000:8000 __IMAGE__
+docker run -d --restart unless-stopped --name workbook --env-file /opt/workbook/app.env -e ENABLE_TEST_FAULTS=true -e DATABASE_PATH=/service/data/workbooks.sqlite3 -v /opt/workbook/data:/service/data -p 127.0.0.1:8000:8000 __IMAGE__
 ready=false
 for attempt in $(seq 1 30); do
     if curl --max-time 3 -fsS http://127.0.0.1:8000/api/v1/health; then ready=true; break; fi

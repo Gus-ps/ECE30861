@@ -1,4 +1,4 @@
-"""Phase 3 IDs and retained legacy IDs for partial WCAG 2.1 checks.
+"""Phase 4 IDs and retained historical IDs for partial WCAG 2.1 checks.
 
 1.1.1 Non-text Content, 1.3.1 Info and Relationships, and 2.4.2 Page Titled.
 """
@@ -8,7 +8,7 @@ import json
 from os import PathLike
 from pathlib import Path
 
-RULESET_VERSION = "1.0.0"
+RULESET_VERSION = "2.0.0"
 
 
 def get_source_sha256(path: str | PathLike[str]) -> str:
@@ -16,12 +16,19 @@ def get_source_sha256(path: str | PathLike[str]) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def make_phase3_finding_id(
-    source_sha256: str, rule_id: str, worksheet: str, target: str
-) -> str:
+def make_phase3_finding_id(source_sha256: str, rule_id: str, worksheet: str, target: str) -> str:
     """Apply the exact compact JSON identity recipe from the guide, Section 5."""
+    return _versioned_id(source_sha256, "1.0.0", rule_id, worksheet, target)
+
+
+def make_phase4_finding_id(source_sha256: str, rule_id: str, worksheet: str, target: str) -> str:
+    """Use the current ruleset without relabeling historical results."""
+    return _versioned_id(source_sha256, RULESET_VERSION, rule_id, worksheet, target)
+
+
+def _versioned_id(source_sha256, ruleset_version, rule_id, worksheet, target):
     identity = json.dumps(
-        [source_sha256, RULESET_VERSION, rule_id, worksheet, target],
+        [source_sha256, ruleset_version, rule_id, worksheet, target],
         ensure_ascii=False,
         separators=(",", ":"),
     )

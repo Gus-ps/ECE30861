@@ -6,14 +6,20 @@ from typing import Annotated, Literal
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, StrictInt
 
 SessionId = Annotated[str, StringConstraints(strict=True, pattern=r'^[A-Za-z0-9_-]{1,64}$')]
+
+
+class FaultOptions(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    audit_failures: StrictInt = Field(ge=1, le=1)
 
 
 class SetupOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
     cleanup_session_ids: list[SessionId] = Field(default_factory=list, max_length=100)
+    faults: FaultOptions | None = None
 
 
 class SystemSetup(BaseModel):
@@ -80,13 +86,21 @@ class SystemTests:
         if not self.enabled or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', session_id):
             raise TestSessionError(400, 'Unknown or invalid test session.')
         row = self.session(db, session_id, lock)
-        if row is None or row['state'] != 'READY':
+        if row is None or row['state'] == 'CLEANED':
             raise TestSessionError(400, 'Unknown or inactive test session.')
+        if row['state'] != 'READY':
+            raise TestSessionError(409, 'Test session is not ready.')
         if subject not in self.users.get(row['owner'], []):
             raise TestSessionError(403, 'You are not authorized for this test session.')
         return session_id
 
     def setup(self, owner, body):
+        import os
+        if 'faults' in body.setup.model_fields_set:
+            if body.setup.faults is None:
+                raise TestSessionError(400, 'faults must contain audit_failures: 1.')
+            if os.getenv('ENABLE_TEST_FAULTS', '').lower() != 'true':
+                raise TestSessionError(403, 'Test audit failures are disabled.')
         with self.database.connect(write=True) as db:
             if self.session(db, body.session_id):
                 raise TestSessionError(409, 'Test session already exists.')
@@ -94,19 +108,23 @@ class SystemTests:
             for session_id in cleanup:
                 row = self.session(db, session_id, lock=True)
                 if row is None:
-                    raise TestSessionError(404, 'Cleanup session does not exist.')
+                    continue
                 if row['owner'] != owner:
                     raise TestSessionError(403, 'Cleanup session belongs to another administrator.')
-                active = db.execute('''SELECT 1 FROM audits a JOIN test_workbooks t
-                    ON a.workbook_id=t.workbook_id
-                    WHERE t.session_id=? AND a.status='PROCESSING' LIMIT 1''', (session_id,)).fetchone()
+                active = db.execute("SELECT 1 FROM p4_jobs WHERE namespace=? AND state IN ('PENDING','RUNNING') LIMIT 1", (session_id,)).fetchone()
                 if active:
                     raise TestSessionError(409, 'Cannot clean a session with an active audit.')
             inserted = db.execute('''INSERT INTO test_sessions (session_id,owner,state)
                 VALUES (?,?,'READY') ON CONFLICT(session_id) DO NOTHING''', (body.session_id, owner))
             if inserted.rowcount != 1:
                 raise TestSessionError(409, 'Test session already exists.')
+            if body.setup.faults is not None:
+                db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
             for session_id in cleanup:
+                db.execute('DELETE FROM p4_keys WHERE namespace=?', (session_id,))
+                db.execute('DELETE FROM p4_jobs WHERE namespace=?', (session_id,))
+                db.execute('DELETE FROM p4_resources WHERE namespace=?', (session_id,))
+                db.execute('DELETE FROM p4_faults WHERE session_id=?', (session_id,))
                 # Only explicitly tagged resources are eligible; ordinary versions are untouched.
                 ids = [row['workbook_id'] for row in db.execute(
                     'SELECT workbook_id FROM test_workbooks WHERE session_id=?', (session_id,)).fetchall()]

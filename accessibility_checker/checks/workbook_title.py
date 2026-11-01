@@ -2,9 +2,10 @@
 
 import posixpath
 from os import PathLike
-from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from accessibility_checker import safe_xml as ET
+from accessibility_checker.excel_metadata import workbook_title
 from accessibility_checker.finding_ids import make_finding_id
 
 # TODO: Replace these developer-authorized placeholders after team confirmation.
@@ -35,15 +36,13 @@ def check_workbook_title(path: str | PathLike[str]) -> list[dict[str, str]]:
         if core is not None:
             part = posixpath.normpath(core.attrib["Target"]).lstrip("/")
             properties = ET.fromstring(workbook.read(part))
-            title = properties.find("{http://purl.org/dc/elements/1.1/}title")
-            if title is not None and (title.text or "").strip():
+            title = workbook_title(properties)
+            if (title or "").strip():
                 return []
 
     return [
         {
-            "findingId": make_finding_id(
-                _RULE_ID, _WORKBOOK_WORKSHEET, _WORKBOOK_TARGET
-            ),
+            "findingId": make_finding_id(_RULE_ID, _WORKBOOK_WORKSHEET, _WORKBOOK_TARGET),
             "ruleId": _RULE_ID,
             "category": _CATEGORY,
             "worksheet": _WORKBOOK_WORKSHEET,

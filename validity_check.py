@@ -122,28 +122,7 @@ def check_corruption(filepath):
         return [f"File is corrupted: archive member '{bad_member}' failed its "
                 "integrity check."], None
 
-    members = archive.namelist()
-    if len(members) != len(set(members)):
-        archive.close()
-        return ["File is corrupted: duplicate archive member names are unsupported."], None
-    if any(name.startswith("/") or "\\" in name or
-           ".." in name.split("/") for name in members):
-        archive.close()
-        return ["File is corrupted: unsafe archive member path."], None
-    # Inspect incrementally: declarations can straddle read boundaries.
-    for name in members:
-        if not name.lower().endswith((".xml", ".rels")):
-            continue
-        with archive.open(name) as stream:
-            tail = b""
-            while chunk := stream.read(65536):
-                content = tail + chunk
-                normalized = content.replace(b"\x00", b"").upper()
-                if b"<!DOCTYPE" in normalized or b"<!ENTITY" in normalized:
-                    archive.close()
-                    return ["File is corrupted: XML DTD/entity declarations are unsupported."], None
-                tail = content[-64:]
-    names = set(members)
+    names = set(archive.namelist())
     missing = [part for part in REQUIRED_PARTS if part not in names]
     if missing:
         archive.close()
@@ -172,12 +151,13 @@ def check_protection(archive):
     for name, part in get_worksheet_parts(archive, workbook):
         if part not in archive.namelist():
             continue
-        for _, elem in ET.iterparse(archive.open(part)):
-            if (elem.tag == f"{{{MAIN_NS}}}sheetProtection"
-                    and is_true(elem.get("sheet"))):
-                protected_sheets.append(name)
-                break
-            elem.clear()
+        with archive.open(part) as stream:
+            for _, elem in ET.iterparse(stream):
+                if (elem.tag == f"{{{MAIN_NS}}}sheetProtection"
+                        and is_true(elem.get("sheet"))):
+                    protected_sheets.append(name)
+                    break
+                elem.clear()
     if protected_sheets:
         errors.append("File is password protected: the following worksheet(s) "
                       f"are protected: {', '.join(protected_sheets)}. Unprotect "
@@ -235,11 +215,12 @@ def check_cell_count(archive):
     for _, part in get_worksheet_parts(archive, workbook):
         if part not in archive.namelist():
             raise ET.ParseError(f"worksheet part '{part}' is missing")
-        for _, elem in ET.iterparse(archive.open(part)):
-            if elem.tag == cell_tag:
-                if any(child.tag in content_tags for child in elem):
-                    total += 1
-                elem.clear()
+        with archive.open(part) as stream:
+            for _, elem in ET.iterparse(stream):
+                if elem.tag == cell_tag:
+                    if any(child.tag in content_tags for child in elem):
+                        total += 1
+                    elem.clear()
     if total > MAX_NONEMPTY_CELLS:
         return [f"Too many nonempty cells: {total:,} cells exceeds the limit "
                 f"of {MAX_NONEMPTY_CELLS:,}."]
@@ -275,13 +256,6 @@ def validate_file(filepath):
         return errors
 
     with archive:
-        names = [name.lower() for name in archive.namelist()]
-        content_types = archive.read('[Content_Types].xml').lower()
-        if (any('vbaproject' in name or name.startswith('xl/macrosheets/')
-                or name.startswith('xl/intlmacrosheets/') for name in names)
-                or any(marker in content_types for marker in
-                       (b'macroenabled', b'vbaproject', b'macrosheet'))):
-            errors.append('Macro-enabled workbooks are unsupported.')
         try:
             errors += check_protection(archive)
             errors += check_worksheet_count(archive)

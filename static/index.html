@@ -1,127 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Workbook validation and accessibility</title>
-  <style>
-    body {font: 1.05rem/1.6 system-ui; color: #172637; background: #f1f5f8; margin: 0}
-    main {max-width: 48rem; margin: 4rem auto; padding: 2rem; background: white; border-radius: 1rem}
-    label {display: block; margin-top: 1.3rem; font-weight: 600}
-    input {display: block; margin: .5rem 0; max-width: 100%; font: inherit}
-    input[type=password] {box-sizing: border-box; width: 100%; padding: .6rem}
-    button, a {font: inherit} button {margin: 1.5rem 0; padding: .65rem 1.4rem; background: #174b77; color: white; border: 0; border-radius: .4rem; cursor: pointer}
-    :focus-visible {outline: 3px solid #b45e00; outline-offset: 3px}
-    pre {white-space: pre-wrap; overflow-wrap: anywhere; background: #f1f5f8; padding: 1rem}
-  </style>
-</head>
-<body><main>
-  <h1>Workbook validation and accessibility</h1>
-  <p>Upload and validate your workbook, preserve its original, and retrieve audit results.</p>
-  <p>Supported: .xlsx, up to 25,000,000 bytes, 50 worksheets and 250,000 nonempty cells. Password protection and macros are unsupported.</p>
-  <form id="upload">
-    <label for="token">Access token</label>
-    <input id="token" type="password" autocomplete="off" required aria-describedby="token-help">
-    <small id="token-help">Use the token provided by your service administrator. It is kept only on this page.</small>
-    <label for="file">Excel workbook</label>
-    <input id="file" type="file" accept=".xlsx" required>
-    <button id="submit" type="submit">Upload workbook</button>
-  </form>
-  <p id="status" role="status" aria-live="polite"></p>
-  <ul id="messages" aria-label="Validation messages"></ul>
-  <button id="download" type="button" hidden>Download unchanged original</button>
-  <section id="audit-results" aria-labelledby="findings-heading" hidden>
-    <h2 id="findings-heading">Accessibility findings</h2>
-    <ul id="findings"></ul>
-    <h2>Scope and limitations</h2>
-    <ul id="limitations"></ul>
-    <!-- <p>These checks do not establish full accessibility or legal compliance.</p> -->
-  </section>
-  <details id="json" hidden><summary>Response JSON</summary>
-  <pre id="result" hidden></pre>
-  </details>
-</main>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Workbook accessibility hub</title>
+<style>body{font:1rem/1.55 system-ui;margin:0;background:#f1f5f8;color:#172637}main{max-width:65rem;margin:2rem auto;padding:2rem;background:white}label{display:block;font-weight:600;margin-top:.7rem}input,select,button{font:inherit;max-width:100%;box-sizing:border-box}input[type=password],input[type=text]{width:100%;padding:.5rem}button{padding:.5rem .9rem;margin:.5rem .4rem .5rem 0;background:#174b77;color:white;border:0;border-radius:.25rem;cursor:pointer}button:disabled{opacity:.5}:focus-visible{outline:3px solid #a04b00;outline-offset:3px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f8;padding:1rem}.finding{border-top:1px solid #ccd5df;padding:1rem 0}small{display:block}.error{color:#9b1717}table{width:100%;border-collapse:collapse}th,td{padding:.4rem;text-align:left;border-bottom:1px solid #ccd5df;overflow-wrap:anywhere}</style></head><body><main>
+<h1>Workbook accessibility hub</h1><p>Review accessibility findings and approve corrections to a separate copy. Your original stays unchanged.</p><p>Supported: .xlsx, 25,000,000 bytes, 50 worksheets and 250,000 nonempty cells. These six checks support human review; they do not establish full accessibility or legal compliance.</p>
+<label for="token">Access token</label><input id="token" type="password" autocomplete="off"><small>Use your user or reviewer token. It is kept only on this page.</small>
+<form id="upload"><label for="file">Excel workbook</label><input id="file" type="file" accept=".xlsx" required><button>Upload as new workbook</button><button type="button" id="new-version" disabled>Upload as new version</button></form><p id="status" role="status" aria-live="polite"></p>
+<section id="workspace" hidden><h2>Selected version and audit</h2><p id="selected"></p><button id="reaudit">Run a new audit</button><button id="source">Download unchanged source</button><button id="report">Download audit report</button><button id="refresh">Refresh results</button><h2>Findings and decisions</h2><div id="findings"></div><h3>Limitations</h3><ul id="limitations"></ul><p>Decisions start unselected. Renaming a worksheet updates supported references. Submit only the changes you approve.</p><button id="submit-decisions">Submit selected decisions</button><button id="output" hidden>Download corrected workbook</button><h2>Workbook history</h2><div id="history"></div></section><details><summary>Response JSON</summary><pre id="json"></pre></details>
 <script>
-  const form = document.querySelector('#upload');
-  const status = document.querySelector('#status');
-  const result = document.querySelector('#result');
-  const button = document.querySelector('#submit');
-  const download = document.querySelector('#download');
-  const messages = document.querySelector('#messages');
-  const findings = document.querySelector('#findings');
-  const limitations = document.querySelector('#limitations');
-  let originalUrl, accessToken, originalName;
-  function showJson(value) {
-    result.textContent = JSON.stringify(value, null, 2); result.hidden = false;
-    document.querySelector('#json').hidden = false;
-  }
-  function appendMessage(list, message) {
-    const item = document.createElement('li'); item.textContent = message; list.append(item);
-  }
-  async function request(url, options = {}) {
-    const response = await fetch(url, {...options, headers: {Authorization: `Bearer ${accessToken}`}});
-    if (!response.ok) {
-      const error = await response.json();
-      const failure = new Error(error.message);
-      failure.response = error;
-      throw failure;
-    }
-    return response;
-  }
-  form.addEventListener('submit', async event => {
-    event.preventDefault(); button.disabled = true; download.hidden = true; result.hidden = true;
-    messages.replaceChildren(); findings.replaceChildren(); limitations.replaceChildren();
-    document.querySelector('#json').hidden = true;
-    document.querySelector('#audit-results').hidden = true;
-    accessToken = document.querySelector('#token').value;
-    status.textContent = 'Uploading workbook…';
-    try {
-      const file = document.querySelector('#file').files[0]; originalName = file.name;
-      const body = new FormData(); body.append('file', file);
-      const uploaded = await (await request('/api/v1/workbooks', {method: 'POST', body})).json();
-      const base = `/api/v1/workbooks/${uploaded.workbookId}/versions/${uploaded.versionId}`;
-      originalUrl = `${base}/original`; download.hidden = false;
-      status.textContent = 'Workbook is valid. Original saved. Checking accessibility…';
-      showJson(uploaded);
-      const deadline = Date.now() + 180000;
-      let audit;
-      while (true) {
-        audit = await (await request(`${base}/audits/${uploaded.auditId}`)).json();
-        showJson(audit);
-        if (audit.status !== 'PROCESSING') break;
-        if (Date.now() >= deadline) throw new Error('The workbook is valid, but the audit is still processing. Use the identifiers in the JSON to check its status later.');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      document.querySelector('#audit-results').hidden = false;
-      for (const finding of audit.findings) {
-        appendMessage(findings, `${finding.ruleId} · ${finding.worksheet} · ${finding.target}: ${finding.message} ${finding.recommendation}`);
-      }
-      for (const limitation of audit.limitations) appendMessage(limitations, limitation);
-      if (audit.status === 'PROCESSING_FAILED') {
-        status.textContent = `Workbook is valid and saved. Accessibility audit failed: ${audit.error?.message || 'Processing failed.'}`;
-      } else if (audit.findings.length) {
-        status.textContent = `Workbook is valid. ${audit.findings.length} accessibility finding(s) require review.`;
-      } else if (audit.status === 'REVIEW_REQUIRED') {
-        status.textContent = 'Workbook is valid. Review the audit limitations for additional issues.';
-      } else {
-        status.textContent = 'Workbook is valid. The connected checker returned no findings. See any limitations below.';
-      }
-    } catch (error) {
-      status.textContent = error.message;
-      if (error.response) {
-        for (const message of error.response.details?.errors || []) appendMessage(messages, message);
-        showJson(error.response);
-      }
-    }
-    finally { button.disabled = false; }
-  });
-  download.addEventListener('click', async () => {
-    try {
-      const blob = await (await request(originalUrl)).blob();
-      const url = URL.createObjectURL(blob); const link = document.createElement('a');
-      link.href = url; link.download = originalName;
-      link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) { status.textContent = error.message; }
-  });
-</script>
-</body></html>
+const el=id=>document.getElementById(id);let state={},editors=[],pending=null;
+function message(t,error=false){el('status').textContent=t;el('status').className=error?'error':'';}
+function json(b){el('json').textContent=JSON.stringify(b,null,2);}
+function base(){return '/api/v1/workbooks/'+state.workbookId+'/versions/'+state.versionId;}
+function text(tag,value,parent){const n=document.createElement(tag);n.textContent=value;parent.append(n);return n;}
+function safe(fn){return async event=>{event?.preventDefault();try{await fn();}catch(e){message(e.message,true);}};}
+async function request(url,options={}){let r;try{r=await fetch(url,{...options,headers:{Authorization:'Bearer '+el('token').value,...options.headers}});}catch(e){throw new Error('Connection lost. Processing may still be running; refresh or retry the identical decision request.');}if(!r.ok){const b=await r.json();json(b);throw new Error(b.message+' ('+b.code+')');}return r;}
+async function get(url){return(await request(url)).json();}
+async function post(url,body,headers={}){return(await request(url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)})).json();}
+async function download(url){const r=await request(url),blob=await r.blob(),h=r.headers.get('Content-Disposition')||'',encoded=h.match(/filename\*=UTF-8''([^;]+)/i),fallback=h.match(/filename="([^"]+)"/i);const a=document.createElement('a'),u=URL.createObjectURL(blob);a.href=u;a.download=encoded?decodeURIComponent(encoded[1]):fallback?fallback[1]:'download';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+async function upload(existing){const file=el('file').files[0];if(!file)throw new Error('Select an .xlsx file.');const form=new FormData();form.append('file',file);message('Validating and uploading…');state=await(await request(existing?'/api/v1/workbooks/'+state.workbookId+'/versions':'/api/v1/workbooks',{method:'POST',body:form})).json();pending=null;el('output').hidden=true;el('workspace').hidden=false;el('new-version').disabled=false;await pollAudit();}
+async function pollAudit(){for(let i=0;i<100;i++){const a=await get(base()+'/audits/'+state.auditId);json(a);if(a.status!=='PROCESSING'){await display(a);return;}message('Audit is processing…');await new Promise(r=>setTimeout(r,1000));}message('Still processing. Refresh later; this wait does not prove processing failed.');}
+async function display(a){state.auditId=a.auditId;const m=await get(base());el('selected').textContent='Workbook '+state.workbookId+' | Version '+state.versionId+' | Audit '+state.auditId+' | '+m.status;json(a);el('findings').replaceChildren();el('limitations').replaceChildren();editors=[];for(const l of a.limitations)text('li',l,el('limitations'));for(const f of a.findings){const box=text('div','',el('findings'));box.className='finding';text('h3',f.ruleId+' · '+f.worksheet,box);text('p',f.target+' · '+f.classification,box);text('p',f.message,box);text('p',f.recommendation,box);}el('submit-decisions').disabled=true;
+if(a.status==='PROCESSING_FAILED'){message(a.error?.message||'Audit failed safely.',true);}else{message(a.findings.length?a.status+': review the findings.':'Audit complete: no findings from the supported checks.');const review=await get(base()+'/audits/'+state.auditId+'/review');for(const item of review.items){const i=a.findings.findIndex(f=>f.findingId===item.findingId),box=el('findings').children[i];if(!box)continue;if(!item.allowedActions.length){text('p','Read-only review access.',box);continue;}const label=text('label','Action',box),select=document.createElement('select');select.id='action-'+i;label.htmlFor=select.id;for(const action of ['',...item.allowedActions]){const option=document.createElement('option');option.value=action;option.textContent=action||'No decision selected';select.append(option);}box.append(select);const inputs={};for(const [key,value] of Object.entries(item.currentValue||{})){const input=document.createElement('input');input.type=key==='headerRow'?'number':'text';input.value=value??'';input.id='value-'+i+'-'+key;text('label',key==='headerRow'?'Confirm absolute header row':key,box).htmlFor=input.id;box.append(input);inputs[key]=input;}text('small',item.reason,box);editors.push({finding:a.findings[i],select,inputs});}el('submit-decisions').disabled=!editors.length;}await showHistory();}
+async function showHistory(){const h=await get('/api/v1/workbooks/'+state.workbookId+'/history'),table=document.createElement('table'),head=document.createElement('tr');for(const t of ['Version','Status','Created','Select'])text('th',t,head);table.append(head);for(const v of h.versions){const row=document.createElement('tr');text('td',v.versionId,row);text('td',v.status,row);text('td',v.createdAt,row);const button=text('button','View',text('td','',row));button.onclick=safe(async()=>{state.versionId=v.versionId;state.auditId=(await get(base())).latestAuditId;pending=null;await pollAudit();});table.append(row);}el('history').replaceChildren(table);}
+el('upload').onsubmit=safe(()=>upload(false));el('new-version').onclick=safe(()=>upload(true));el('refresh').onclick=safe(pollAudit);el('source').onclick=safe(()=>download(base()+'/source'));el('report').onclick=safe(()=>download(base()+'/audits/'+state.auditId+'/report'));el('reaudit').onclick=safe(async()=>{state.auditId=(await post(base()+'/audits',{})).auditId;pending=null;await pollAudit();});
+el('submit-decisions').onclick=safe(async()=>{const decisions=[];for(const e of editors){const action=e.select.value;if(!action)continue;const d={findingId:e.finding.findingId,action};if(action==='APPLY'){d.value={};for(const [key,input] of Object.entries(e.inputs))d.value[key]=key==='headerRow'?Number(input.value):input.value;}decisions.push(d);}if(!decisions.length)throw new Error('Select at least one decision.');const body={auditId:state.auditId,decisions},serialized=JSON.stringify(body);if(!pending||pending.serialized!==serialized)pending={body,serialized,key:crypto.randomUUID()};const accepted=await post(base()+'/remediations',pending.body,{'Idempotency-Key':pending.key});pending=null;for(let i=0;i<240;i++){const r=await get('/api/v1/remediations/'+accepted.remediationId);json(r);if(r.status==='PROCESSING_FAILED')throw new Error(r.error.message);if(r.status==='REMEDIATED'){state.versionId=r.outputVersionId;state.auditId=r.auditId;el('output').hidden=false;el('output').onclick=safe(()=>download('/api/v1/outputs/'+r.outputId+'/workbook'));await pollAudit();message('A separate corrected workbook is ready. Review remaining findings before use.');return;}message('Generating and verifying a separate copy…');await new Promise(r=>setTimeout(r,1000));}message('Still processing. Refresh history later to check the output.');});
+</script></main></body></html>
