@@ -50,7 +50,14 @@ merge his branch before committing.
    Any problem raises `RemediationError`, whose `.code` is the spec's error code
    (`MISSING_VALUE`, `INVALID_CORRECTION`, `UNSUPPORTED_CORRECTION`,
    `DUPLICATE_DECISION`, `FINDING_NOT_FOUND`, `CONFLICTING_CORRECTIONS`,
-   `INVALID_REQUEST`, `PRESERVATION_FAILED`). The service can map these to HTTP statuses.
+   `INVALID_REQUEST`, `PRESERVATION_FAILED`, `OUTPUT_VALIDATION_FAILED`,
+   `OUTPUT_AUDIT_FAILED`). The service can map these to HTTP statuses.
+
+   `validate_decisions(path, decisions)` runs every check `remediate` makes before
+   writing (including building the edits in memory) and returns the canonical decision
+   records, so the service can reject a bad batch before replying 202. Both functions
+   take an optional `findings=` argument: pass the stored source audit's findings to
+   skip re-auditing the source.
 
 `python remediation.py file.xlsx [out.xlsx]` runs the same flow in a terminal. It prints
 each finding with its location and suggestion, asks for values, and writes
@@ -77,13 +84,47 @@ each finding with its location and suggestion, asks for values, and writes
     defined-name, chart, table, data-validation and conditional-formatting formulas, and
     in internal hyperlink locations. String literals are skipped, and new names are
     always quoted.
+- **Validation before acceptance, in input order.** Every value check (string limits,
+  the 8,192-byte JSON limit, sheet-name rules, link-text ambiguity against the link's
+  real destination, the header row) runs in `_validate`, one decision at a time in
+  input order, so the first bad decision is the one reported (spec Section 10). Rename
+  interactions are checked after that: a name already used by a source sheet is
+  `INVALID_CORRECTION`, and two renames to the same name are `CONFLICTING_CORRECTIONS`.
+  An unchanged name is `INVALID_CORRECTION` and a case-only rename is
+  `UNSUPPORTED_CORRECTION` (spec 8.4). An APPLY that would leave the package unchanged
+  is rejected (spec 8.7). Decision objects with keys other than `findingId`, `action`
+  and `value` are `INVALID_REQUEST`.
 - **All-or-nothing with verification.** All edits are made in memory and written to a
-  temporary file. The temporary file is moved into place only after three checks pass:
-  - the ZIP passes its integrity test;
-  - every entry matches what was planned;
-  - re-running all six rules no longer reports any approved finding.
+  temporary file. The temporary file is moved into place only after these checks pass:
+  - the ZIP passes its integrity test, and every entry matches what was planned;
+  - `validate_file` accepts the output (size, sheet and cell limits), else
+    `OUTPUT_VALIDATION_FAILED`;
+  - the independent preservation comparison below passes, else `PRESERVATION_FAILED`;
+  - re-running all six rules succeeds (else `OUTPUT_AUDIT_FAILED`) and no longer
+    reports any approved finding.
 
   If anything fails, no output exists (spec Sections 8.2 and 9).
+- **Independent preservation comparison (spec Section 11).** It doesn't reuse the
+  editors' regular expressions. Both packages are re-read with the checker's defusedxml
+  parser:
+  - Entry set and compression type must match. The only allowed new entries are the
+    approved new tables and their worksheet relationship parts.
+  - Unchanged entries must be byte-identical.
+  - Changed parts must still parse and keep every namespace declaration (only `xmlns:r`
+    may be added).
+  - Each approved difference is checked for its exact expected value and then removed
+    from both trees:
+    - alt text: `title`/`descr` on that `cNvPr`;
+    - link text: the inline-string cell and the hyperlink `display`;
+    - header row: `headerRowCount` 0 → 1;
+    - new tables: the `tablePart`, its relationship and content-type override; the table
+      itself must be minimal, uniquely identified and named after its header cells;
+    - rename: the sheet's `name`.
+  - After that, the trees must be identical. The only exception is formula text and
+    hyperlink locations, which may differ only where an old sheet qualifier became the
+    new quoted name outside string literals.
+  - Every formula and internal link in the workbook, worksheets, charts and tables is
+    also scanned for remaining references to the old name.
 - **The source can't be overwritten.** `remediate` refuses when `dst` is the source file.
 - **IDs, storage and idempotency are left to the service.** Workbook, version and audit
   IDs, job state and `Idempotency-Key` handling belong in Gustavo's API layer. This
@@ -116,14 +157,27 @@ Each issue turned up in a review pass, was fixed, and the tests were run again.
 
 ## Verification performed
 
-- `test_remediation.py` (3 tests, all passing):
+- `test_remediation.py` (12 tests, all passing, also with `-W error::ResourceWarning`):
   - All six supported fix types run in one batch: alt text, link text, sheet rename
     (with formula, defined-name and hyperlink references, and an apostrophe in the new
     name), an existing-table header, and two new tables. One of the new tables goes on a
     sheet that already has a table.
   - The source hash is unchanged.
   - Exactly the expected ZIP entries change or are added.
-  - Every rejection case leaves no output and no temporary files.
+  - Every rejection case gives the same code from `validate_decisions` and `remediate`,
+    and leaves no output and no temporary files.
+  - The first error in input order is reported; the 8,192-byte limit, unchanged,
+    case-only and colliding renames are rejected.
+  - A batch of only DECLINE gives a byte-identical copy with no approved changes.
+  - Link text containing a carriage return survives the round trip.
+  - Deliberately tampered editors (a renamed drawing object, a rewritten string literal,
+    a defined name left pointing at the old sheet name) fail with `PRESERVATION_FAILED`,
+    and an output-audit crash fails with `OUTPUT_AUDIT_FAILED`.
+  - Passing stored `findings=` skips the source audit.
+- Timing on a 240,000-cell workbook whose 24,000 formulas reference the renamed sheet:
+  `validate_decisions` with stored findings takes 0.3 s, and the preservation comparison
+  takes 7.5 s. Each run of the six-rule checker takes about 70 s on this workbook, which
+  is over the spec's 60 s audit bound; that is in the checker, not this module.
 - Haruki's committed fixtures (`six_rule_seeded`, `five_rule_seeded`,
   `migration_complete`) all remediate successfully. Only the manual-review findings
   remain. This includes renaming a chartsheet and a lowercase `sheet2`, with chart
@@ -135,6 +189,13 @@ Each issue turned up in a review pass, was fixed, and the tests were run again.
 - **Not yet opened in Microsoft Excel.** The spec requires a manual Excel check with no
   repair prompt as a release gate. No Excel was available here, so this still needs doing.
 - **Strict OOXML workbooks:** creating a new table on them is refused.
+- **What the preservation comparison can't see:** the parser drops XML comments and
+  processing instructions, so changes to those inside an edited part aren't detected.
+  It confirms that every reference it finds to the old sheet name was rewritten, but
+  only in formulas and internal hyperlink locations, the places the rename covers.
+- **Rejection that needs the output audit:** a value that the rules would still flag
+  for a reason `validate_decisions` doesn't model is only caught when the job runs
+  (`INVALID_CORRECTION` from the output audit), not before acceptance.
 - **`docProps/app.xml`** still lists the old sheet names after a rename. The spec says to
   leave untouched parts unchanged, and Excel rewrites this list when the file is saved.
 - **Gustavo's copy of `validity_check.py` still has the file-handle leak.** It is on his

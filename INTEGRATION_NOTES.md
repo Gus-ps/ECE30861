@@ -77,20 +77,23 @@ def process_remediation(database, remediation_id):
 
 The source bytes are never modified. `remediate` also refuses to write over its input.
 
-**Error codes.** The spec wants a bad request rejected before the 202, but `remediate`
-raises validation errors only when it runs. There are two ways to handle that:
+**Error codes.** The spec wants a bad request rejected before the 202. Call
+`validate_decisions(path, decisions, findings=stored_findings)` inside the request
+(with `await asyncio.to_thread(...)`) before storing anything. Passing the source
+audit's stored findings skips re-auditing the source, so validation takes well under
+a second. Map its errors with:
 
-- **Option A:** call `remediate` inside the request with `await asyncio.to_thread(...)`.
-  It re-audits the file, which takes seconds for normal workbooks. Map errors with:
+```python
+STATUS = {'INVALID_REQUEST': 400, 'MISSING_VALUE': 400, 'DUPLICATE_DECISION': 400,
+          'FINDING_NOT_FOUND': 404, 'CONFLICTING_CORRECTIONS': 422,
+          'INVALID_CORRECTION': 422, 'UNSUPPORTED_CORRECTION': 422}
+```
 
-  ```python
-  STATUS = {'INVALID_REQUEST': 400, 'MISSING_VALUE': 400, 'DUPLICATE_DECISION': 400,
-            'FINDING_NOT_FOUND': 404, 'CONFLICTING_CORRECTIONS': 422,
-            'INVALID_CORRECTION': 422, 'UNSUPPORTED_CORRECTION': 422,
-            'PRESERVATION_FAILED': 500}
-  ```
-- **Option B:** ask Jonathan for a public `validate_decisions(path, decisions)` function,
-  so the request can validate synchronously and leave the edit to the background task.
+Then run `remediate(src, dst, decisions, findings=stored_findings)` in the background
+task. Errors it raises after acceptance go into the remediation's ProjectError (a 200
+polling response, not an HTTP error): `PRESERVATION_FAILED`,
+`OUTPUT_VALIDATION_FAILED`, `OUTPUT_AUDIT_FAILED`, or `INVALID_CORRECTION` if the
+output audit still reports an approved finding.
 
 **Still yours:** idempotency keys (spec 9.1), and allowing one active operation per version.
 
