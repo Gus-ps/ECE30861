@@ -836,7 +836,7 @@
           "ruleId": "LINK_TEXT",
           "category": "LINK_TEXT",
           "worksheet": "Sheet1",
-          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
+          "target": "xl/worksheets/sheet1.xml#cell=B3",
           "classification": "MANUAL_REVIEW"
         },
         {
@@ -860,7 +860,7 @@
         "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Sheet1 D1)"
       ],
       "corrections": [],
-      "notes": "Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK(\"https://example.edu/team12\",\"click here\"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT(\"Sheet1!A2\"). The HYPERLINK formula finding uses the indexed XML path /worksheet[1]/sheetData[1]/row[3]/c[2] (spec 7.6; same rule Team 9 confirmed for link_vectors on 2026-11-01).",
+      "notes": "Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK(\"https://example.edu/team12\",\"click here\"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT(\"Sheet1!A2\"). Target questions for pod contract 1.1: the HYPERLINK formula finding uses #cell=B3.",
       "apply_attempts": [
         {
           "target": "xl/drawings/drawing1.xml#id=2",
@@ -879,7 +879,7 @@
           "why": "duplicate object ID"
         },
         {
-          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
+          "target": "xl/worksheets/sheet1.xml#cell=B3",
           "value": {
             "text": "Team 12 guidance"
           },

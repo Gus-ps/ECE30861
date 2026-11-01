@@ -294,6 +294,9 @@ def test_merged_cells_rows(key):
 
 
 AMBIGUOUS = {"click here", "here", "link", "more", "read more", "learn more", "website", "url"}
+##  Team 9 confirmed indexed targets for link_vectors A11-A13 only (2026-11-01); unsupported_edits
+##  B3 keeps its #cell= target until they confirm it too.
+FORMULA_CELL_TARGETS = {"unsupported_edits"}
 
 
 def ambiguous(label, destination):
@@ -330,9 +333,10 @@ def test_link_text_rows(key):
                 ##  so it is an unsupported representation with an indexed XML target (spec 7.6).
                 match = re.fullmatch(r'(?:_xlfn\.)?HYPERLINK\("([^"]*)"(?:,"([^"]*)")?\)', c.findtext(f"{M}f") or "", re.I)
                 if match and ambiguous(match[2] if match[2] is not None else match[1], match[1]):
+                    target = f"#cell={c.get('r')}" if key in FORMULA_CELL_TARGETS \
+                        else f"#xml=/worksheet[1]/sheetData[1]/row[{row_index}]/c[{cell_index}]"
                     found.append({"ruleId": "LINK_TEXT", "category": "LINK_TEXT", "worksheet": name,
-                                  "target": f"{part}#xml=/worksheet[1]/sheetData[1]/row[{row_index}]/c[{cell_index}]",
-                                  "classification": "MANUAL_REVIEW"})
+                                  "target": f"{part}{target}", "classification": "MANUAL_REVIEW"})
     assert sorted(found, key=sort_key) == expected(key, "LINK_TEXT")
 
 

@@ -241,7 +241,7 @@ Limitation facts: Populated single-cell, one-row or one-column components are no
 
 ### `unsupported_edits`
 
-Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("https://example.edu/team12","click here"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT("Sheet1!A2"). The HYPERLINK formula finding uses the indexed XML path /worksheet[1]/sheetData[1]/row[3]/c[2] (spec 7.6; same rule Team 9 confirmed for link_vectors on 2026-11-01).
+Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("https://example.edu/team12","click here"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT("Sheet1!A2"). Target questions for pod contract 1.1: the HYPERLINK formula finding uses #cell=B3.
 
 | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- |
@@ -249,7 +249,7 @@ Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("ht
 | ALT_TEXT | Sheet1 | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]` | MANUAL_REVIEW | `1b50cc5e80b846a006acfd92dfcf5717f26599f770c44e31552c579c65b5a182` |
 | ALT_TEXT | Sheet1 | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[3]/pic[1]` | MANUAL_REVIEW | `570ac22c217edb80ac81e07b190ea4cf4c5f80e80da45d6ed4bf23d1771b63bf` |
 | COLOR_CONTRAST | Sheet1 | `xl/worksheets/sheet1.xml#cell=B2` | MANUAL_REVIEW | `5c15d89dc94b46f3f9a7f079dbce34e1a2429a846bbf8641216d1ef3b7641a1a` |
-| LINK_TEXT | Sheet1 | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]` | MANUAL_REVIEW | `e7130509c54d02321df4b62c4928993dda57fb2cacb390428ed377528b38b716` |
+| LINK_TEXT | Sheet1 | `xl/worksheets/sheet1.xml#cell=B3` | MANUAL_REVIEW | `c503e3bd88cd421d9ef871bbc4a97d41ee68b681a39f3bcc119d4b925f0c879a` |
 | MERGED_CELLS | Sheet1 | `xl/worksheets/sheet1.xml#merge=D1:E1` | MANUAL_REVIEW | `400d86ae13aad3d97504b55d7072158cb2f24fa3a641a0e87da8fcb4181f1bd8` |
 | WORKSHEET_NAME | Sheet1 | `xl/worksheets/sheet1.xml#sheetId=1` | MANUAL_REVIEW | `4d4f537d1f7efd84fc98dfc6b60219efbdc3181a188e9325fe66bc9b9c2d8d0a` |
 
