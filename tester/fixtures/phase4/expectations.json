@@ -836,7 +836,7 @@
           "ruleId": "LINK_TEXT",
           "category": "LINK_TEXT",
           "worksheet": "Sheet1",
-          "target": "xl/worksheets/sheet1.xml#cell=B3",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
           "classification": "MANUAL_REVIEW"
         },
         {
@@ -1824,27 +1824,6 @@
           "ruleId": "LINK_TEXT",
           "category": "LINK_TEXT",
           "worksheet": "Links",
-          "target": "xl/worksheets/sheet1.xml#cell=A11",
-          "classification": "MANUAL_REVIEW"
-        },
-        {
-          "ruleId": "LINK_TEXT",
-          "category": "LINK_TEXT",
-          "worksheet": "Links",
-          "target": "xl/worksheets/sheet1.xml#cell=A12",
-          "classification": "MANUAL_REVIEW"
-        },
-        {
-          "ruleId": "LINK_TEXT",
-          "category": "LINK_TEXT",
-          "worksheet": "Links",
-          "target": "xl/worksheets/sheet1.xml#cell=A13",
-          "classification": "MANUAL_REVIEW"
-        },
-        {
-          "ruleId": "LINK_TEXT",
-          "category": "LINK_TEXT",
-          "worksheet": "Links",
           "target": "xl/worksheets/sheet1.xml#cell=A2",
           "classification": "REQUIRES_USER_INPUT"
         },
@@ -1910,10 +1889,32 @@
           "worksheet": "Links",
           "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[12]",
           "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[11]/c[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[12]/c[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[13]/c[1]",
+          "classification": "MANUAL_REVIEW"
         }
       ],
       "limitation_facts": [
-        "Links!A13 =HYPERLINK(B13,\"link\") has a computed argument; it is not evaluated and needs manual review (spec 7.6)."
+        "Links!A13 =HYPERLINK(B13,\"link\") has a computed argument; it is not evaluated and needs manual review (spec 7.6).",
+        "Links!A11 and A12 are formula hyperlinks and require manual review with indexed cell XML targets (spec 7.6)."
       ],
       "corrections": [],
       "vectors": {
@@ -2017,8 +2018,8 @@
           "rule": "LINK_TEXT",
           "scope": {
             "targets": [
-              "xl/worksheets/sheet1.xml#cell=A11",
-              "xl/worksheets/sheet1.xml#cell=A12"
+              "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[11]/c[1]",
+              "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[12]/c[1]"
             ]
           },
           "findings": [
@@ -2026,24 +2027,26 @@
               "ruleId": "LINK_TEXT",
               "category": "LINK_TEXT",
               "worksheet": "Links",
-              "target": "xl/worksheets/sheet1.xml#cell=A11",
+              "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[11]/c[1]",
               "classification": "MANUAL_REVIEW"
             },
             {
               "ruleId": "LINK_TEXT",
               "category": "LINK_TEXT",
               "worksheet": "Links",
-              "target": "xl/worksheets/sheet1.xml#cell=A12",
+              "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[12]/c[1]",
               "classification": "MANUAL_REVIEW"
             }
           ],
-          "limitation_facts": []
+          "limitation_facts": [
+            "Literal formula hyperlinks require manual review; their formulas are not calculated or edited (spec 7.6)."
+          ]
         },
         "P4-RULE-LINK-FORMULA-DYNAMIC": {
           "rule": "LINK_TEXT",
           "scope": {
             "targets": [
-              "xl/worksheets/sheet1.xml#cell=A13"
+              "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[13]/c[1]"
             ]
           },
           "findings": [
@@ -2051,7 +2054,7 @@
               "ruleId": "LINK_TEXT",
               "category": "LINK_TEXT",
               "worksheet": "Links",
-              "target": "xl/worksheets/sheet1.xml#cell=A13",
+              "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[13]/c[1]",
               "classification": "MANUAL_REVIEW"
             }
           ],
@@ -2063,7 +2066,7 @@
           "rule": "LINK_TEXT",
           "scope": {
             "target_prefixes": [
-              "xl/worksheets/sheet1.xml#xml="
+              "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/"
             ]
           },
           "findings": [
@@ -2092,7 +2095,7 @@
           "limitation_facts": []
         }
       },
-      "notes": "Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,\"here\"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,\"link\"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Pending pod contract 1.1: the #cell= targets for formula links and the indexed-path targets for range and duplicate links.",
+      "notes": "Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,\"here\"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,\"link\"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Contract sections 7.1 and 7.6: formula, range and duplicate links use indexed XML element paths and MANUAL_REVIEW.",
       "review": {
         "reviewers": [],
         "date": null,

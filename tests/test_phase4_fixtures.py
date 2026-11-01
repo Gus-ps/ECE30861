@@ -323,12 +323,22 @@ def test_link_text_rows(key):
                 ##  Single cell, inline string, no formula, no merge: the safe simple profile.
                 found.append({"ruleId": "LINK_TEXT", "category": "LINK_TEXT", "worksheet": name,
                               "target": f"{part}#cell={link.get('ref')}", "classification": "REQUIRES_USER_INPUT"})
-        for c in book.xml(part).iter(f"{M}c"):
+        root = book.xml(part)
+        locations = {}
+        def index(element, path):
+            locations[element] = path
+            counts = {}
+            for child in element:
+                tag = child.tag.rsplit('}', 1)[-1]
+                counts[tag] = counts.get(tag, 0) + 1
+                index(child, path + '/' + tag + '[' + str(counts[tag]) + ']')
+        index(root, '/worksheet[1]')
+        for c in root.iter(f"{M}c"):
             ##  A HYPERLINK formula with literal arguments is screened on its label; never editable.
             match = re.fullmatch(r'(?:_xlfn\.)?HYPERLINK\("([^"]*)"(?:,"([^"]*)")?\)', c.findtext(f"{M}f") or "", re.I)
             if match and ambiguous(match[2] if match[2] is not None else match[1], match[1]):
                 found.append({"ruleId": "LINK_TEXT", "category": "LINK_TEXT", "worksheet": name,
-                              "target": f"{part}#cell={c.get('r')}", "classification": "MANUAL_REVIEW"})
+                              "target": f"{part}#xml={locations[c]}", "classification": "MANUAL_REVIEW"})
     assert sorted(found, key=sort_key) == expected(key, "LINK_TEXT")
 
 

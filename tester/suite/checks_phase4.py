@@ -784,7 +784,9 @@ def _invalid_bodies(ctx, record, condition):
                           "INVALID_CORRECTION"),
                          ("801-code-point description", apply(alt, {"title": "T", "description": "d" * 801}), 422,
                           "INVALID_CORRECTION")],
-        "NAME-INVALID": [(f"name {n!r}", apply(name, {"name": n}), 422, "INVALID_CORRECTION")
+        "NAME-INVALID": [(f"name {n!r}", apply(name, {"name": n}), 422,
+                          "UNSUPPORTED_CORRECTION" if n == "sheet1" else
+                          "CONFLICTING_CORRECTIONS" if n == "Summary" else "INVALID_CORRECTION")
                          for n in ("n" * 32, " Costs", "Costs:2026", "Sheet9", "History", "sheet1", "Sheet1", "Summary")],
         "LINK-AMBIGUOUS": [("ambiguous label", apply(link, {"text": "Click here."}), 422, "INVALID_CORRECTION")],
         "HEADER-ROW": [("wrong row", apply(header, {"headerRow": 2}), 422, "INVALID_CORRECTION"),

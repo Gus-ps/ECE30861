@@ -270,11 +270,14 @@ class Phase4Routes:
         if rule == "WORKSHEET_NAME":
             name, old = value["name"], finding["worksheet"]
             others = {n.casefold() for n in self._sheet_names(version) if n != old}
+            if isinstance(name,str) and name != old and name.casefold() == old.casefold():
+                return _error(422, 'UNSUPPORTED_CORRECTION', 'Case-only renames are outside the profile.')
             if not isinstance(name, str) or not 1 <= len(name) <= 31 or name != trim(name) or FORBIDDEN & set(name) \
                     or name[:1] == "'" or name[-1:] == "'" or name.casefold() == "history" \
-                    or re.fullmatch(r"(?i)sheet0*[1-9][0-9]*", name, re.ASCII) or name.casefold() == old.casefold() \
-                    or name.casefold() in others:
+                    or re.fullmatch(r"(?i)sheet0*[1-9][0-9]*", name, re.ASCII) or name == old:
                 return invalid("The worksheet name is not valid.")
+            if name.casefold() in others:
+                return _error(422,'CONFLICTING_CORRECTIONS','The name is used by another source sheet.')
         return None
 
     def _sheet_names(self, version):

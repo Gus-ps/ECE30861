@@ -1,5 +1,5 @@
 {
-  "manifest_version": "2.1.0-team12-draft",
+  "manifest_version": "2.1.1-team12-draft",
   "ruleset_version": "2.0.0",
   "specification_version": "2.1.0",
   "note": "Team 12 draft generated from the shared Phase 4 test plan; replace with Team 9's executable manifest 2.1.0 once it exists. Local and manual cases are evidence tasks outside this manifest.",

@@ -1,0 +1,38 @@
+[
+  {
+    "fixture": "unsupported_edits",
+    "sourceSha256": "cf27357110fd3e42de442c7b35f9f9440ddb9eb2ccbfdbdf39b1ecc75e33a8d2",
+    "rulesetVersion": "2.0.0",
+    "ruleId": "LINK_TEXT",
+    "worksheet": "Sheet1",
+    "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
+    "findingId": "e7130509c54d02321df4b62c4928993dda57fb2cacb390428ed377528b38b716"
+  },
+  {
+    "fixture": "link_vectors",
+    "sourceSha256": "962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa",
+    "rulesetVersion": "2.0.0",
+    "ruleId": "LINK_TEXT",
+    "worksheet": "Links",
+    "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[11]/c[1]",
+    "findingId": "1d423a59f9227fd8304cf7982b7138af1557a9b4c569c00ffd9a8fe2d14d93b0"
+  },
+  {
+    "fixture": "link_vectors",
+    "sourceSha256": "962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa",
+    "rulesetVersion": "2.0.0",
+    "ruleId": "LINK_TEXT",
+    "worksheet": "Links",
+    "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[12]/c[1]",
+    "findingId": "ade7d1e48d06087c1c734b488ed76e82e207a5dcd68e5f556e68e11eff9aa776"
+  },
+  {
+    "fixture": "link_vectors",
+    "sourceSha256": "962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa",
+    "rulesetVersion": "2.0.0",
+    "ruleId": "LINK_TEXT",
+    "worksheet": "Links",
+    "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[13]/c[1]",
+    "findingId": "6f4892fa45cc49b9e44294bb7e281e360c06a064711dfb2731f9f42ae3df6995"
+  }
+]
