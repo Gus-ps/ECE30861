@@ -60,8 +60,9 @@ FIXTURES = REPO / "tester" / "fixtures"
 PHASE4_ENV = {"MANIFEST_PATH": str(FIXTURES / "manifest_phase4.json"),
               "POD_PROFILE_PATH": str(FIXTURES / "pod_profile_phase4.json"),
               "EXPECTATIONS_PATH": str(FIXTURES / "phase4" / "expectations.json")}
-##  Phase 4 cases whose fixtures await pod contract 1.1; they skip with that reason.
-PHASE4_BLOCKED = 8
+##  Phase 4 cases whose fixtures await an outside contract and skip; none since Team 9's pod
+##  contract 1.1 fixtures joined the pack (2026-11-01).
+PHASE4_BLOCKED = 0
 
 
 def tester_env(db, overrides=None):
@@ -276,8 +277,9 @@ def main():
         counts4 = {}
         for item in (report4 or {}).get("results", []):
             counts4[item["outcome"]] = counts4.get(item["outcome"], 0) + 1
-        check(f"215 Phase 4 results: {215 - PHASE4_BLOCKED} pass, {PHASE4_BLOCKED} skip (fixtures awaiting pod contract 1.1)",
-              counts4 == {"pass": 215 - PHASE4_BLOCKED, "skip": PHASE4_BLOCKED}, f"{json.dumps(counts4)} in {elapsed:.0f}s")
+        expected4 = {"pass": 215 - PHASE4_BLOCKED, **({"skip": PHASE4_BLOCKED} if PHASE4_BLOCKED else {})}
+        check(f"215 Phase 4 results: {215 - PHASE4_BLOCKED} pass, {PHASE4_BLOCKED} skip",
+              counts4 == expected4, f"{json.dumps(counts4)} in {elapsed:.0f}s")
         failing = [f"{x['test_id']}: {x['message']}" for x in (report4 or {}).get("results", []) if x["outcome"] in ("fail", "error")]
         if failing:
             print("   " + "\n   ".join(failing[:10]))

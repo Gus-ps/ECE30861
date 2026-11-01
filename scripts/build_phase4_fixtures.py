@@ -762,8 +762,9 @@ THEME = (
     '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F497D"/></a:dk2>'
     '<a:lt2><a:srgbClr val="EEECE1"/></a:lt2><a:accent1><a:srgbClr val="336699"/></a:accent1>'
     '<a:accent2><a:srgbClr val="C0504D"/></a:accent2><a:accent3><a:srgbClr val="9BBB59"/></a:accent3>'
-    '<a:accent4><a:srgbClr val="8064A2"/></a:accent4><a:accent5><a:srgbClr val="4BACC6"/></a:accent5>'
-    '<a:accent6><a:srgbClr val="F79646"/></a:accent6><a:hlink><a:srgbClr val="0000FF"/></a:hlink>'
+    ##  accent5 and accent6 carry the pack 2.1.1 half-boundary bases (CORRECTIONS.md).
+    '<a:accent4><a:srgbClr val="8064A2"/></a:accent4><a:accent5><a:srgbClr val="050505"/></a:accent5>'
+    '<a:accent6><a:srgbClr val="010101"/></a:accent6><a:hlink><a:srgbClr val="0000FF"/></a:hlink>'
     '<a:folHlink><a:srgbClr val="800080"/></a:folHlink></a:clrScheme>'
     '<a:fontScheme name="Office"><a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/>'
     '</a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>'
@@ -798,15 +799,22 @@ def contrast_styles():
              '<sz val="11"/><color indexed="10"/><name val="Calibri"/>',
              '<sz val="11"/><color indexed="12"/><name val="Calibri"/>',
              '<sz val="11"/><color rgb="FF0000FF"/><name val="Calibri"/>',
-             '<sz val="11"/><color rgb="FF000000"/><name val="Calibri"/>']
+             '<sz val="11"/><color rgb="FF000000"/><name val="Calibri"/>',
+             ##  Pack 2.1.1 tint vectors: 336699 at -0.5 (1A334D), and the half-boundary bases
+             ##  050505 (accent5) and 010101 (accent6) at -0.5 (030303 and 010101).
+             '<sz val="11"/><color theme="4" tint="-0.5"/><name val="Calibri"/>',
+             '<sz val="11"/><color theme="8" tint="-0.5"/><name val="Calibri"/>',
+             '<sz val="11"/><color theme="9" tint="-0.5"/><name val="Calibri"/>']
     fills = ['<patternFill patternType="none"/>', '<patternFill patternType="gray125"/>',
              '<patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill>',
              '<patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill>',
              '<gradientFill degree="90"><stop position="0"><color rgb="FFFFFFFF"/></stop>'
              '<stop position="1"><color rgb="FFC0C0C0"/></stop></gradientFill>',
-             '<patternFill patternType="darkGray"><fgColor rgb="FF000000"/><bgColor rgb="FFFFFFFF"/></patternFill>']
+             '<patternFill patternType="darkGray"><fgColor rgb="FF000000"/><bgColor rgb="FFFFFFFF"/></patternFill>',
+             ##  757575 is the only gray on which the correct 030303 fails 4.5:1 while 020202 passes.
+             '<patternFill patternType="solid"><fgColor rgb="FF757575"/><bgColor indexed="64"/></patternFill>']
     ##  (font, fill) per cellXf index
-    xfs = [(0, 0)] + [(i, 2) for i in range(1, 15)] + [(15, 3), (15, 4), (15, 5), (15, 2)]
+    xfs = [(0, 0)] + [(i, 2) for i in range(1, 15)] + [(15, 3), (15, 4), (15, 5), (15, 2), (16, 2), (17, 6), (18, 2)]
     return (f'{HEAD}<styleSheet xmlns="{MAIN}"><fonts count="{len(fonts)}">'
             + "".join(f"<font>{f}</font>" for f in fonts) + f'</fonts><fills count="{len(fills)}">'
             + "".join(f"<fill>{f}</fill>" for f in fills)
@@ -823,7 +831,7 @@ def contrast_styles():
 
 ##  cellXf indices in contrast_styles()
 (DEFAULT, C333, C777, C767, L959, L949, B949, M949, T_NEG, T_POS, D_HALF, D_QUARTER, IDX10, IDX12, BLUE,
- YELLOW, GRADIENT, PATTERN, BLACK) = range(19)
+ YELLOW, GRADIENT, PATTERN, BLACK, T_HALF, GRAY5_HALF, GRAY1_HALF) = range(22)
 
 
 def contrast_vectors():
@@ -838,7 +846,9 @@ def contrast_vectors():
         ("Large", {"A1": ("18 pt 959595", L959), "A3": ("18 pt 949494", L949), "A5": ("14 pt bold 949494", B949),
                    "A7": ("14 pt 949494", M949)}, {"widths": (24,)}, []),
         ("Theme", {"A1": ("accent1 tint -1", T_NEG), "A3": ("accent1 tint 0.5", T_POS),
-                   "A5": ("dk1 tint 0.5", D_HALF), "A7": ("dk1 tint 0.25", D_QUARTER)}, {"widths": (24,)}, []),
+                   "A5": ("dk1 tint 0.5", D_HALF), "A7": ("dk1 tint 0.25", D_QUARTER),
+                   "A9": ("accent1 tint -0.5", T_HALF), "A11": ("050505 tint -0.5 on 757575", GRAY5_HALF),
+                   "A13": ("010101 tint -0.5", GRAY1_HALF)}, {"widths": (28,)}, []),
         ("Indexed", {"A1": ("indexed 10 (palette black)", IDX10), "A3": ("indexed 12 (blue)", IDX12)},
          {"widths": (28,)}, []),
         ("Meaning", {"A1": ("Blue text", BLUE), "A3": ("Yellow fill", YELLOW)}, {"widths": (24,)}, []),

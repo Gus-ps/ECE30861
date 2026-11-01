@@ -17,12 +17,21 @@ table, which are COLOR_CONTRAST and TABLE_HEADER findings under ruleset 2.0.0).
 | `header_range.xlsx` | `de6d5676ce94da75872da2f8ecf57540d3e6ebfa9511ad452f4756a982cd09c7` | 202, then `REMEDIATION_AVAILABLE`, 1 TABLE_HEADER finding |
 | `header_disabled_table.xlsx` | `b9677afe084e7d65b375c9f0e239b377cb54dda778a3913e75e1621374d17cd3` | 202, then `REMEDIATION_AVAILABLE`, 1 TABLE_HEADER finding |
 
-**Status: not reviewed. Every accepted fixture opened in Excel on 2026-11-01** without a repair prompt, except
-`table_header_vectors`, whose expected repair is explained in its section. The rejected inputs were not opened, and
+**Status: not reviewed. The accepted fixtures opened in Excel on 2026-11-01** without a repair prompt, except
+`table_header_vectors`, whose expected repair is explained in its section. The rebuilt `contrast_vectors` and Team 9's four
+fixtures were opened later the same day: all clean except Team 9's `form_controls`, where Excel replaces
+`xl/worksheets/sheet1.xml` because the file uses the `x14` prefix without declaring it (reported to Team 9; see its
+section). The rejected inputs were not opened, and
 no correction output has been opened yet (the spec §13 release gate). Spec §15.2 requires review by two members of
 Team 9 (fixture hashes, all six rules, targets, classifications, statuses, correction effects
 and allowed preservation differences). Record their names, date and decisions in each entry's
 `review`, and the Excel-open result in `excel_open`.
+
+For the §15.2 review, `uv run python scripts/build_review_bundle.py` writes
+`dist/team12-phase4-pack-review.zip`: this folder plus `REVIEW.md` (scope, how to verify, the points needing a
+decision, the comparator's allowed preservation differences), a two-reviewer `review-form.csv` and `SHA256SUMS.txt`.
+It refuses to build from a stale pack, and the same pack always gives the same bytes. Rebuild and resend it after any
+fixture change.
 
 ## How they were made and checked
 
@@ -241,7 +250,7 @@ Limitation facts: Populated single-cell, one-row or one-column components are no
 
 ### `unsupported_edits`
 
-Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("https://example.edu/team12","click here"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT("Sheet1!A2"). Target questions for pod contract 1.1: the HYPERLINK formula finding uses #cell=B3.
+Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("https://example.edu/team12","click here"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT("Sheet1!A2"). The HYPERLINK formula finding uses the indexed XML path /worksheet[1]/sheetData[1]/row[3]/c[2] (spec 7.6; same rule Team 9 confirmed for link_vectors on 2026-11-01).
 
 | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- |
@@ -249,7 +258,7 @@ Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK("ht
 | ALT_TEXT | Sheet1 | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]` | MANUAL_REVIEW | `1b50cc5e80b846a006acfd92dfcf5717f26599f770c44e31552c579c65b5a182` |
 | ALT_TEXT | Sheet1 | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[3]/pic[1]` | MANUAL_REVIEW | `570ac22c217edb80ac81e07b190ea4cf4c5f80e80da45d6ed4bf23d1771b63bf` |
 | COLOR_CONTRAST | Sheet1 | `xl/worksheets/sheet1.xml#cell=B2` | MANUAL_REVIEW | `5c15d89dc94b46f3f9a7f079dbce34e1a2429a846bbf8641216d1ef3b7641a1a` |
-| LINK_TEXT | Sheet1 | `xl/worksheets/sheet1.xml#cell=B3` | MANUAL_REVIEW | `c503e3bd88cd421d9ef871bbc4a97d41ee68b681a39f3bcc119d4b925f0c879a` |
+| LINK_TEXT | Sheet1 | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]` | MANUAL_REVIEW | `e7130509c54d02321df4b62c4928993dda57fb2cacb390428ed377528b38b716` |
 | MERGED_CELLS | Sheet1 | `xl/worksheets/sheet1.xml#merge=D1:E1` | MANUAL_REVIEW | `400d86ae13aad3d97504b55d7072158cb2f24fa3a641a0e87da8fcb4181f1bd8` |
 | WORKSHEET_NAME | Sheet1 | `xl/worksheets/sheet1.xml#sheetId=1` | MANUAL_REVIEW | `4d4f537d1f7efd84fc98dfc6b60219efbdc3181a188e9325fe66bc9b9c2d8d0a` |
 
@@ -257,7 +266,7 @@ Limitation facts: Pictures 2 and 3 in drawing1.xml share cNvPr id 3, so they are
 
 ### `preservation_rich`
 
-Budget (sheetId 1): table 1 A1:B5 with a SUM total and its cached value; data validation D2; bold-only conditional formatting B2:B4; a comment on A2 (comments1.xml plus vmlDrawing1.vml); a printer-settings binary; drawing1.xml with Picture 1 (id 2, title only) and Chart 2 (id 3, complete). Rates (sheetId 2) is hidden with table 2. Defined name BudgetTotal. Pending pod contract 1.1: the VML note's finding and its #id target.
+Budget (sheetId 1): table 1 A1:B5 with a SUM total and its cached value; data validation D2; bold-only conditional formatting B2:B4; a comment on A2 (comments1.xml plus vmlDrawing1.vml); a printer-settings binary; drawing1.xml with Picture 1 (id 2, title only) and Chart 2 (id 3, complete). Rates (sheetId 2) is hidden with table 2. Defined name BudgetTotal. The VML note's ALT_TEXT MANUAL_REVIEW at #id=_x0000_s1025 matches the pod contract 1.1 rule in Team 9's tests/fixtures/README.md (read 2026-11-01).
 
 | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- |
@@ -311,9 +320,10 @@ As in ../shared/README.md (drawing numbers out of sheet order, hidden and veryHi
 | ALT_TEXT | Hidden costs | `xl/drawings/drawing2.xml#id=2` | REQUIRES_USER_INPUT | `edcf0802386173ab66cc060c66a76628cd68c61e4fb6004453982d2d92e5c492` |
 | ALT_TEXT | Summary | `xl/drawings/drawing3.xml#id=3` | REQUIRES_USER_INPUT | `79806a9dfe36aae84b6b1de13a5b8467a040150b3018d247a5a308fd545d1f0a` |
 
-**Pending pod contract 1.1** (not in the repo): the VML comment finding and `#id=_x0000_s1025` target in
-`preservation_rich`, and the `#cell=` target for the HYPERLINK-formula finding in `unsupported_edits`. The
-`in_cell_picture`, `image_formula`, `form_controls` and `vml_comments` fixtures are not built until it is available.
+**Pod contract 1.1** (Team 9's `tests/fixtures/README.md` and `expectations-phase4.json`, read 2026-11-01): VML
+comment notes are ALT_TEXT MANUAL_REVIEW at `vmlDrawing<N>.vml#id=<shape id>`, which matches the `preservation_rich`
+finding; HYPERLINK formulas use indexed sheetData targets, as `unsupported_edits` now does. The `in_cell_picture`,
+`image_formula`, `form_controls` and `vml_comments` fixtures are Team 9's files (see the last section).
 
 ## Vector fixtures (added 2026-11-01)
 
@@ -326,7 +336,7 @@ case fails on a missing, wrong or extra finding in its scope. The vectors of a f
 | `table_header_vectors.xlsx` | `128596370884694572f06946b24ed67a115a715deaab811a48240e9ff0fe81c4` | 202, then `REMEDIATION_AVAILABLE`, 5 findings, 7 vector cases |
 | `merge_vectors.xlsx` | `1aeb3214788d2ebaed69a03e3071383cc8213aab290edc13d9f3392660875b0b` | 202, then `REVIEW_REQUIRED`, 2 findings, 2 vector cases |
 | `link_vectors.xlsx` | `962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa` | 202, then `REMEDIATION_AVAILABLE`, 14 findings, 6 vector cases |
-| `contrast_vectors.xlsx` | `fd83260b1b50d8c35528c48b55944e9ca96227b89ee87c6ed153cece7cb1d4a8` | 202, then `REVIEW_REQUIRED`, 19 findings, 10 vector cases |
+| `contrast_vectors.xlsx` | `0cd5088f59de78a9f36f0190a5f6e08a159c4b711d82bdcac140e40bad83171e` | 202, then `REVIEW_REQUIRED`, 21 findings, 10 vector cases |
 
 ### `table_header_vectors`
 
@@ -365,7 +375,7 @@ Limitation facts: Populated single-cell, one-row or one-column components are no
 
 ### `link_vectors`
 
-Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,"here"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,"link"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Formula links use indexed XML cell paths (spec 7.6, confirmed by Team 9 on 2026-11-01): A11-A13 are /worksheet[1]/sheetData[1]/row[11..13]/c[1]. Pending pod contract 1.1: the indexed-path targets for range and duplicate links.
+Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,"here"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,"link"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Formula links use indexed XML cell paths (spec 7.6, confirmed by Team 9 on 2026-11-01): A11-A13 are /worksheet[1]/sheetData[1]/row[11..13]/c[1]. Range and duplicate links use /worksheet[1]/hyperlinks[1]/hyperlink[n], the same form as Team 9's link_vectors oracle (read 2026-11-01).
 
 | Case | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- | --- |
@@ -388,36 +398,105 @@ Limitation facts: Links!A13 =HYPERLINK(B13,"link") has a computed argument; it i
 
 ### `contrast_vectors`
 
-All on white unless noted. Default: A1 default style (no colour, no fill), A3 333333 (12.63:1). Contrast: A1 777777 (4.478, fails), A3 767676 (4.542, passes). Large: A1 18 pt 959595 (2.995, fails 3.0), A3 18 pt 949494 (3.033, passes), A5 14 pt bold 949494 (passes), A7 14 pt regular 949494 (fails 4.5). Theme: A1 accent1 336699 tint -1 = 000000 (passes), A3 accent1 tint 0.5 = 8CB2D9 (nonneutral), A5 dk1 tint 0.5 = 808080 (3.949, fails), A7 dk1 tint 0.25 = 404040 (passes). Indexed: the workbook palette sets index 10 to black (passes), index 12 stays 0000FF (nonneutral). Meaning: A1 0000FF text (8.59, nonneutral), A3 black on FFFF00 fill (nonneutral fill). Conditional: A1:A3 has a fill-colour conditional format, so the 777777 cell A2 inside it is suppressed; A5 777777 outside it is not. Unsupported and Overlay: see the limitation fact. Hidden cells: A3 in a hidden row and C1 in a hidden column, both 777777.
+All on white unless noted. Default: A1 default style (no colour, no fill), A3 333333 (12.63:1). Contrast: A1 777777 (4.478, fails), A3 767676 (4.542, passes). Large: A1 18 pt 959595 (2.995, fails 3.0), A3 18 pt 949494 (3.033, passes), A5 14 pt bold 949494 (passes), A7 14 pt regular 949494 (fails 4.5). Theme: A1 accent1 336699 tint -1 = 000000 (passes), A3 accent1 tint 0.5 = 8CB3D9 (nonneutral; pack 2.1.1 corrected value), A5 dk1 tint 0.5 = 808080 (3.949, fails), A7 dk1 tint 0.25 = 404040 (passes), A9 accent1 tint -0.5 = 1A334D (nonneutral; pack 2.1.1 corrected value), A11 accent5 050505 tint -0.5 = 030303 on a 757575 fill (4.476, fails; a truncating or ties-to-even 020202 gives 4.503 and wrongly passes), A13 accent6 010101 tint -0.5 = 010101 (passes; no gray fill separates it from a wrong 000000, so it is coverage only). Tints were computed with exact rational arithmetic. Indexed: the workbook palette sets index 10 to black (passes), index 12 stays 0000FF (nonneutral). Meaning: A1 0000FF text (8.59, nonneutral), A3 black on FFFF00 fill (nonneutral fill). Conditional: A1:A3 has a fill-colour conditional format, so the 777777 cell A2 inside it is suppressed; A5 777777 outside it is not. Unsupported and Overlay: see the limitation fact. Hidden cells: A3 in a hidden row and C1 in a hidden column, both 777777.
 
 | Case | ruleId | worksheet | target | classification | findingId |
 | --- | --- | --- | --- | --- | --- |
 | P4-RULE-COLOR-DEFAULT | COLOR_CONTRAST | (scope {"worksheets": ["Default"]}) | none | | |
-| P4-RULE-COLOR-LOW-CONTRAST | COLOR_CONTRAST | Contrast | `xl/worksheets/sheet2.xml#cell=A1` | MANUAL_REVIEW | `325a2b90e88bd9bf27c27b367562bddc8cde111afdf3b1bc29ff87c2522447b0` |
-| P4-RULE-COLOR-LARGE-TEXT | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A1` | MANUAL_REVIEW | `158e4236b1349849032f20382bbdd0fcde90bfa3d579abef997289d086ed1183` |
-| P4-RULE-COLOR-LARGE-TEXT | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A7` | MANUAL_REVIEW | `baa787fbd6a151efd3d2493d25e3c4ceaa9988d53b97c05ea68a22a6a03603eb` |
-| P4-RULE-COLOR-BOUNDARY | COLOR_CONTRAST | Contrast | `xl/worksheets/sheet2.xml#cell=A1` | MANUAL_REVIEW | `325a2b90e88bd9bf27c27b367562bddc8cde111afdf3b1bc29ff87c2522447b0` |
-| P4-RULE-COLOR-BOUNDARY | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A1` | MANUAL_REVIEW | `158e4236b1349849032f20382bbdd0fcde90bfa3d579abef997289d086ed1183` |
-| P4-RULE-COLOR-BOUNDARY | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A7` | MANUAL_REVIEW | `baa787fbd6a151efd3d2493d25e3c4ceaa9988d53b97c05ea68a22a6a03603eb` |
-| P4-RULE-COLOR-THEME-TINT | COLOR_CONTRAST | Theme | `xl/worksheets/sheet4.xml#cell=A3` | MANUAL_REVIEW | `4ef71c505a2b99028d641861319b2e3238fe036dc892ea6ea77b06e8f5513e50` |
-| P4-RULE-COLOR-THEME-TINT | COLOR_CONTRAST | Theme | `xl/worksheets/sheet4.xml#cell=A5` | MANUAL_REVIEW | `9f68f5c7aef6d13750babb0434f424edbec2e95267caf617eb330cec0595032b` |
-| P4-RULE-COLOR-INDEXED | COLOR_CONTRAST | Indexed | `xl/worksheets/sheet5.xml#cell=A3` | MANUAL_REVIEW | `909a4d52b66afd00cfd1079c155147d3213c8115456e2e18303a0bcf9dc0a7aa` |
-| P4-RULE-COLOR-MEANING | COLOR_CONTRAST | Meaning | `xl/worksheets/sheet6.xml#cell=A1` | MANUAL_REVIEW | `6099a3eb1e8a696ff3bacada22be6c1fe06fc6bdce7d1149319e07db829875fe` |
-| P4-RULE-COLOR-MEANING | COLOR_CONTRAST | Meaning | `xl/worksheets/sheet6.xml#cell=A3` | MANUAL_REVIEW | `34f863faed1a07a20ae7cc4b8f4ef54670772a15453c6b42dbe8ecee960cc937` |
-| P4-RULE-COLOR-CONDITIONAL | COLOR_CONTRAST | Conditional | `xl/worksheets/sheet7.xml#cell=A5` | MANUAL_REVIEW | `734a1ef166da94e1ae27cc77dbfad9fc450840379091e39c15798a00760ede8c` |
-| P4-RULE-COLOR-CONDITIONAL | COLOR_CONTRAST | Conditional | `xl/worksheets/sheet7.xml#conditional=A1:A3` | MANUAL_REVIEW | `5ec76f8082e4bd904d8207747214fe6b9d70d34159b507fdbff12335a419651d` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=A1` | MANUAL_REVIEW | `385d0f1e7207745bc8f18dd05440b2e85af46c48d7a8380ab49f94fec29dd524` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=A2` | MANUAL_REVIEW | `7bbbd207b55b4b2319c9b1169ed805f02f72efa9447ece2a0d5e86cfd0963d08` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=B1` | MANUAL_REVIEW | `332be1c193ca38df32797b175fe3e2639a06afc0123894064d8119d3b53db8a2` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=B2` | MANUAL_REVIEW | `84fa55c35062ac51bf29d903429190fe6ed4f56bed7dc2d4f8d64d071d67d217` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Unsupported | `xl/worksheets/sheet8.xml#cell=A1` | MANUAL_REVIEW | `0fb1990110e237b05c60190b463bac773bf063bed494af2fe06aa00effcb73dc` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Unsupported | `xl/worksheets/sheet8.xml#cell=A3` | MANUAL_REVIEW | `b6337c8759a3e4eb0e28d8ff65bcb012fee753f3e3bcd87fb9e9ba06b011a249` |
-| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Unsupported | `xl/worksheets/sheet8.xml#cell=A5` | MANUAL_REVIEW | `bdd7b86fd03182bce81dbc01733c883fe03cb1226d7fdf4ac17f4e5ef90b7162` |
-| P4-RULE-COLOR-HIDDEN | COLOR_CONTRAST | Hidden cells | `xl/worksheets/sheet10.xml#cell=A3` | MANUAL_REVIEW | `1a1c7fc871609f04f04e0cae963d0b738db794ef4e371e9bda69da1053e7c2b5` |
-| P4-RULE-COLOR-HIDDEN | COLOR_CONTRAST | Hidden cells | `xl/worksheets/sheet10.xml#cell=C1` | MANUAL_REVIEW | `2218ba722a7e10d605fc7e4b4ca015956038602f8f8152a5439372b025398151` |
+| P4-RULE-COLOR-LOW-CONTRAST | COLOR_CONTRAST | Contrast | `xl/worksheets/sheet2.xml#cell=A1` | MANUAL_REVIEW | `a053fde932bfb69a84de152a45f4f87bf7f9a9636fd3037bbfda651da2c53ca3` |
+| P4-RULE-COLOR-LARGE-TEXT | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A1` | MANUAL_REVIEW | `6045206b5b3daf9ce73df44bb24423def757de4425147e9f76e0212266e76463` |
+| P4-RULE-COLOR-LARGE-TEXT | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A7` | MANUAL_REVIEW | `a67c9b80fad828ac9f93e90bc235bb9ded3a2637efea1549fbb18b427158d48f` |
+| P4-RULE-COLOR-BOUNDARY | COLOR_CONTRAST | Contrast | `xl/worksheets/sheet2.xml#cell=A1` | MANUAL_REVIEW | `a053fde932bfb69a84de152a45f4f87bf7f9a9636fd3037bbfda651da2c53ca3` |
+| P4-RULE-COLOR-BOUNDARY | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A1` | MANUAL_REVIEW | `6045206b5b3daf9ce73df44bb24423def757de4425147e9f76e0212266e76463` |
+| P4-RULE-COLOR-BOUNDARY | COLOR_CONTRAST | Large | `xl/worksheets/sheet3.xml#cell=A7` | MANUAL_REVIEW | `a67c9b80fad828ac9f93e90bc235bb9ded3a2637efea1549fbb18b427158d48f` |
+| P4-RULE-COLOR-THEME-TINT | COLOR_CONTRAST | Theme | `xl/worksheets/sheet4.xml#cell=A11` | MANUAL_REVIEW | `45fc16504a1b47ebf423a962fa06641d9e3e1693069583208991d5fc8d27b637` |
+| P4-RULE-COLOR-THEME-TINT | COLOR_CONTRAST | Theme | `xl/worksheets/sheet4.xml#cell=A3` | MANUAL_REVIEW | `a75683d1d4ba5dec1021c88bf5bc0d7ab162557d527ae7f3c7cc5a22650967c6` |
+| P4-RULE-COLOR-THEME-TINT | COLOR_CONTRAST | Theme | `xl/worksheets/sheet4.xml#cell=A5` | MANUAL_REVIEW | `08a312cbda2fb0c97dc9ec92a682f44f2221067e1ff6f0d98285ee45108746bb` |
+| P4-RULE-COLOR-THEME-TINT | COLOR_CONTRAST | Theme | `xl/worksheets/sheet4.xml#cell=A9` | MANUAL_REVIEW | `5882b44ba78b27bbd6d025792930dd19f3a81b314b13d65831e4d9453300a8be` |
+| P4-RULE-COLOR-INDEXED | COLOR_CONTRAST | Indexed | `xl/worksheets/sheet5.xml#cell=A3` | MANUAL_REVIEW | `d05ed11c8325751f40df139cdb59a365eaac635e888ab4db84f4ce61e2f1d565` |
+| P4-RULE-COLOR-MEANING | COLOR_CONTRAST | Meaning | `xl/worksheets/sheet6.xml#cell=A1` | MANUAL_REVIEW | `6d379403a288ee17f30fbe9107fab9a37abd46452a54e3b4d3dab5ca84fccf67` |
+| P4-RULE-COLOR-MEANING | COLOR_CONTRAST | Meaning | `xl/worksheets/sheet6.xml#cell=A3` | MANUAL_REVIEW | `b9d4649971cfe12931d919c5c46b85158943fb6d3dc5b8608eb87d11b3ea2328` |
+| P4-RULE-COLOR-CONDITIONAL | COLOR_CONTRAST | Conditional | `xl/worksheets/sheet7.xml#cell=A5` | MANUAL_REVIEW | `d2e4511d2c74088feecf6e1876f708bf7ce63f1c02d1808cd461e72b6be7e031` |
+| P4-RULE-COLOR-CONDITIONAL | COLOR_CONTRAST | Conditional | `xl/worksheets/sheet7.xml#conditional=A1:A3` | MANUAL_REVIEW | `00f45ebc0b32b28cba3321e0b76f529acb4503d082516053824f0429cc16d74a` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=A1` | MANUAL_REVIEW | `588bdd7b2d3226ba708b60452c5946102cbeefa9f2cc8d8ee1b43488fbb8ad25` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=A2` | MANUAL_REVIEW | `e8da3762624f060187bd928d931dc6abf306452fe1c6dd1b0337fb5ab5bc81dc` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=B1` | MANUAL_REVIEW | `87866778e7776a8e4e7fdb5d984e31edaccbaf9d3544116c9321d3008c987d5d` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Overlay | `xl/worksheets/sheet9.xml#cell=B2` | MANUAL_REVIEW | `d1c3da4e63a58d33ded91c274536c8626cc938c69c09ecaf59403e50d3b305a3` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Unsupported | `xl/worksheets/sheet8.xml#cell=A1` | MANUAL_REVIEW | `3240ca20c12b6f21d63cecb8594db9daf2184bfbd08d6dd9ed51938a5ede60ae` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Unsupported | `xl/worksheets/sheet8.xml#cell=A3` | MANUAL_REVIEW | `1b778975cc9ae6f327246f1ea6141dc8980af1ced4ed963cdc6f08afff632258` |
+| P4-RULE-COLOR-UNSUPPORTED | COLOR_CONTRAST | Unsupported | `xl/worksheets/sheet8.xml#cell=A5` | MANUAL_REVIEW | `599309ac4292632ead1a962f483bf5631c78c6c140f3249e40bca96e4452a7d5` |
+| P4-RULE-COLOR-HIDDEN | COLOR_CONTRAST | Hidden cells | `xl/worksheets/sheet10.xml#cell=A3` | MANUAL_REVIEW | `fbab4f14951132d65af636cd8a250ffbcb53230f8ba45e5cfe134e622fb1a5c4` |
+| P4-RULE-COLOR-HIDDEN | COLOR_CONTRAST | Hidden cells | `xl/worksheets/sheet10.xml#cell=C1` | MANUAL_REVIEW | `11ab033697312e2b255661bdfb39335ee2200f4b642fe7db3b5637437d070464` |
 
 Limitation facts: Default!A1 has no font colour and no fill, so the screening assumption (black text on white) is used and disclosed once (spec 7.7). Gradient fill (Unsupported!A1), pattern fill (A3), mixed rich-text styling (A5) and a table style overlay (Overlay!A1:B2) cannot be given a numeric contrast result; each cell needs manual review (spec 7.7). Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit.
 
-## Still to build
+## Team 9 pod contract 1.1 fixtures (added 2026-11-01)
 
-The four pod-contract edge fixtures (`in_cell_picture`, `image_formula`, `form_controls`, `vml_comments`).
+Team 9's synthetic files from `tests/fixtures/synthetic/` in their repository, bytes unchanged (`origin: team9`); each hash equals the one Team 9 published. Team 12 derived the expectations below from the package XML, spec 2.1.0 sections 7.1-7.7 and 8.6, and the pod contract 1.1 rules in Team 9's `tests/fixtures/README.md`, before comparing them with Team 9's `expectations-phase4.json`. Findings and statuses then agreed exactly. Team 9 lists no limitation for the uninterpreted representation itself; Team 12 does (spec 7.2). Limitations are compared by presence only, so this changes no outcome. Excel opens (2026-11-01): `in_cell_picture`, `image_formula` and
+`vml_comments` open cleanly. `form_controls` gets a repair prompt and Excel replaces the whole of
+`xl/worksheets/sheet1.xml`: its recovery log points at line 2, column 436, the end of the first
+`mc:Choice Requires="x14"`, where the `x14` prefix is never declared. The file has three more defects Excel would
+reach next: the same undeclared `a14` in `drawing1.xml`, incomplete oleObject and control anchors, and shape IDs
+1025/1026 with no VML drawing. These are Team 9's bytes, kept unchanged and reported to Team 9. The tester and the
+systems read the XML directly, and every finding is MANUAL_REVIEW, so no case or output is affected.
+
+| File | SHA256 | Expected result |
+| --- | --- | --- |
+| `in_cell_picture.xlsx` | `63921a4e08cd90ee035afe125d94676dffabeaa7fd74aaf6c993fd7fe4088f1b` | 202, then `REVIEW_REQUIRED`, 8 findings |
+| `image_formula.xlsx` | `edefdb8a4b567fe2ef4cb79e37aeb1b3c85116286c0d040ed8956b6a124effc5` | 202, then `REVIEW_REQUIRED`, 2 findings |
+| `form_controls.xlsx` | `53630b5946d30abdf056cfd12a6ebd124b19d6e9d318766e67f57af2dddcc53c` | 202, then `REVIEW_REQUIRED`, 5 findings |
+| `vml_comments.xlsx` | `dacd584e94b8647c37417ddae6714fa6e3a55471a7122ac7868f55578015029f` | 202, then `REVIEW_REQUIRED`, 3 findings |
+
+### `in_cell_picture`
+
+Team 9 synthetic fixture (pod contract 1.1). Product photos (sheetId 1): A1 'Product', B1 'Photo', A2 'Desk lamp', B2 an error cell with vm="1" (Place in Cell picture). Rich-data parts rdRichValueTypes, rdrichvalue, rdrichvaluestructure, richValueRel and its .rels, plus the WPS-style xl/cellimages.xml: each is one __WORKBOOK__ <part>#xml=/ review. xl/metadata.xml and the PNG are not cell-image parts.
+
+| ruleId | worksheet | target | classification | findingId |
+| --- | --- | --- | --- | --- |
+| ALT_TEXT | Product photos | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[2]/c[2]` | MANUAL_REVIEW | `df13d08d1e5be18ea8e80d603bb4d821e38b64a8c11a09acd716210451273208` |
+| ALT_TEXT | __WORKBOOK__ | `xl/cellimages.xml#xml=/` | MANUAL_REVIEW | `7a8430110923b0b84b633d701544464260cca6d3a336165676df51bcf48db945` |
+| ALT_TEXT | __WORKBOOK__ | `xl/richData/_rels/richValueRel.xml.rels#xml=/` | MANUAL_REVIEW | `be24fc8a78872650886a02935caa671eb560ed6a0ddabb47c49bf40988a0ee4d` |
+| ALT_TEXT | __WORKBOOK__ | `xl/richData/rdRichValueTypes.xml#xml=/` | MANUAL_REVIEW | `c3d6d0d2b13114790b21dee846395fd439edb0d7168654fb0d86fadd20125d7e` |
+| ALT_TEXT | __WORKBOOK__ | `xl/richData/rdrichvalue.xml#xml=/` | MANUAL_REVIEW | `a97bc714e9738cbe18b07ba42bb0006f4879a90e9821df688f5f9ca342281811` |
+| ALT_TEXT | __WORKBOOK__ | `xl/richData/rdrichvaluestructure.xml#xml=/` | MANUAL_REVIEW | `c799e7f852713a4e12c9697bdb8a2bfb06449dbaacaed7a20d6ef5d1b0bc1a4a` |
+| ALT_TEXT | __WORKBOOK__ | `xl/richData/richValueRel.xml#xml=/` | MANUAL_REVIEW | `7d4b032ca8357f63b92929208b757e35e8cf259bbbbdeaeb1a6515ac36b628b9` |
+| TABLE_HEADER | Product photos | `xl/worksheets/sheet1.xml#range=A1:B2` | MANUAL_REVIEW | `d319c611863a76afeee7caaabb853e83835596ac47f227698bb7bc4ab00fb0e1` |
+
+Limitation facts: Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption). Product photos!A1:B2 has an in-cell picture attached to the rectangle, so its logical structure could not be established safely (spec 7.4, 8.6). Product photos!B2 is a Place in Cell picture (vm="1") backed by rich-data and cell-image parts, which are not interpreted; spec 7.2 keeps the Phase 3 manual-review behavior.
+
+### `image_formula`
+
+Team 9 synthetic fixture (pod contract 1.1). Brand logos (sheetId 1): A1 'Brand', B1 'Logo', C1 =SUM(1,2), A2 'Team 9', B2 =_xlfn.IMAGE("https://example.invalid/logo.png","Team 9 logo"). Only B2 is an image; the SUM is not.
+
+| ruleId | worksheet | target | classification | findingId |
+| --- | --- | --- | --- | --- |
+| ALT_TEXT | Brand logos | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[2]/c[2]` | MANUAL_REVIEW | `3a721132710ebeb13d1f0a874cc8fdafbed1b3f589607c10e9d4f60584ed5bcc` |
+| TABLE_HEADER | Brand logos | `xl/worksheets/sheet1.xml#range=A1:C2` | MANUAL_REVIEW | `70eb5b65db0a004354dbe023ad895568e144d1cf5a2dc59c554507231688f732` |
+
+Limitation facts: Brand logos!A1:C2 is a connected but not dense candidate, so its logical structure could not be established safely (spec 7.4). Brand logos!B2 is an _xlfn.IMAGE() formula; it is not evaluated and needs manual review (spec 7.2). Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption).
+
+### `form_controls`
+
+Team 9 synthetic fixture (pod contract 1.1). Survey (sheetId 1): one row A1:B1. sheet1.xml nests an oleObject in mc:AlternateContent[1] (both the Choice and Fallback copies are reviewed) and a form control in mc:AlternateContent[2]. drawing1.xml: mc:AlternateContent inside twoCellAnchor[1] and a root-level mc:AlternateContent, one review each, branches not inspected. Group 5 (id 5) is a container with no finding of its own; its child shape (id 6) has a title and description.
+
+| ruleId | worksheet | target | classification | findingId |
+| --- | --- | --- | --- | --- |
+| ALT_TEXT | Survey | `xl/drawings/drawing1.xml#xml=/wsDr[1]/AlternateContent[1]` | MANUAL_REVIEW | `b840affb85b80be1667289904987557ec9c7fe522765ae5d6aa70e2cd9e84713` |
+| ALT_TEXT | Survey | `xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[1]/AlternateContent[1]` | MANUAL_REVIEW | `99d7fa7617aebf2e8d5bab534d8cb86ec8a797629d84fbbf3746e14b95c1e278` |
+| ALT_TEXT | Survey | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/AlternateContent[1]/Choice[1]/oleObjects[1]/AlternateContent[1]/Choice[1]/oleObject[1]` | MANUAL_REVIEW | `f65691af82d5c331042521cf953d2ab3ad7b792cd9172394608257756e74dba4` |
+| ALT_TEXT | Survey | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/AlternateContent[1]/Choice[1]/oleObjects[1]/AlternateContent[1]/Fallback[1]/oleObject[1]` | MANUAL_REVIEW | `5260daaac9916c9cb4a1080d6b6b27547264f4ac140a87615835ec732afb4af7` |
+| ALT_TEXT | Survey | `xl/worksheets/sheet1.xml#xml=/worksheet[1]/AlternateContent[2]/Choice[1]/controls[1]/AlternateContent[1]/Choice[1]/control[1]` | MANUAL_REVIEW | `5e95a764db2b691aea4f663b9412548818f6ddd76492e1d23c41b16f820374e1` |
+
+Limitation facts: Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption). Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Survey A1:B1) Survey has an OLE object and a form control inside mc:AlternateContent, and drawing1.xml has two mc:AlternateContent elements; none is interpreted (spec 7.2 keeps the Phase 3 manual-review behavior).
+
+### `vml_comments`
+
+Team 9 synthetic fixture (pod contract 1.1). Review notes (sheetId 1): A1 'Total', B1 42, A2 'Source', B2 'Survey'; comments on B1 and B2. vmlDrawing1.vml has two note shapes, _x0000_s1025 and _x0000_s1026 (#id= targets); the v:shapetype is not a shape.
+
+| ruleId | worksheet | target | classification | findingId |
+| --- | --- | --- | --- | --- |
+| ALT_TEXT | Review notes | `xl/drawings/vmlDrawing1.vml#id=_x0000_s1025` | MANUAL_REVIEW | `f463f79237317c0206687b33e37e5b51cd5ddebad683a8b54783d0f28968984e` |
+| ALT_TEXT | Review notes | `xl/drawings/vmlDrawing1.vml#id=_x0000_s1026` | MANUAL_REVIEW | `784f938f0d4fa780306d7ed43c45e40336542294c390a99c35bbd7b9b81ed918` |
+| TABLE_HEADER | Review notes | `xl/worksheets/sheet1.xml#range=A1:B2` | MANUAL_REVIEW | `0c2ad5d3060d7cc28b1948e1e8db64501589d9778912b599195a65f1681dc998` |
+
+Limitation facts: Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption). Review notes!A1:B2 has a numeric first-row cell (B1 = 42), so its logical structure could not be established safely (spec 7.4, 8.6). The two legacy VML comment notes in xl/drawings/vmlDrawing1.vml are not interpreted (spec 7.2 keeps the Phase 3 manual-review behavior).

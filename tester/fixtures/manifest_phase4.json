@@ -1,5 +1,5 @@
 {
-  "manifest_version": "2.1.0-team12-draft",
+  "manifest_version": "2.1.1-team12-draft",
   "ruleset_version": "2.0.0",
   "specification_version": "2.1.0",
   "note": "Team 12 draft generated from the shared Phase 4 test plan; replace with Team 9's executable manifest 2.1.0 once it exists. Local and manual cases are evidence tasks outside this manifest.",
@@ -799,7 +799,7 @@
     },
     {
       "test_id": "P3-UPLOAD-IN-CELL-PICTURE",
-      "check": "blocked_fixture",
+      "check": "edge_upload",
       "description": "in_cell_picture (in-cell picture with rich-data and cell-image parts) accepted. 202 and upload identifiers evaluated.",
       "components": [
         "C2",
@@ -813,13 +813,12 @@
       ],
       "prerequisites": [],
       "parameters": {
-        "blocked": "in_cell_picture",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "in_cell_picture"
       }
     },
     {
       "test_id": "P3-AUDIT-IN-CELL-PICTURE",
-      "check": "blocked_fixture",
+      "check": "edge_audit",
       "description": "in_cell_picture (in-cell picture with rich-data and cell-image parts) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
       "components": [
         "C4",
@@ -832,15 +831,16 @@
       "operations": [
         5
       ],
-      "prerequisites": [],
+      "prerequisites": [
+        "P3-UPLOAD-IN-CELL-PICTURE"
+      ],
       "parameters": {
-        "blocked": "in_cell_picture",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "in_cell_picture"
       }
     },
     {
       "test_id": "P3-UPLOAD-IMAGE-FORMULA",
-      "check": "blocked_fixture",
+      "check": "edge_upload",
       "description": "image_formula (IMAGE() formula cell) accepted. 202 and upload identifiers evaluated.",
       "components": [
         "C2",
@@ -854,13 +854,12 @@
       ],
       "prerequisites": [],
       "parameters": {
-        "blocked": "image_formula",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "image_formula"
       }
     },
     {
       "test_id": "P3-AUDIT-IMAGE-FORMULA",
-      "check": "blocked_fixture",
+      "check": "edge_audit",
       "description": "image_formula (IMAGE() formula cell) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
       "components": [
         "C4",
@@ -873,15 +872,16 @@
       "operations": [
         5
       ],
-      "prerequisites": [],
+      "prerequisites": [
+        "P3-UPLOAD-IMAGE-FORMULA"
+      ],
       "parameters": {
-        "blocked": "image_formula",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "image_formula"
       }
     },
     {
       "test_id": "P3-UPLOAD-FORM-CONTROLS",
-      "check": "blocked_fixture",
+      "check": "edge_upload",
       "description": "form_controls (form control and OLE object in AlternateContent, drawing AlternateContent, group container) accepted. 202 and upload identifiers evaluated.",
       "components": [
         "C2",
@@ -895,13 +895,12 @@
       ],
       "prerequisites": [],
       "parameters": {
-        "blocked": "form_controls",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "form_controls"
       }
     },
     {
       "test_id": "P3-AUDIT-FORM-CONTROLS",
-      "check": "blocked_fixture",
+      "check": "edge_audit",
       "description": "form_controls (form control and OLE object in AlternateContent, drawing AlternateContent, group container) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
       "components": [
         "C4",
@@ -914,15 +913,16 @@
       "operations": [
         5
       ],
-      "prerequisites": [],
+      "prerequisites": [
+        "P3-UPLOAD-FORM-CONTROLS"
+      ],
       "parameters": {
-        "blocked": "form_controls",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "form_controls"
       }
     },
     {
       "test_id": "P3-UPLOAD-VML-COMMENTS",
-      "check": "blocked_fixture",
+      "check": "edge_upload",
       "description": "vml_comments (legacy VML comment notes) accepted. 202 and upload identifiers evaluated.",
       "components": [
         "C2",
@@ -936,13 +936,12 @@
       ],
       "prerequisites": [],
       "parameters": {
-        "blocked": "vml_comments",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "vml_comments"
       }
     },
     {
       "test_id": "P3-AUDIT-VML-COMMENTS",
-      "check": "blocked_fixture",
+      "check": "edge_audit",
       "description": "vml_comments (legacy VML comment notes) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
       "components": [
         "C4",
@@ -955,10 +954,11 @@
       "operations": [
         5
       ],
-      "prerequisites": [],
+      "prerequisites": [
+        "P3-UPLOAD-VML-COMMENTS"
+      ],
       "parameters": {
-        "blocked": "vml_comments",
-        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+        "fixture": "vml_comments"
       }
     },
     {
@@ -1747,7 +1747,7 @@
     {
       "test_id": "P4-RULE-COLOR-THEME-TINT",
       "check": "rule_vector",
-      "description": "Theme indices, HSL tint, and channel rounding match the frozen policy vectors.",
+      "description": "Theme indices, HSL tint, and channel rounding match the frozen policy vectors. Use the corrected pack 2.1.1 constants, including both 336699 corrections and the 010101/050505 half-boundary cases. Exact half-channel values round upward despite intermediate numerical error; expectations must not be generated by the production color helper.",
       "components": [
         "C4"
       ],

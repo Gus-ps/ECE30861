@@ -1,7 +1,7 @@
 {
   "ruleset_version": "2.0.0",
   "specification_version": "2.1.0",
-  "manual_review": "Not reviewed. Expectations were hand-authored by Team 12 on 2026-11-01 from the cell, style, table, merge, link and object definitions in scripts/build_phase4_fixtures.py and shared specification 2.1.0 sections 6-9, before any engine was run. The ALT_TEXT and WORKSHEET_NAME rows were then cross-checked against tester/suite/pod_rules.py; the other four rules have no independent oracle and are checked against the package XML by tests/test_phase4_fixtures.py. Spec 15.2 requires review by two members of the other implementation team (Team 9); that has not happened. Every accepted fixture was opened in Microsoft Excel on 2026-11-01 (recorded per entry in excel_open): all opened cleanly except table_header_vectors, whose two deliberately invalid tables Excel repairs, as expected. Rejected inputs were not opened. Correction outputs have not been opened. The five correction fixtures (alt_supported, rename_references, link_supported, header_range, header_disabled_table) were added the same day under the same process.",
+  "manual_review": "Not reviewed. Expectations were hand-authored by Team 12 on 2026-11-01 from the cell, style, table, merge, link and object definitions in scripts/build_phase4_fixtures.py and shared specification 2.1.0 sections 6-9, before any engine was run. The ALT_TEXT and WORKSHEET_NAME rows were then cross-checked against tester/suite/pod_rules.py; the other four rules have no independent oracle and are checked against the package XML by tests/test_phase4_fixtures.py. Spec 15.2 requires review by two members of the other implementation team (Team 9); that has not happened. Every accepted fixture was opened in Microsoft Excel on 2026-11-01 (recorded per entry in excel_open): all opened cleanly except table_header_vectors, whose two deliberately invalid tables Excel repairs, as expected. contrast_vectors was rebuilt for pack 2.1.1 afterwards, and Team 9's four pod contract 1.1 fixtures (origin team9) were added with expectations re-derived by Team 12; those five were opened in Excel later the same day: all clean except form_controls, where Excel replaces sheet1.xml because of an undeclared x14 prefix in Team 9's file (reported to Team 9). Rejected inputs were not opened. Correction outputs have not been opened. The five correction fixtures (alt_supported, rename_references, link_supported, header_range, header_disabled_table) were added the same day under the same process.",
   "fixtures": {
     "clean_all_six": {
       "kind": "accepted",
@@ -836,7 +836,7 @@
           "ruleId": "LINK_TEXT",
           "category": "LINK_TEXT",
           "worksheet": "Sheet1",
-          "target": "xl/worksheets/sheet1.xml#cell=B3",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
           "classification": "MANUAL_REVIEW"
         },
         {
@@ -860,7 +860,7 @@
         "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Sheet1 D1)"
       ],
       "corrections": [],
-      "notes": "Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK(\"https://example.edu/team12\",\"click here\"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT(\"Sheet1!A2\"). Target questions for pod contract 1.1: the HYPERLINK formula finding uses #cell=B3.",
+      "notes": "Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK(\"https://example.edu/team12\",\"click here\"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT(\"Sheet1!A2\"). The HYPERLINK formula finding uses the indexed XML path /worksheet[1]/sheetData[1]/row[3]/c[2] (spec 7.6; same rule Team 9 confirmed for link_vectors on 2026-11-01).",
       "apply_attempts": [
         {
           "target": "xl/drawings/drawing1.xml#id=2",
@@ -879,7 +879,7 @@
           "why": "duplicate object ID"
         },
         {
-          "target": "xl/worksheets/sheet1.xml#cell=B3",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
           "value": {
             "text": "Team 12 guidance"
           },
@@ -946,7 +946,7 @@
           "effect": "Picture 1 gains title 'Team logo' and its description; every other part, including comments1.xml, vmlDrawing1.vml, printerSettings1.bin, both tables, the chart, the defined name, validation and conditional formatting, stays byte-identical"
         }
       ],
-      "notes": "Budget (sheetId 1): table 1 A1:B5 with a SUM total and its cached value; data validation D2; bold-only conditional formatting B2:B4; a comment on A2 (comments1.xml plus vmlDrawing1.vml); a printer-settings binary; drawing1.xml with Picture 1 (id 2, title only) and Chart 2 (id 3, complete). Rates (sheetId 2) is hidden with table 2. Defined name BudgetTotal. Pending pod contract 1.1: the VML note's finding and its #id target.",
+      "notes": "Budget (sheetId 1): table 1 A1:B5 with a SUM total and its cached value; data validation D2; bold-only conditional formatting B2:B4; a comment on A2 (comments1.xml plus vmlDrawing1.vml); a printer-settings binary; drawing1.xml with Picture 1 (id 2, title only) and Chart 2 (id 3, complete). Rates (sheetId 2) is hidden with table 2. Defined name BudgetTotal. The VML note's ALT_TEXT MANUAL_REVIEW at #id=_x0000_s1025 matches the pod contract 1.1 rule in Team 9's tests/fixtures/README.md (read 2026-11-01).",
       "decision_sets": {
         "preserve": [
           {
@@ -1044,6 +1044,266 @@
       "limitation_facts": [],
       "corrections": [],
       "notes": "Budget (sheetId 1): table 1 and sheetProtection with a real SHA-512 password hash but sheet=\"0\": stored but not active, so accepted and clean.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "in_cell_picture": {
+      "kind": "accepted",
+      "file": "in_cell_picture.xlsx",
+      "sha256": "63921a4e08cd90ee035afe125d94676dffabeaa7fd74aaf6c993fd7fe4088f1b",
+      "origin": "team9",
+      "upload_name": "in_cell_picture.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Product photos",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[2]/c[2]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "__WORKBOOK__",
+          "target": "xl/cellimages.xml#xml=/",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "__WORKBOOK__",
+          "target": "xl/richData/_rels/richValueRel.xml.rels#xml=/",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "__WORKBOOK__",
+          "target": "xl/richData/rdRichValueTypes.xml#xml=/",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "__WORKBOOK__",
+          "target": "xl/richData/rdrichvalue.xml#xml=/",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "__WORKBOOK__",
+          "target": "xl/richData/rdrichvaluestructure.xml#xml=/",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "__WORKBOOK__",
+          "target": "xl/richData/richValueRel.xml#xml=/",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Product photos",
+          "target": "xl/worksheets/sheet1.xml#range=A1:B2",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption).",
+        "Product photos!A1:B2 has an in-cell picture attached to the rectangle, so its logical structure could not be established safely (spec 7.4, 8.6).",
+        "Product photos!B2 is a Place in Cell picture (vm=\"1\") backed by rich-data and cell-image parts, which are not interpreted; spec 7.2 keeps the Phase 3 manual-review behavior."
+      ],
+      "corrections": [],
+      "notes": "Team 9 synthetic fixture (pod contract 1.1). Product photos (sheetId 1): A1 'Product', B1 'Photo', A2 'Desk lamp', B2 an error cell with vm=\"1\" (Place in Cell picture). Rich-data parts rdRichValueTypes, rdrichvalue, rdrichvaluestructure, richValueRel and its .rels, plus the WPS-style xl/cellimages.xml: each is one __WORKBOOK__ <part>#xml=/ review. xl/metadata.xml and the PNG are not cell-image parts. Expectations derived by Team 12 on 2026-11-01 from the package XML, spec 2.1.0 sections 7.1-7.7 and 8.6 and the pod contract 1.1 rules in Team 9's tests/fixtures/README.md, before comparing with Team 9's expectations-phase4.json; findings and status then agreed exactly. Team 9 lists no limitation for the uninterpreted representation itself; Team 12 does (spec 7.2). Bytes are Team 9's, unchanged.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "image_formula": {
+      "kind": "accepted",
+      "file": "image_formula.xlsx",
+      "sha256": "edefdb8a4b567fe2ef4cb79e37aeb1b3c85116286c0d040ed8956b6a124effc5",
+      "origin": "team9",
+      "upload_name": "image_formula.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Brand logos",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[2]/c[2]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Brand logos",
+          "target": "xl/worksheets/sheet1.xml#range=A1:C2",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Brand logos!A1:C2 is a connected but not dense candidate, so its logical structure could not be established safely (spec 7.4).",
+        "Brand logos!B2 is an _xlfn.IMAGE() formula; it is not evaluated and needs manual review (spec 7.2).",
+        "Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption)."
+      ],
+      "corrections": [],
+      "notes": "Team 9 synthetic fixture (pod contract 1.1). Brand logos (sheetId 1): A1 'Brand', B1 'Logo', C1 =SUM(1,2), A2 'Team 9', B2 =_xlfn.IMAGE(\"https://example.invalid/logo.png\",\"Team 9 logo\"). Only B2 is an image; the SUM is not. Expectations derived by Team 12 on 2026-11-01 from the package XML, spec 2.1.0 sections 7.1-7.7 and 8.6 and the pod contract 1.1 rules in Team 9's tests/fixtures/README.md, before comparing with Team 9's expectations-phase4.json; findings and status then agreed exactly. Team 9 lists no limitation for the uninterpreted representation itself; Team 12 does (spec 7.2). Bytes are Team 9's, unchanged.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "form_controls": {
+      "kind": "accepted",
+      "file": "form_controls.xlsx",
+      "sha256": "53630b5946d30abdf056cfd12a6ebd124b19d6e9d318766e67f57af2dddcc53c",
+      "origin": "team9",
+      "upload_name": "form_controls.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Survey",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/AlternateContent[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Survey",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[1]/AlternateContent[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Survey",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/AlternateContent[1]/Choice[1]/oleObjects[1]/AlternateContent[1]/Choice[1]/oleObject[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Survey",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/AlternateContent[1]/Choice[1]/oleObjects[1]/AlternateContent[1]/Fallback[1]/oleObject[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Survey",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/AlternateContent[2]/Choice[1]/controls[1]/AlternateContent[1]/Choice[1]/control[1]",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption).",
+        "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Survey A1:B1)",
+        "Survey has an OLE object and a form control inside mc:AlternateContent, and drawing1.xml has two mc:AlternateContent elements; none is interpreted (spec 7.2 keeps the Phase 3 manual-review behavior)."
+      ],
+      "corrections": [],
+      "notes": "Team 9 synthetic fixture (pod contract 1.1). Survey (sheetId 1): one row A1:B1. sheet1.xml nests an oleObject in mc:AlternateContent[1] (both the Choice and Fallback copies are reviewed) and a form control in mc:AlternateContent[2]. drawing1.xml: mc:AlternateContent inside twoCellAnchor[1] and a root-level mc:AlternateContent, one review each, branches not inspected. Group 5 (id 5) is a container with no finding of its own; its child shape (id 6) has a title and description. Expectations derived by Team 12 on 2026-11-01 from the package XML, spec 2.1.0 sections 7.1-7.7 and 8.6 and the pod contract 1.1 rules in Team 9's tests/fixtures/README.md, before comparing with Team 9's expectations-phase4.json; findings and status then agreed exactly. Team 9 lists no limitation for the uninterpreted representation itself; Team 12 does (spec 7.2). Bytes are Team 9's, unchanged.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "repair_prompt",
+        "repaired_parts": [
+          "xl/worksheets/sheet1.xml"
+        ],
+        "expected": false,
+        "note": "Excel replaced the whole of xl/worksheets/sheet1.xml. Its recovery log gives an XML error at line 2, column 436: the end of the first mc:Choice Requires=\"x14\", where the x14 prefix is used but never declared. drawing1.xml has the same defect for a14, the oleObject and control anchors are incomplete, and shape IDs 1025 and 1026 have no VML drawing; Excel reports only the first fatal error. Team 9's file, bytes unchanged; reported to Team 9. It does not affect the tester or the systems, which read the XML directly, and every finding is MANUAL_REVIEW, so no output edits these objects. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "vml_comments": {
+      "kind": "accepted",
+      "file": "vml_comments.xlsx",
+      "sha256": "dacd584e94b8647c37417ddae6714fa6e3a55471a7122ac7868f55578015029f",
+      "origin": "team9",
+      "upload_name": "vml_comments.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Review notes",
+          "target": "xl/drawings/vmlDrawing1.vml#id=_x0000_s1025",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Review notes",
+          "target": "xl/drawings/vmlDrawing1.vml#id=_x0000_s1026",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Review notes",
+          "target": "xl/worksheets/sheet1.xml#range=A1:B2",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Default style: missing fill is treated as white and missing font colour as black (spec 7.7 display assumption).",
+        "Review notes!A1:B2 has a numeric first-row cell (B1 = 42), so its logical structure could not be established safely (spec 7.4, 8.6).",
+        "The two legacy VML comment notes in xl/drawings/vmlDrawing1.vml are not interpreted (spec 7.2 keeps the Phase 3 manual-review behavior)."
+      ],
+      "corrections": [],
+      "notes": "Team 9 synthetic fixture (pod contract 1.1). Review notes (sheetId 1): A1 'Total', B1 42, A2 'Source', B2 'Survey'; comments on B1 and B2. vmlDrawing1.vml has two note shapes, _x0000_s1025 and _x0000_s1026 (#id= targets); the v:shapetype is not a shape. Expectations derived by Team 12 on 2026-11-01 from the package XML, spec 2.1.0 sections 7.1-7.7 and 8.6 and the pod contract 1.1 rules in Team 9's tests/fixtures/README.md, before comparing with Team 9's expectations-phase4.json; findings and status then agreed exactly. Team 9 lists no limitation for the uninterpreted representation itself; Team 12 does (spec 7.2). Bytes are Team 9's, unchanged.",
       "review": {
         "reviewers": [],
         "date": null,
@@ -2092,7 +2352,7 @@
           "limitation_facts": []
         }
       },
-      "notes": "Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,\"here\"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,\"link\"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Formula links use indexed XML cell paths (spec 7.6, confirmed by Team 9 on 2026-11-01): A11-A13 are /worksheet[1]/sheetData[1]/row[11..13]/c[1]. Pending pod contract 1.1: the indexed-path targets for range and duplicate links.",
+      "notes": "Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,\"here\"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,\"link\"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Formula links use indexed XML cell paths (spec 7.6, confirmed by Team 9 on 2026-11-01): A11-A13 are /worksheet[1]/sheetData[1]/row[11..13]/c[1]. Range and duplicate links use /worksheet[1]/hyperlinks[1]/hyperlink[n], the same form as Team 9's link_vectors oracle (read 2026-11-01).",
       "review": {
         "reviewers": [],
         "date": null,
@@ -2112,7 +2372,7 @@
     "contrast_vectors": {
       "kind": "accepted",
       "file": "contrast_vectors.xlsx",
-      "sha256": "fd83260b1b50d8c35528c48b55944e9ca96227b89ee87c6ed153cece7cb1d4a8",
+      "sha256": "0cd5088f59de78a9f36f0190a5f6e08a159c4b711d82bdcac140e40bad83171e",
       "origin": "team12",
       "upload_name": "contrast_vectors.xlsx",
       "http_status": 202,
@@ -2220,6 +2480,13 @@
           "ruleId": "COLOR_CONTRAST",
           "category": "COLOR_OR_CONTRAST",
           "worksheet": "Theme",
+          "target": "xl/worksheets/sheet4.xml#cell=A11",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Theme",
           "target": "xl/worksheets/sheet4.xml#cell=A3",
           "classification": "MANUAL_REVIEW"
         },
@@ -2228,6 +2495,13 @@
           "category": "COLOR_OR_CONTRAST",
           "worksheet": "Theme",
           "target": "xl/worksheets/sheet4.xml#cell=A5",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Theme",
+          "target": "xl/worksheets/sheet4.xml#cell=A9",
           "classification": "MANUAL_REVIEW"
         },
         {
@@ -2359,6 +2633,13 @@
               "ruleId": "COLOR_CONTRAST",
               "category": "COLOR_OR_CONTRAST",
               "worksheet": "Theme",
+              "target": "xl/worksheets/sheet4.xml#cell=A11",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Theme",
               "target": "xl/worksheets/sheet4.xml#cell=A3",
               "classification": "MANUAL_REVIEW"
             },
@@ -2367,6 +2648,13 @@
               "category": "COLOR_OR_CONTRAST",
               "worksheet": "Theme",
               "target": "xl/worksheets/sheet4.xml#cell=A5",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Theme",
+              "target": "xl/worksheets/sheet4.xml#cell=A9",
               "classification": "MANUAL_REVIEW"
             }
           ],
@@ -2529,7 +2817,7 @@
           "limitation_facts": []
         }
       },
-      "notes": "All on white unless noted. Default: A1 default style (no colour, no fill), A3 333333 (12.63:1). Contrast: A1 777777 (4.478, fails), A3 767676 (4.542, passes). Large: A1 18 pt 959595 (2.995, fails 3.0), A3 18 pt 949494 (3.033, passes), A5 14 pt bold 949494 (passes), A7 14 pt regular 949494 (fails 4.5). Theme: A1 accent1 336699 tint -1 = 000000 (passes), A3 accent1 tint 0.5 = 8CB2D9 (nonneutral), A5 dk1 tint 0.5 = 808080 (3.949, fails), A7 dk1 tint 0.25 = 404040 (passes). Indexed: the workbook palette sets index 10 to black (passes), index 12 stays 0000FF (nonneutral). Meaning: A1 0000FF text (8.59, nonneutral), A3 black on FFFF00 fill (nonneutral fill). Conditional: A1:A3 has a fill-colour conditional format, so the 777777 cell A2 inside it is suppressed; A5 777777 outside it is not. Unsupported and Overlay: see the limitation fact. Hidden cells: A3 in a hidden row and C1 in a hidden column, both 777777.",
+      "notes": "All on white unless noted. Default: A1 default style (no colour, no fill), A3 333333 (12.63:1). Contrast: A1 777777 (4.478, fails), A3 767676 (4.542, passes). Large: A1 18 pt 959595 (2.995, fails 3.0), A3 18 pt 949494 (3.033, passes), A5 14 pt bold 949494 (passes), A7 14 pt regular 949494 (fails 4.5). Theme: A1 accent1 336699 tint -1 = 000000 (passes), A3 accent1 tint 0.5 = 8CB3D9 (nonneutral; pack 2.1.1 corrected value), A5 dk1 tint 0.5 = 808080 (3.949, fails), A7 dk1 tint 0.25 = 404040 (passes), A9 accent1 tint -0.5 = 1A334D (nonneutral; pack 2.1.1 corrected value), A11 accent5 050505 tint -0.5 = 030303 on a 757575 fill (4.476, fails; a truncating or ties-to-even 020202 gives 4.503 and wrongly passes), A13 accent6 010101 tint -0.5 = 010101 (passes; no gray fill separates it from a wrong 000000, so it is coverage only). Tints were computed with exact rational arithmetic. Indexed: the workbook palette sets index 10 to black (passes), index 12 stays 0000FF (nonneutral). Meaning: A1 0000FF text (8.59, nonneutral), A3 black on FFFF00 fill (nonneutral fill). Conditional: A1:A3 has a fill-colour conditional format, so the 777777 cell A2 inside it is suppressed; A5 777777 outside it is not. Unsupported and Overlay: see the limitation fact. Hidden cells: A3 in a hidden row and C1 in a hidden column, both 777777.",
       "review": {
         "reviewers": [],
         "date": null,

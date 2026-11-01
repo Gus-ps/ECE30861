@@ -20,8 +20,10 @@ ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "ref" / "Phase4_Agent_Context_Pack" / "phase4-test-plan.json"
 PHASE3 = ROOT / "tester" / "fixtures" / "manifest.json"
 OUT = ROOT / "tester" / "fixtures" / "manifest_phase4.json"
-VERSION = "2.1.0-team12-draft"
-BLOCKED = {"in_cell_picture", "image_formula", "form_controls", "vml_comments"}
+VERSION = "2.1.1-team12-draft"            # pack revision 2.1.1's suite target (CORRECTIONS.md)
+##  Fixtures still waiting on an outside contract map to blocked_fixture (skips). None since
+##  2026-11-01: Team 9's pod contract 1.1 fixtures are in the pack (origin team9).
+BLOCKED = set()
 POD_CONTRACT = "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
 ACCESS_FIXTURE = "mixed_decisions"
 

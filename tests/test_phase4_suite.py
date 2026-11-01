@@ -19,8 +19,10 @@ from .test_fixtures_and_record import run, setup
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = FIXTURES / "manifest_phase4.json"
-BLOCKED = {"P3-UPLOAD-IN-CELL-PICTURE", "P3-AUDIT-IN-CELL-PICTURE", "P3-UPLOAD-IMAGE-FORMULA", "P3-AUDIT-IMAGE-FORMULA",
-           "P3-UPLOAD-FORM-CONTROLS", "P3-AUDIT-FORM-CONTROLS", "P3-UPLOAD-VML-COMMENTS", "P3-AUDIT-VML-COMMENTS"}
+##  The pod contract 1.1 cases, unblocked on 2026-11-01 with Team 9's fixtures.
+POD_CONTRACT_CASES = {"P3-UPLOAD-IN-CELL-PICTURE", "P3-AUDIT-IN-CELL-PICTURE", "P3-UPLOAD-IMAGE-FORMULA",
+                      "P3-AUDIT-IMAGE-FORMULA", "P3-UPLOAD-FORM-CONTROLS", "P3-AUDIT-FORM-CONTROLS",
+                      "P3-UPLOAD-VML-COMMENTS", "P3-AUDIT-VML-COMMENTS"}
 
 
 @pytest.fixture
@@ -50,13 +52,13 @@ def test_manifest_is_generated_from_the_plan():
     assert [c["test_id"] for c in json.loads(MANIFEST.read_text(encoding="utf-8"))["tests"]] == hosted
 
 
-def test_every_case_but_the_blocked_fixtures_passes_against_a_conforming_target(phase4_client):
+def test_every_case_passes_against_a_conforming_target(phase4_client):
     by_id, body, _ = full_run(phase4_client)
     assert len(by_id) == 215
-    failing = {t: r["message"] for t, r in by_id.items() if r["outcome"] != "pass" and t not in BLOCKED}
+    failing = {t: r["message"] for t, r in by_id.items() if r["outcome"] != "pass"}
     assert failing == {}, json.dumps(failing, indent=1)[:6000]
-    assert {by_id[t]["outcome"] for t in BLOCKED} == {"skip"}
-    assert "pod contract 1.1" in by_id["P3-AUDIT-VML-COMMENTS"]["message"]
+    assert "the 3 expected findings" in by_id["P3-AUDIT-VML-COMMENTS"]["message"]
+    assert all(t in by_id for t in POD_CONTRACT_CASES)
     assert body["coverage"]["component"]["covered"] == body["coverage"]["component"]["total"] - 1   # C9 never counts
 
 

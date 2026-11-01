@@ -39,11 +39,18 @@ ORACLE_KEYS = [k for k in KEYS if k not in ("unsupported_edits", "preservation_r
 VECTOR_KEYS = ["table_header_vectors", "merge_vectors", "link_vectors", "contrast_vectors"]
 KEYS += VECTOR_KEYS
 ORACLE_KEYS += VECTOR_KEYS
-##  The simple re-derivations below skip only their own rule's vector fixture, whose forms
-##  (theme/indexed colours, overlays, formula and range links, header defects) they do not model.
-COLOR_KEYS = [k for k in KEYS if k != "contrast_vectors"]
+##  Team 9's pod contract 1.1 fixtures (origin team9), with the SHA256 Team 9 published for each.
+TEAM9 = {"in_cell_picture": "63921a4e08cd90ee035afe125d94676dffabeaa7fd74aaf6c993fd7fe4088f1b",
+         "image_formula": "edefdb8a4b567fe2ef4cb79e37aeb1b3c85116286c0d040ed8956b6a124effc5",
+         "form_controls": "53630b5946d30abdf056cfd12a6ebd124b19d6e9d318766e67f57af2dddcc53c",
+         "vml_comments": "dacd584e94b8647c37417ddae6714fa6e3a55471a7122ac7868f55578015029f"}
+KEYS += list(TEAM9)
+##  The simple re-derivations below skip their own rule's vector fixture, whose forms (theme/indexed
+##  colours, overlays, formula and range links, header defects) they do not model, and Team 9's files,
+##  which use the default-style display assumption and unsupported features attached to a candidate.
+COLOR_KEYS = [k for k in KEYS if k != "contrast_vectors" and k not in TEAM9]
 LINK_KEYS = [k for k in KEYS if k != "link_vectors"]
-TABLE_KEYS = [k for k in KEYS if k != "table_header_vectors"]
+TABLE_KEYS = [k for k in KEYS if k != "table_header_vectors" and k not in TEAM9]
 REJECTED = ["corrupt", "zip_traversal", "zip_duplicate", "xml_dtd", "macro_parts", "encrypted_zip", "protected_sheet",
             "protected_structure"]
 M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -81,11 +88,19 @@ def test_recorded_sha256_and_section_15_2_fields(key):
 ##  Every accepted source fixture was opened in Excel on 2026-11-01; only these repaired, with the
 ##  parts Excel's repair log named. Rejected inputs are not opened (several are meant not to open).
 EXCEL_REPAIRED = {"table_header_vectors": ["xl/tables/table3.xml", "xl/tables/table4.xml"]}
+##  Repairs that are defects in someone else's file, reported to its owner: Team 9's form_controls
+##  uses the x14 prefix in sheet1.xml without declaring it, so Excel replaces that part.
+EXCEL_DEFECTS = {"form_controls": ["xl/worksheets/sheet1.xml"]}
 
 
 @pytest.mark.parametrize("key", [*KEYS, "clean", "seeded_issues"])
 def test_excel_open_is_recorded_and_repairs_are_the_deliberately_invalid_tables(key):
     record = entry(key)["excel_open"]
+    if key in EXCEL_DEFECTS:
+        assert (record["result"], record["repaired_parts"], record["expected"]) == \
+            ("repair_prompt", EXCEL_DEFECTS[key], False)
+        assert entry(key)["origin"] != "team12"
+        return
     assert record["date"] == "2026-11-01" and record["expected"] is True
     if key not in EXCEL_REPAIRED:
         assert (record["result"], record["repaired_parts"]) == ("opened_clean", [])
@@ -150,6 +165,57 @@ def test_preservation_rich_contains_every_section_11_feature():
         assert marker in sheet, marker
     assert b'state="hidden"' in book.zip.read("xl/workbook.xml") and b"<definedName" in book.zip.read("xl/workbook.xml")
     assert b'id="_x0000_s1025"' in book.zip.read("xl/drawings/vmlDrawing1.vml")
+
+
+@pytest.mark.parametrize("key", TEAM9)
+def test_team9_fixtures_are_their_published_bytes(key):
+    assert entry(key)["origin"] == "team9" and entry(key)["sha256"] == TEAM9[key]
+    assert all(f["classification"] == "MANUAL_REVIEW" for f in entry(key)["findings"])
+    assert entry(key)["expected_status"] == "REVIEW_REQUIRED" and entry(key)["limitation_facts"]
+
+
+def indexed_path(root, element):
+    ##  Spec 7.1 indexed path: local names, one-based among same-name siblings, from the root.
+    parents = {child: parent for parent in root.iter() for child in parent}
+    steps = []
+    while element is not None:
+        parent = parents.get(element)
+        name = element.tag.rsplit("}", 1)[-1]
+        siblings = [e for e in (parent if parent is not None else [element]) if e.tag.rsplit("}", 1)[-1] == name]
+        steps.append(f"{name}[{siblings.index(element) + 1}]")
+        element = parent
+    return "/" + "/".join(reversed(steps))
+
+
+def test_team9_fixture_targets_match_their_xml():
+    ##  Each expected target is re-derived here from the package itself.
+    MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+    book = Workbook("in_cell_picture")
+    sheet = book.xml("xl/worksheets/sheet1.xml")
+    vm = [c for c in sheet.iter(f"{M}c") if c.get("vm")]
+    targets = {f"xl/worksheets/sheet1.xml#xml={indexed_path(sheet, c)}" for c in vm}
+    targets |= {f"{name}#xml=/" for name in book.zip.namelist() if name.startswith("xl/richData/") or name == "xl/cellimages.xml"}
+    assert targets == {f["target"] for f in expected("in_cell_picture", "ALT_TEXT")}
+    book = Workbook("image_formula")
+    sheet = book.xml("xl/worksheets/sheet1.xml")
+    images = [c for c in sheet.iter(f"{M}c") if re.match(r"(_xlfn\.)?IMAGE\(", c.findtext(f"{M}f") or "", re.I)]
+    assert {f"xl/worksheets/sheet1.xml#xml={indexed_path(sheet, c)}" for c in images} == \
+        {f["target"] for f in expected("image_formula", "ALT_TEXT")}
+    book = Workbook("form_controls")
+    sheet, drawing = book.xml("xl/worksheets/sheet1.xml"), book.xml("xl/drawings/drawing1.xml")
+    objects = [e for e in sheet.iter() if e.tag in (f"{M}oleObject", f"{M}control")]
+    alternates = [e for e in drawing.iter(f"{MC}AlternateContent")]
+    assert len(objects) == 3 and len(alternates) == 2
+    assert {f"xl/worksheets/sheet1.xml#xml={indexed_path(sheet, e)}" for e in objects} | \
+        {f"xl/drawings/drawing1.xml#xml={indexed_path(drawing, e)}" for e in alternates} == \
+        {f["target"] for f in expected("form_controls", "ALT_TEXT")}
+    group = next(drawing.iter(f"{XDR}grpSp"))
+    assert group.find(f"{XDR}nvGrpSpPr/{XDR}cNvPr").get("descr") is None          # container: no finding
+    child = group.find(f"{XDR}sp/{XDR}nvSpPr/{XDR}cNvPr")
+    assert child.get("title") and child.get("descr")
+    vml = Workbook("vml_comments").zip.read("xl/drawings/vmlDrawing1.vml").decode("utf-8")
+    shapes = re.findall(r'<v:shape id="([^"]+)"', vml)
+    assert {f"xl/drawings/vmlDrawing1.vml#id={s}" for s in shapes} == {f["target"] for f in expected("vml_comments", "ALT_TEXT")}
 
 
 def test_large_preservation_exceeds_two_mib():
@@ -294,9 +360,6 @@ def test_merged_cells_rows(key):
 
 
 AMBIGUOUS = {"click here", "here", "link", "more", "read more", "learn more", "website", "url"}
-##  Team 9 confirmed indexed targets for link_vectors A11-A13 only (2026-11-01); unsupported_edits
-##  B3 keeps its #cell= target until they confirm it too.
-FORMULA_CELL_TARGETS = {"unsupported_edits"}
 
 
 def ambiguous(label, destination):
@@ -333,10 +396,9 @@ def test_link_text_rows(key):
                 ##  so it is an unsupported representation with an indexed XML target (spec 7.6).
                 match = re.fullmatch(r'(?:_xlfn\.)?HYPERLINK\("([^"]*)"(?:,"([^"]*)")?\)', c.findtext(f"{M}f") or "", re.I)
                 if match and ambiguous(match[2] if match[2] is not None else match[1], match[1]):
-                    target = f"#cell={c.get('r')}" if key in FORMULA_CELL_TARGETS \
-                        else f"#xml=/worksheet[1]/sheetData[1]/row[{row_index}]/c[{cell_index}]"
                     found.append({"ruleId": "LINK_TEXT", "category": "LINK_TEXT", "worksheet": name,
-                                  "target": f"{part}{target}", "classification": "MANUAL_REVIEW"})
+                                  "target": f"{part}#xml=/worksheet[1]/sheetData[1]/row[{row_index}]/c[{cell_index}]",
+                                  "classification": "MANUAL_REVIEW"})
     assert sorted(found, key=sort_key) == expected(key, "LINK_TEXT")
 
 
@@ -415,26 +477,48 @@ def test_vectors_partition_the_fixture_findings(key):
 
 
 def tint(hex_rgb, t):
-    ##  Spec 7.7: apply tint to HSL lightness, convert back, clamp, round half up.
-    import colorsys
-    from decimal import ROUND_HALF_UP, Decimal
-    r, g, b = (int(hex_rgb[i:i + 2], 16) / 255 for i in (0, 2, 4))
-    h, lightness, s = colorsys.rgb_to_hls(r, g, b)
-    lightness = lightness * (1 + t) if t < 0 else lightness * (1 - t) + t
-    out = colorsys.hls_to_rgb(h, lightness, s)
-    return "".join(f"{int(Decimal(min(max(c, 0), 1) * 255).quantize(0, ROUND_HALF_UP)):02X}" for c in out)
+    ##  Spec 7.7 with pack 2.1.1: tint the HSL lightness, convert back, clamp, and round each final
+    ##  channel half up. Exact rationals throughout, so an exact half is never lost to float error.
+    from fractions import Fraction
+    t = Fraction(str(t))
+    r, g, b = (Fraction(int(hex_rgb[i:i + 2], 16), 255) for i in (0, 2, 4))
+    high, low = max(r, g, b), min(r, g, b)
+    lightness = (high + low) / 2
+    new = lightness * (1 + t) if t < 0 else lightness * (1 - t) + t
+    if high == low:
+        channels = (new,) * 3
+    else:
+        spread = high - low
+        saturation = spread / (1 - abs(2 * lightness - 1))
+        hue = ((g - b) / spread) % 6 if high == r else (b - r) / spread + 2 if high == g else (r - g) / spread + 4
+        chroma = (1 - abs(2 * new - 1)) * saturation
+        x = chroma * (1 - abs(hue % 2 - 1))
+        sector = [(chroma, x, 0), (x, chroma, 0), (0, chroma, x), (0, x, chroma), (x, 0, chroma), (chroma, 0, x)]
+        channels = tuple(c + new - chroma / 2 for c in sector[int(hue)])
+    return "".join(f"{int(min(max(c, 0), 1) * 255 + Fraction(1, 2)):02X}" for c in channels)
 
 
 def test_tint_matches_the_policy_vectors_and_the_theme_rows():
     vectors = json.loads((ROOT / "ref" / "Phase4_Agent_Context_Pack" / "phase4-policy-vectors.json")
                          .read_text(encoding="utf-8"))["tint"]
+    assert len(vectors) == 7                     # pack 2.1.1: two 336699 corrections, two half-boundary cases
     for vector in vectors:
         assert tint(vector["base_rgb"], vector["tint"]) == vector["expected_rgb"], vector
-    rows = {"A1": tint("336699", -1), "A3": tint("336699", 0.5), "A5": tint("000000", 0.5), "A7": tint("000000", 0.25)}
-    assert rows == {"A1": "000000", "A3": "8CB2D9", "A5": "808080", "A7": "404040"}
-    flagged = {ref for ref, rgb in rows.items() if not neutral(rgb) or contrast(rgb, "FFFFFF") < 4.5}
+    ##  Theme sheet: (base, tint, fill) per cell, read from the fixture's theme slots (accent5/6 = 050505/010101).
+    cells = {"A1": ("336699", -1, "FFFFFF"), "A3": ("336699", 0.5, "FFFFFF"), "A5": ("000000", 0.5, "FFFFFF"),
+             "A7": ("000000", 0.25, "FFFFFF"), "A9": ("336699", -0.5, "FFFFFF"), "A11": ("050505", -0.5, "757575"),
+             "A13": ("010101", -0.5, "FFFFFF")}
+    rows = {ref: tint(base, t) for ref, (base, t, _fill) in cells.items()}
+    assert rows == {"A1": "000000", "A3": "8CB3D9", "A5": "808080", "A7": "404040", "A9": "1A334D", "A11": "030303",
+                    "A13": "010101"}
+    flagged = {ref for ref, rgb in rows.items()
+               if not (neutral(rgb) and neutral(cells[ref][2])) or contrast(rgb, cells[ref][2]) < 4.5}
     expected_refs = {f["target"].rsplit("=", 1)[1] for f in entry("contrast_vectors")["vectors"]["P4-RULE-COLOR-THEME-TINT"]["findings"]}
-    assert flagged == expected_refs == {"A3", "A5"}
+    assert flagged == expected_refs == {"A3", "A5", "A9", "A11"}
+    ##  A11 is the observable half-boundary case: a non-half-up 020202 would pass on 757575.
+    assert contrast("030303", "757575") < 4.5 <= contrast("020202", "757575")
+    theme = Workbook("contrast_vectors").zip.read("xl/theme/theme1.xml")
+    assert b'<a:accent5><a:srgbClr val="050505"/>' in theme and b'<a:accent6><a:srgbClr val="010101"/>' in theme
 
 
 def test_contrast_vectors_large_text_and_palette():

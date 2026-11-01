@@ -1,5 +1,14 @@
 [
   {
+    "fixture": "unsupported_edits",
+    "sourceSha256": "cf27357110fd3e42de442c7b35f9f9440ddb9eb2ccbfdbdf39b1ecc75e33a8d2",
+    "rulesetVersion": "2.0.0",
+    "ruleId": "LINK_TEXT",
+    "worksheet": "Sheet1",
+    "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
+    "findingId": "e7130509c54d02321df4b62c4928993dda57fb2cacb390428ed377528b38b716"
+  },
+  {
     "fixture": "link_vectors",
     "sourceSha256": "962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa",
     "rulesetVersion": "2.0.0",
