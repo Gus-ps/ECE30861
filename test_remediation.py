@@ -114,7 +114,7 @@ class RemediationTests(unittest.TestCase):
             ("INVALID_REQUEST", [{"findingId": link, "action": "DECLINE", "value": {"text": "x"}}]),
             ("INVALID_REQUEST", [{"findingId": link, "action": "DECLINE", "note": "x"}]),
             ("INVALID_REQUEST", []),
-            ("INVALID_CORRECTION", [{"findingId": sheet, "action": "APPLY", "value": {"name": "Budget"}}]),
+            ("CONFLICTING_CORRECTIONS", [{"findingId": sheet, "action": "APPLY", "value": {"name": "Budget"}}]),
             ("INVALID_CORRECTION", [{"findingId": sheet, "action": "APPLY", "value": {"name": "Sheet2"}}]),
             ("UNSUPPORTED_CORRECTION", [{"findingId": sheet, "action": "APPLY", "value": {"name": "SHEET2"}}]),
             ("INVALID_CORRECTION", [{"findingId": sheet, "action": "APPLY", "value": {"name": "Sheet7"}}]),

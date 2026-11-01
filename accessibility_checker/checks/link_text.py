@@ -257,7 +257,10 @@ def check_link_text(path, *, source_sha256=None):
                     and not ambiguous_label(parsed[1], parsed[0])
                 ):
                     continue
-                target = sheet.part + "#cell=" + address
+                # A formula is an unsupported editing representation even when
+                # its literal arguments can be screened. Section 7.6 uses the
+                # indexed cell element for every formula-link finding.
+                target = _formula_location(reader, sheet, address)
                 reasons = ["Formula hyperlink text is not edited; its formula was not calculated."]
                 if parsed is None or unsupported:
                     # Stored row/cell positions are needed, including omitted r.

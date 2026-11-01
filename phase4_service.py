@@ -174,6 +174,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             path = Path(directory)/'source.xlsx'
             path.write_bytes(data)
             valid = await asyncio.to_thread(workbook_validator, str(path))
+            if valid is True or type(valid) is int and valid == 1:
+                from package_checks import check_package
+                await asyncio.to_thread(check_package, path)
         if type(valid) not in (bool,int) or valid not in (0,1):
             raise ApiError(500, 'ENGINE_RESULT_INVALID', 'Validator must return a boolean.')
         if not valid:

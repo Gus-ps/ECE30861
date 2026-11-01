@@ -197,9 +197,9 @@ def _validate(decisions, source, parts):
         if action != "APPLY" and "value" in decision:
             raise RemediationError("INVALID_REQUEST", f"{action} does not take a value.")
         if action == "APPLY":
-            value = decision.get("value")
-            if value is None:
+            if "value" not in decision:
                 raise RemediationError("MISSING_VALUE", "A value is required to apply a fix.")
+            value = decision["value"]
             if finding["classification"] != "REQUIRES_USER_INPUT" or finding["ruleId"] not in FIELDS:
                 raise RemediationError("UNSUPPORTED_CORRECTION", "This finding needs manual review.")
             if not isinstance(value, dict) or set(value) != set(FIELDS[finding["ruleId"]]):
@@ -256,7 +256,7 @@ def _check_renames(records, parts):
         if record["ruleId"] == "WORKSHEET_NAME" and record["action"] == "APPLY":
             name = record["value"]["name"]
             if name.casefold() in taken:
-                raise RemediationError("INVALID_CORRECTION", f"A sheet named {name!r} already exists.")
+                raise RemediationError("CONFLICTING_CORRECTIONS", f"A sheet named {name!r} already exists.")
             if name.casefold() in chosen:
                 raise RemediationError("CONFLICTING_CORRECTIONS", f"{name!r} is used by another rename.")
             chosen.add(name.casefold())
