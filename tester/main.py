@@ -6,8 +6,9 @@ Run locally:  uv run uvicorn tester.main:create_app --factory --port 8001
 import re
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header
+from fastapi import Depends, FastAPI
 from fastapi.responses import Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .auth import operator_subject
 from .config import Settings
@@ -36,7 +37,10 @@ def create_app(settings=None, transport=None, checks=None):
     app.state.service = service
     install_handlers(app)
 
-    def operator(authorization: str | None = Header(default=None)):
+    bearer = HTTPBearer(auto_error=False)
+
+    def operator(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
+        authorization = f"Bearer {credentials.credentials}" if credentials else None
         return operator_subject(authorization, settings.tester_operator_token_hashes_json)
 
     @app.post("/test/setup", status_code=201, response_model=SetupResponse, responses=ERRORS)
