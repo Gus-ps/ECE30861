@@ -47,8 +47,8 @@ uvicorn processes on 127.0.0.1, and `rehearse.py` drives the instructor interfac
 uv run python scripts/rehearsal/rehearse.py
 ```
 
-It needs free ports 8100–8102 (nothing may listen on 8199), takes about a minute, prints
-one PASS/FAIL line per check and exits 0 when all 30 pass. Logs and the happy-path report
+It needs free ports 8100–8102 (nothing may listen on 8199), takes about two minutes, prints
+one PASS/FAIL line per check and exits 0 when all 32 pass. Logs and the happy-path report
 are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
 
 | Scenario | Checks |
@@ -58,6 +58,7 @@ are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
 | C. Timeout | a stalled system report is cut off at 10 s as error/communication |
 | D. Base path | `--root-path /tester` works when the proxy strips `/tester`; an unstripped path is 404 |
 | E. Crash | tester killed mid-run; after restart the report is aborted with the interrupted case as error/tester |
+| F. Phase 4 | a second tester runs the draft Phase 4 manifest (215 cases) against the stand-in at ruleset 2.0.0: 207 pass, the 8 cases awaiting pod contract 1.1 skip, and the next setup queues the run's 5 extra sessions for cleanup |
 
 Deployment note from scenario D: the reverse proxy must strip `/tester` before
 forwarding (nginx: `location /tester/ { proxy_pass http://127.0.0.1:8001/; }`) and
@@ -99,12 +100,34 @@ cases that depend on it; an audit with wrong findings still counts as usable, a
 `PROCESSING_FAILED` audit does not. The test fake audits with `tester/suite/pod_rules.py`,
 not the expectations, so the rehearsal compares two independent sources.
 
-Team 12's Phase 4 pack (ruleset 2.0.0) is started in `tester/fixtures/phase4/`:
-`clean_all_six`, `seeded_all_six` and the five correction fixtures (`alt_supported`,
-`rename_references`, `link_supported`, `header_range`, `header_disabled_table`), built by
-`scripts/build_phase4_fixtures.py`, with six-rule expectations and exact correction values
-and effects hand-written to the spec §15.2 record fields. None has been reviewed by Team 9
-or opened in Excel; the remaining Phase 4 fixtures are listed in its README.
+### Phase 4
+
+Every hosted case of the Phase 4 test plan has a check. Team 9's executable manifest 2.1.0
+does not exist yet, so `tester/fixtures/manifest_phase4.json` is a Team 12 draft generated
+from the plan by `scripts/build_phase4_manifest.py` (all 215 hosted IDs in plan order; the
+check mapping lives in that script). Run Phase 4 by pointing the tester at it:
+
+```sh
+MANIFEST_PATH=tester/fixtures/manifest_phase4.json \
+POD_PROFILE_PATH=tester/fixtures/pod_profile_phase4.json \
+EXPECTATIONS_PATH=tester/fixtures/phase4/expectations.json \
+uv run uvicorn tester.main:create_app --factory --port 8001
+```
+
+| Path | Purpose |
+| --- | --- |
+| `tester/suite/checks_phase4.py` | Phase 4 checks: rule vectors, review context, new versions, re-audits, downloads, remediation (judged by the comparator), rejections, idempotency, the 63-case access matrix, session cases |
+| `tester/fixtures/phase4/` | 30-entry ruleset 2.0.0 pack built by `scripts/build_phase4_fixtures.py`; per-fixture intent, hashes and finding IDs in its README |
+| `tests/fake_phase4.py` | Phase 4 routes of the test fake |
+
+Against a conforming fake, 207 cases pass and 8 skip: `in_cell_picture`, `image_formula`,
+`form_controls` and `vml_comments` cite pod contract 1.1, which is not in this repo. The
+fake answers six-rule audits from the pack's own answer key and edits outputs with the
+comparator's change model, so those self-tests prove the tester's plumbing and its judgement
+of wrong answers (`tests/test_phase4_suite.py`), not rule agreement; only a real system run
+does that. No Phase 4 fixture has been reviewed by Team 9. Every accepted Phase 4 fixture opened in Excel on
+2026-11-01 without a repair prompt, except `table_header_vectors`, whose Blank and Duplicate tables Excel
+repairs as expected (see the pack README). Correction outputs have not been opened yet.
 
 Team 12's fixture pack in `tester/fixtures/shared/` covers every fixture the Phase 3
 manifest names and loads with `EXPECTATIONS_PATH=tester/fixtures/shared/expectations.json`.

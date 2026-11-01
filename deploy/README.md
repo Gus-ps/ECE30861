@@ -115,6 +115,13 @@ Fill in Team 12's row in the instructor endpoint registry:
 
 - **Restarts:** stopping or restarting the tester mid-run aborts that suite. The next start
   stores an aborted report, keeping the results recorded so far. Setup and run are never replayed.
+- **Phase 4:** set `MANIFEST_PATH=tester/fixtures/manifest_phase4.json`,
+  `POD_PROFILE_PATH=tester/fixtures/pod_profile_phase4.json` and
+  `EXPECTATIONS_PATH=tester/fixtures/phase4/expectations.json` (paths inside the image or
+  checkout). The manifest is Team 12's draft until Team 9's 2.1.0 exists. A Phase 4 run creates
+  up to five extra system sessions (fault, failed-audit, wrong-namespace and two cleanup-case
+  sessions); they are listed in the run record as `fault_session_ids` and sent as
+  `cleanup_session_ids` on the next setup.
 - **Pod profile or manifest changes:** each setup reads `tester/fixtures/pod_profile.json` and
   the manifest fresh, so new sessions pick up edits without affecting existing ones. With
   Docker, the files are baked into the image, so rebuild it (or mount overrides via

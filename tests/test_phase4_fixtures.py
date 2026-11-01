@@ -30,10 +30,24 @@ ROOT = Path(__file__).resolve().parent.parent
 PACK = FIXTURES / "phase4"
 EXPECTATIONS = json.loads((PACK / "expectations.json").read_text(encoding="utf-8"))
 PHASE3_PROFILE = PodProfile.model_validate(json.loads((FIXTURES / "pod_profile.json").read_text(encoding="utf-8")))
-KEYS = ["clean_all_six", "seeded_all_six", "alt_supported", "rename_references", "link_supported", "header_range",
-        "header_disabled_table"]
-CORRECTION_KEYS = KEYS[2:]
+CORRECTION_KEYS = ["alt_supported", "rename_references", "link_supported", "header_range", "header_disabled_table"]
+KEYS = ["clean_all_six", "seeded_all_six", *CORRECTION_KEYS, "mixed_decisions", "review_only", "unsupported_edits",
+        "preservation_rich", "large_preservation", "inactive_protection", "unicode", "repeated_ids", "multiple_drawings"]
+##  Where ruleset 2.0.0 departs from the Phase 3 oracle (VML, duplicate IDs, unsafe rename);
+##  these are checked against the XML directly below.
+ORACLE_KEYS = [k for k in KEYS if k not in ("unsupported_edits", "preservation_rich", "repeated_ids")]
+VECTOR_KEYS = ["table_header_vectors", "merge_vectors", "link_vectors", "contrast_vectors"]
+KEYS += VECTOR_KEYS
+ORACLE_KEYS += VECTOR_KEYS
+##  The simple re-derivations below skip only their own rule's vector fixture, whose forms
+##  (theme/indexed colours, overlays, formula and range links, header defects) they do not model.
+COLOR_KEYS = [k for k in KEYS if k != "contrast_vectors"]
+LINK_KEYS = [k for k in KEYS if k != "link_vectors"]
+TABLE_KEYS = [k for k in KEYS if k != "table_header_vectors"]
+REJECTED = ["corrupt", "zip_traversal", "zip_duplicate", "xml_dtd", "macro_parts", "encrypted_zip", "protected_sheet",
+            "protected_structure"]
 M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+XDR = "{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}"
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 P = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
@@ -61,12 +75,85 @@ def test_recorded_sha256_and_section_15_2_fields(key):
     for field in ("kind", "file", "origin", "upload_name", "http_status", "expected_status", "findings",
                   "limitation_facts", "review", "excel_open"):
         assert field in item, field
-    assert item["review"] == {"reviewers": [], "date": None, "decisions": None} and item["excel_open"] is None
+    assert item["review"] == {"reviewers": [], "date": None, "decisions": None}
+
+
+##  Every accepted source fixture was opened in Excel on 2026-11-01; only these repaired, with the
+##  parts Excel's repair log named. Rejected inputs are not opened (several are meant not to open).
+EXCEL_REPAIRED = {"table_header_vectors": ["xl/tables/table3.xml", "xl/tables/table4.xml"]}
+
+
+@pytest.mark.parametrize("key", [*KEYS, "clean", "seeded_issues"])
+def test_excel_open_is_recorded_and_repairs_are_the_deliberately_invalid_tables(key):
+    record = entry(key)["excel_open"]
+    assert record["date"] == "2026-11-01" and record["expected"] is True
+    if key not in EXCEL_REPAIRED:
+        assert (record["result"], record["repaired_parts"]) == ("opened_clean", [])
+        return
+    assert record["result"] == "repair_prompt" and record["repaired_parts"] == EXCEL_REPAIRED[key]
+    ##  Each repaired part is a table whose expected finding is MANUAL_REVIEW, so no correction
+    ##  output ever has to edit it.
+    manual = {f["target"].split("#")[0] for f in entry(key)["findings"] if f["classification"] == "MANUAL_REVIEW"}
+    assert set(record["repaired_parts"]) <= manual
+
+
+@pytest.mark.parametrize("key", REJECTED)
+def test_rejected_inputs_have_no_excel_record(key):
+    assert entry(key)["excel_open"] is None
 
 
 def test_pack_validates_with_ruleset_2():
     pack = FixturePack.model_validate(EXPECTATIONS)
-    assert pack.ruleset_version == "2.0.0" and set(pack.fixtures) == set(KEYS)
+    assert pack.ruleset_version == "2.0.0" and set(pack.fixtures) == {*KEYS, *REJECTED, "clean", "seeded_issues"}
+
+
+@pytest.mark.parametrize("key", REJECTED)
+def test_rejected_inputs_are_the_phase3_bytes(key):
+    assert (PACK / f"{key}.xlsx").read_bytes() == (FIXTURES / "shared" / f"{key}.xlsx").read_bytes()
+    assert (entry(key)["kind"], entry(key)["http_status"], entry(key)["error_code"]) == ("rejected", 422, None)
+
+
+@pytest.mark.parametrize("alias, source", [("clean", "clean_all_six"), ("seeded_issues", "seeded_all_six")])
+def test_phase3_numbered_aliases_point_at_the_all_six_files(alias, source):
+    assert entry(alias)["file"] == entry(source)["file"] and entry(alias)["findings"] == entry(source)["findings"]
+    assert entry(alias)["expected_status"] == entry(source)["expected_status"]
+
+
+def test_repeated_ids_targets_match_the_spec_vector():
+    vectors = json.loads((ROOT / "ref" / "Phase4_Agent_Context_Pack" / "phase4-policy-vectors.json")
+                         .read_text(encoding="utf-8"))["duplicate_id_targets"]
+    manual = [f["target"] for f in entry("repeated_ids")["findings"] if f["classification"] == "MANUAL_REVIEW"]
+    assert manual == vectors
+    ids = [p.get("id") for p in Workbook("repeated_ids").xml("xl/drawings/drawing1.xml").iter(f"{XDR}cNvPr")]
+    assert ids == ["2", "2", "3"]
+
+
+def test_unsupported_edits_xml_facts():
+    book = Workbook("unsupported_edits")
+    drawing = book.xml("xl/drawings/drawing1.xml")
+    assert [p.get("id") for p in drawing.iter(f"{XDR}cNvPr")] == ["2", "3", "3"]
+    assert any(e.tag.endswith("decorative") for e in drawing.iter())
+    assert b"INDIRECT(" in book.zip.read("xl/worksheets/sheet2.xml")
+    assert b"<f>HYPERLINK(&quot;" in book.zip.read("xl/worksheets/sheet1.xml") or \
+        b'<f>HYPERLINK("' in book.zip.read("xl/worksheets/sheet1.xml")
+    assert all(f["classification"] == "MANUAL_REVIEW" for f in entry("unsupported_edits")["findings"])
+    assert entry("unsupported_edits")["expected_status"] == "REVIEW_REQUIRED"
+
+
+def test_preservation_rich_contains_every_section_11_feature():
+    book = Workbook("preservation_rich")
+    names = set(book.zip.namelist())
+    assert {"xl/comments1.xml", "xl/drawings/vmlDrawing1.vml", "xl/printerSettings/printerSettings1.bin",
+            "xl/charts/chart1.xml", "xl/tables/table2.xml"} <= names
+    sheet = book.zip.read("xl/worksheets/sheet1.xml")
+    for marker in (b"<conditionalFormatting", b"<dataValidations", b"<legacyDrawing", b"<pageSetup", b"<f>SUM(B2:B4)</f>"):
+        assert marker in sheet, marker
+    assert b'state="hidden"' in book.zip.read("xl/workbook.xml") and b"<definedName" in book.zip.read("xl/workbook.xml")
+    assert b'id="_x0000_s1025"' in book.zip.read("xl/drawings/vmlDrawing1.vml")
+
+
+def test_large_preservation_exceeds_two_mib():
+    assert (PACK / "large_preservation.xlsx").stat().st_size > 2 * 2 ** 20
 
 
 @pytest.mark.parametrize("key", KEYS)
@@ -89,7 +176,7 @@ def test_files_load_in_openpyxl(key):
 
 ##  ---- ALT_TEXT and WORKSHEET_NAME: the independent oracle ----
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", ORACLE_KEYS)
 def test_oracle_agrees_on_alt_text_and_worksheet_names(key):
     findings, limitations = evaluate((PACK / f"{key}.xlsx").read_bytes(), PHASE3_PROFILE)
     assert findings == expected(key, "ALT_TEXT", "WORKSHEET_NAME")
@@ -102,12 +189,13 @@ class Workbook:
     def __init__(self, key):
         self.zip = zipfile.ZipFile(PACK / f"{key}.xlsx")
         styles = self.xml("xl/styles.xml")
-        fonts = [f.find(f"{M}color").get("rgb")[2:] for f in styles.find(f"{M}fonts")]
+        fonts = [(f.find(f"{M}color").get("rgb") or "  ")[2:] if f.find(f"{M}color") is not None else None
+                 for f in styles.find(f"{M}fonts")]
         fills = [f.find(f"{M}patternFill") for f in styles.find(f"{M}fills")]
         self.xfs = []
         for xf in styles.find(f"{M}cellXfs"):
             fill = fills[int(xf.get("fillId"))]
-            solid = fill.get("patternType") == "solid"
+            solid = fill is not None and fill.get("patternType") == "solid"
             self.xfs.append((fonts[int(xf.get("fontId"))], fill.find(f"{M}fgColor").get("rgb")[2:] if solid else None))
         rels = {r.get("Id"): r.get("Target") for r in self.xml("xl/_rels/workbook.xml.rels")}
         self.sheets = [(s.get("name"), "xl/" + rels[s.get(f"{R}id")]) for s in self.xml("xl/workbook.xml").iter(f"{M}sheet")]
@@ -180,7 +268,7 @@ def neutral(rgb):
     return rgb[0:2] == rgb[2:4] == rgb[4:6]
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", COLOR_KEYS)
 def test_color_contrast_rows(key):
     book, found = Workbook(key), []
     for name, part in book.sheets:
@@ -222,7 +310,7 @@ def test_link_predicate_matches_the_policy_vectors():
         assert ambiguous(vector["label"], vector["destination"]) is vector["triggers"], vector
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", LINK_KEYS)
 def test_link_text_rows(key):
     book, found = Workbook(key), []
     for name, part in book.sheets:
@@ -235,7 +323,13 @@ def test_link_text_rows(key):
                 ##  Single cell, inline string, no formula, no merge: the safe simple profile.
                 found.append({"ruleId": "LINK_TEXT", "category": "LINK_TEXT", "worksheet": name,
                               "target": f"{part}#cell={link.get('ref')}", "classification": "REQUIRES_USER_INPUT"})
-    assert found == expected(key, "LINK_TEXT")
+        for c in book.xml(part).iter(f"{M}c"):
+            ##  A HYPERLINK formula with literal arguments is screened on its label; never editable.
+            match = re.fullmatch(r'(?:_xlfn\.)?HYPERLINK\("([^"]*)"(?:,"([^"]*)")?\)', c.findtext(f"{M}f") or "", re.I)
+            if match and ambiguous(match[2] if match[2] is not None else match[1], match[1]):
+                found.append({"ruleId": "LINK_TEXT", "category": "LINK_TEXT", "worksheet": name,
+                              "target": f"{part}#cell={c.get('r')}", "classification": "MANUAL_REVIEW"})
+    assert sorted(found, key=sort_key) == expected(key, "LINK_TEXT")
 
 
 def components(refs):
@@ -255,7 +349,7 @@ def components(refs):
     return groups
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", TABLE_KEYS)
 def test_table_header_rows_and_the_limitation_fact(key):
     book, found, small = Workbook(key), [], False
     for name, part in book.sheets:
@@ -288,7 +382,7 @@ def test_table_header_rows_and_the_limitation_fact(key):
                           "target": f"{part}#range={ref}",
                           "classification": "REQUIRES_USER_INPUT" if safe else "MANUAL_REVIEW"})
     assert sorted(found, key=sort_key) == expected(key, "TABLE_HEADER")
-    assert small is bool(entry(key)["limitation_facts"])
+    assert small is any("single-cell" in fact for fact in entry(key)["limitation_facts"])
 
 
 def _letters(column):
@@ -297,6 +391,52 @@ def _letters(column):
         column, remainder = divmod(column - 1, 26)
         out = chr(65 + remainder) + out
     return out
+
+
+##  ---- Vector fixtures ----
+
+@pytest.mark.parametrize("key", VECTOR_KEYS)
+def test_vectors_partition_the_fixture_findings(key):
+    vectors = entry(key)["vectors"]
+    union = sorted({json.dumps(f, sort_keys=True) for v in vectors.values() for f in v["findings"]})
+    assert union == sorted(json.dumps(f, sort_keys=True) for f in entry(key)["findings"])
+    for test_id, vector in vectors.items():
+        assert vector["scope"], test_id
+        assert all(f["ruleId"] == vector["rule"] for f in vector["findings"]), test_id
+        assert set(vector["limitation_facts"]) <= set(entry(key)["limitation_facts"]), test_id
+
+
+def tint(hex_rgb, t):
+    ##  Spec 7.7: apply tint to HSL lightness, convert back, clamp, round half up.
+    import colorsys
+    from decimal import ROUND_HALF_UP, Decimal
+    r, g, b = (int(hex_rgb[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    h, lightness, s = colorsys.rgb_to_hls(r, g, b)
+    lightness = lightness * (1 + t) if t < 0 else lightness * (1 - t) + t
+    out = colorsys.hls_to_rgb(h, lightness, s)
+    return "".join(f"{int(Decimal(min(max(c, 0), 1) * 255).quantize(0, ROUND_HALF_UP)):02X}" for c in out)
+
+
+def test_tint_matches_the_policy_vectors_and_the_theme_rows():
+    vectors = json.loads((ROOT / "ref" / "Phase4_Agent_Context_Pack" / "phase4-policy-vectors.json")
+                         .read_text(encoding="utf-8"))["tint"]
+    for vector in vectors:
+        assert tint(vector["base_rgb"], vector["tint"]) == vector["expected_rgb"], vector
+    rows = {"A1": tint("336699", -1), "A3": tint("336699", 0.5), "A5": tint("000000", 0.5), "A7": tint("000000", 0.25)}
+    assert rows == {"A1": "000000", "A3": "8CB2D9", "A5": "808080", "A7": "404040"}
+    flagged = {ref for ref, rgb in rows.items() if not neutral(rgb) or contrast(rgb, "FFFFFF") < 4.5}
+    expected_refs = {f["target"].rsplit("=", 1)[1] for f in entry("contrast_vectors")["vectors"]["P4-RULE-COLOR-THEME-TINT"]["findings"]}
+    assert flagged == expected_refs == {"A3", "A5"}
+
+
+def test_contrast_vectors_large_text_and_palette():
+    large = {"A1": (18, False, "959595"), "A3": (18, False, "949494"), "A5": (14, True, "949494"), "A7": (14, False, "949494")}
+    flagged = {ref for ref, (size, bold, rgb) in large.items()
+               if contrast(rgb, "FFFFFF") < (3.0 if size >= 18 or (size >= 14 and bold) else 4.5)}
+    expected_refs = {f["target"].rsplit("=", 1)[1] for f in entry("contrast_vectors")["vectors"]["P4-RULE-COLOR-LARGE-TEXT"]["findings"]}
+    assert flagged == expected_refs == {"A1", "A7"}
+    palette = [c.get("rgb") for c in Workbook("contrast_vectors").xml("xl/styles.xml").iter(f"{M}rgbColor")]
+    assert len(palette) == 64 and palette[10] == "FF000000" and palette[12] == "FF0000FF"
 
 
 def test_every_seeded_rule_is_covered_and_clean_has_none():
@@ -313,6 +453,13 @@ def test_corrections_cover_exactly_the_user_input_findings(key):
     assert [c["target"] for c in entry(key)["corrections"]] == targets
     for correction in entry(key)["corrections"]:
         change_from_decision(correction["target"], correction["value"])       # a supported APPLY value
+
+
+@pytest.mark.parametrize("key", ["mixed_decisions", "preservation_rich", "large_preservation"])
+def test_decision_set_targets_are_findings(key):
+    targets = {f["target"] for f in entry(key)["findings"]}
+    for name, decisions in entry(key)["decision_sets"].items():
+        assert {d["target"] for d in decisions} <= targets, name
 
 
 @pytest.mark.parametrize("key", CORRECTION_KEYS)
@@ -408,7 +555,36 @@ def apply_seeded_all_six(parts):
     edit(parts, "xl/tables/table1.xml", ('headerRowCount="0"', 'headerRowCount="1"'))
 
 
-@pytest.mark.parametrize("key", ["seeded_all_six", *CORRECTION_KEYS])
+def apply_mixed_decisions(parts):
+    ##  The "combined" decision set: every family, including the rename of the sheet holding the
+    ##  other targets. Tables 1 and 2 exist, so the new table is table 3.
+    edit(parts, "xl/drawings/drawing1.xml",
+         ('id="2" name="Picture 1" title="Logo"/>', 'id="2" name="Picture 1" title="Team logo" descr="Team 12 logo placeholder."/>'))
+    edit(parts, "xl/workbook.xml", ('<sheet name="Sheet1"', '<sheet name="Quarterly costs"'))
+    edit(parts, "xl/worksheets/sheet2.xml", ("Sheet1!B2+Sheet1!C2", "'Quarterly costs'!B2+'Quarterly costs'!C2"),
+         ("Sheet1!B3+Sheet1!C3", "'Quarterly costs'!B3+'Quarterly costs'!C3"))
+    parts["xl/charts/chart1.xml"] = parts["xl/charts/chart1.xml"].replace(b"'Sheet1'!", b"'Quarterly costs'!")
+    edit(parts, "xl/worksheets/sheet1.xml", ("<t>click here</t>", "<t>Team 12 budget guidance</t>"))
+    add_table(parts, "xl/worksheets/sheet1.xml", "xl/worksheets/_rels/sheet1.xml.rels", "rId3", 3,
+              new_table(3, "A11yTable3", "A1:C4", ["Item", "Q1", "Q2"]))
+    edit(parts, "xl/tables/table1.xml", ('headerRowCount="0"', 'headerRowCount="1"'))
+
+
+def apply_preservation_rich(parts):
+    edit(parts, "xl/drawings/drawing1.xml",
+         ('id="2" name="Picture 1" title="Logo"/>', 'id="2" name="Picture 1" title="Team logo" descr="Team 12 logo placeholder."/>'))
+
+
+def apply_large_preservation(parts):
+    edit(parts, "xl/drawings/drawing1.xml",
+         ('id="2" name="Picture 1" title="Site photo"/>',
+          'id="2" name="Picture 1" title="Site photo" descr="Large site photo placeholder used to test downloads over 2 MiB."/>'))
+
+
+DECISION_SETS = {"mixed_decisions": "combined", "preservation_rich": "preserve", "large_preservation": "large"}
+
+
+@pytest.mark.parametrize("key", ["seeded_all_six", *CORRECTION_KEYS, *DECISION_SETS])
 def test_the_described_correction_effects_pass_the_comparator(key):
     source = (PACK / f"{key}.xlsx").read_bytes()
     with zipfile.ZipFile(io.BytesIO(source)) as archive:
@@ -419,7 +595,8 @@ def test_the_described_correction_effects_pass_the_comparator(key):
         for name, data in parts.items():
             archive.writestr(name, data)
     output = buffer.getvalue()
-    changes = [change_from_decision(c["target"], c["value"]) for c in entry(key)["corrections"]]
+    applied = entry(key)["decision_sets"][DECISION_SETS[key]] if key in DECISION_SETS else entry(key)["corrections"]
+    changes = [change_from_decision(c["target"], c["value"]) for c in applied if c.get("action", "APPLY") == "APPLY"]
     assert compare(source, output, changes, hashlib.sha256(output).hexdigest()) == []
     assert compare(source, source, changes) != []          # not applying them is caught
 

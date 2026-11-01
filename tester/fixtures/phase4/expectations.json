@@ -1,7 +1,7 @@
 {
   "ruleset_version": "2.0.0",
   "specification_version": "2.1.0",
-  "manual_review": "Not reviewed. Expectations were hand-authored by Team 12 on 2026-11-01 from the cell, style, table, merge, link and object definitions in scripts/build_phase4_fixtures.py and shared specification 2.1.0 sections 6-9, before any engine was run. The ALT_TEXT and WORKSHEET_NAME rows were then cross-checked against tester/suite/pod_rules.py; the other four rules have no independent oracle and are checked against the package XML by tests/test_phase4_fixtures.py. Spec 15.2 requires review by two members of the other implementation team (Team 9); that has not happened. No file in this pack has been opened in Excel. The five correction fixtures (alt_supported, rename_references, link_supported, header_range, header_disabled_table) were added the same day under the same process.",
+  "manual_review": "Not reviewed. Expectations were hand-authored by Team 12 on 2026-11-01 from the cell, style, table, merge, link and object definitions in scripts/build_phase4_fixtures.py and shared specification 2.1.0 sections 6-9, before any engine was run. The ALT_TEXT and WORKSHEET_NAME rows were then cross-checked against tester/suite/pod_rules.py; the other four rules have no independent oracle and are checked against the package XML by tests/test_phase4_fixtures.py. Spec 15.2 requires review by two members of the other implementation team (Team 9); that has not happened. Every accepted fixture was opened in Microsoft Excel on 2026-11-01 (recorded per entry in excel_open): all opened cleanly except table_header_vectors, whose two deliberately invalid tables Excel repairs, as expected. Rejected inputs were not opened. Correction outputs have not been opened. The five correction fixtures (alt_supported, rename_references, link_supported, header_range, header_disabled_table) were added the same day under the same process.",
   "fixtures": {
     "clean_all_six": {
       "kind": "accepted",
@@ -19,7 +19,16 @@
         "date": null,
         "decisions": null
       },
-      "excel_open": null
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     },
     "seeded_all_six": {
       "kind": "accepted",
@@ -141,7 +150,16 @@
         "date": null,
         "decisions": null
       },
-      "excel_open": null
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     },
     "alt_supported": {
       "kind": "accepted",
@@ -237,7 +255,16 @@
         "date": null,
         "decisions": null
       },
-      "excel_open": null
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     },
     "rename_references": {
       "kind": "accepted",
@@ -294,7 +321,16 @@
         "date": null,
         "decisions": null
       },
-      "excel_open": null
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     },
     "link_supported": {
       "kind": "accepted",
@@ -343,7 +379,16 @@
         "date": null,
         "decisions": null
       },
-      "excel_open": null
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     },
     "header_range": {
       "kind": "accepted",
@@ -378,7 +423,16 @@
         "date": null,
         "decisions": null
       },
-      "excel_open": null
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     },
     "header_disabled_table": {
       "kind": "accepted",
@@ -413,7 +467,2084 @@
         "date": null,
         "decisions": null
       },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "mixed_decisions": {
+      "kind": "accepted",
+      "file": "mixed_decisions.xlsx",
+      "sha256": "ccffba16223e3ded186a64189be455fffe099c095f2d93e31a8e6d2d43588ffa",
+      "origin": "team12",
+      "upload_name": "mixed_decisions.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A11",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A9",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#merge=E1:F1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Summary",
+          "target": "xl/tables/table1.xml#tableId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet2",
+          "target": "xl/worksheets/sheet3.xml#sheetId=3",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [
+        "Populated single-cell, one-row or one-column components (Sheet1 E1, A7, A9 and A11) are not inferred as tables; spec 7.4 requires this disclosure once per audit."
+      ],
+      "corrections": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "effect": "AltText: set cNvPr title and descr of Picture 1"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "value": {
+            "text": "Team 12 budget guidance"
+          },
+          "effect": "LinkLabel: A7 becomes an inline string; no shared-string table exists"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "HeaderRow: new table 3 (A11yTable3; tables 1 and 2 exist, so xl/tables/table3.xml), worksheet relationship rId3, columns Item/Q1/Q2"
+        },
+        {
+          "target": "xl/tables/table1.xml#tableId=1",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "EnableHeader: headerRowCount 0 to 1"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "value": {
+            "name": "Quarterly costs"
+          },
+          "effect": "Rename: rewrite Summary!B2:B3 formulas (Sheet1!B2, C2, B3, C3) and the chart series references 'Sheet1'!$B$1, 'Sheet1'!$A$2:$A$4 and 'Sheet1'!$B$2:$B$4"
+        },
+        {
+          "target": "xl/worksheets/sheet3.xml#sheetId=3",
+          "value": {
+            "name": "Archive costs"
+          },
+          "effect": "Rename: Sheet2 has no references; only its workbook name changes"
+        }
+      ],
+      "notes": "seeded_all_six plus Sheet2 (sheetId 3, sheet3.xml) with formal table 2, so two generic sheets exist for the rename conflict and duplicate-name cases. Same nine findings as seeded_all_six plus WORKSHEET_NAME for Sheet2.",
+      "decision_sets": {
+        "mixed": [
+          {
+            "target": "xl/drawings/drawing1.xml#id=2",
+            "action": "APPLY",
+            "value": {
+              "title": "Team logo",
+              "description": "Team 12 logo placeholder."
+            }
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#cell=A7",
+            "action": "DECLINE"
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+            "action": "MANUAL_REVIEW"
+          }
+        ],
+        "combined": [
+          {
+            "target": "xl/drawings/drawing1.xml#id=2",
+            "action": "APPLY",
+            "value": {
+              "title": "Team logo",
+              "description": "Team 12 logo placeholder."
+            }
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#cell=A7",
+            "action": "APPLY",
+            "value": {
+              "text": "Team 12 budget guidance"
+            }
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+            "action": "APPLY",
+            "value": {
+              "headerRow": 1
+            }
+          },
+          {
+            "target": "xl/tables/table1.xml#tableId=1",
+            "action": "APPLY",
+            "value": {
+              "headerRow": 1
+            }
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#sheetId=1",
+            "action": "APPLY",
+            "value": {
+              "name": "Quarterly costs"
+            }
+          }
+        ],
+        "conflicting_names": [
+          {
+            "target": "xl/worksheets/sheet1.xml#sheetId=1",
+            "action": "APPLY",
+            "value": {
+              "name": "Totals"
+            }
+          },
+          {
+            "target": "xl/worksheets/sheet3.xml#sheetId=3",
+            "action": "APPLY",
+            "value": {
+              "name": "Totals"
+            }
+          }
+        ],
+        "duplicate_name": [
+          {
+            "target": "xl/worksheets/sheet1.xml#sheetId=1",
+            "action": "APPLY",
+            "value": {
+              "name": "Summary"
+            }
+          }
+        ]
+      },
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      },
+      "review_current": {
+        "xl/drawings/drawing1.xml#id=2": {
+          "title": "Logo",
+          "description": null
+        },
+        "xl/worksheets/sheet1.xml#cell=A7": {
+          "text": "click here"
+        },
+        "xl/worksheets/sheet1.xml#range=A1:C4": {
+          "headerRow": 1
+        },
+        "xl/tables/table1.xml#tableId=1": {
+          "headerRow": 1
+        },
+        "xl/worksheets/sheet1.xml#sheetId=1": {
+          "name": "Sheet1"
+        },
+        "xl/worksheets/sheet3.xml#sheetId=3": {
+          "name": "Sheet2"
+        }
+      }
+    },
+    "review_only": {
+      "kind": "accepted",
+      "file": "review_only.xlsx",
+      "sha256": "d542c2afa9e744485530f9fc874ef5365d7917ec54d1a6154d051b8c844ccc39",
+      "origin": "team12",
+      "upload_name": "review_only.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Gallery",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Gallery",
+          "target": "xl/worksheets/sheet1.xml#cell=A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Gallery",
+          "target": "xl/worksheets/sheet1.xml#merge=A1:C1",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Gallery A1 and A3)"
+      ],
+      "corrections": [],
+      "notes": "Gallery (sheetId 1): decorative Picture 1 (id 2); merged A1:C1 with the title in A1; A3 'Overdue' in red. Every finding is MANUAL_REVIEW, so the status is REVIEW_REQUIRED and no APPLY is advertised.",
+      "decision_sets": {
+        "no_edits": [
+          {
+            "target": "xl/drawings/drawing1.xml#id=2",
+            "action": "DECLINE"
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#cell=A3",
+            "action": "MANUAL_REVIEW"
+          },
+          {
+            "target": "xl/worksheets/sheet1.xml#merge=A1:C1",
+            "action": "DECLINE"
+          }
+        ]
+      },
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "unsupported_edits": {
+      "kind": "accepted",
+      "file": "unsupported_edits.xlsx",
+      "sha256": "cf27357110fd3e42de442c7b35f9f9440ddb9eb2ccbfdbdf39b1ecc75e33a8d2",
+      "origin": "team12",
+      "upload_name": "unsupported_edits.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[3]/pic[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=B2",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=B3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#merge=D1:E1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Pictures 2 and 3 in drawing1.xml share cNvPr id 3, so they are identified by indexed paths and need manual review.",
+        "Summary!B2 builds a reference with INDIRECT, so renaming Sheet1 cannot be proven safe.",
+        "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Sheet1 D1)"
+      ],
+      "corrections": [],
+      "notes": "Sheet1 (sheetId 1): table 1 A1:B3 with B2 'Overdue' in red and B3 =HYPERLINK(\"https://example.edu/team12\",\"click here\"); D1:E1 merged 'Notes'; drawing1.xml has decorative Picture 1 (id 2) and Pictures 2 and 3 sharing id 3. Summary (sheetId 2): table 2 with B2 =INDIRECT(\"Sheet1!A2\"). Target questions for pod contract 1.1: the HYPERLINK formula finding uses #cell=B3.",
+      "apply_attempts": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "why": "decorative object"
+        },
+        {
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "why": "duplicate object ID"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#cell=B3",
+          "value": {
+            "text": "Team 12 guidance"
+          },
+          "why": "HYPERLINK formula"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "value": {
+            "name": "Costs"
+          },
+          "why": "unsafe rename (INDIRECT)"
+        }
+      ],
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "preservation_rich": {
+      "kind": "accepted",
+      "file": "preservation_rich.xlsx",
+      "sha256": "51c85c21aaafec32c78b08d7cdef4c9e3fd9e3fe84879fedb5888c8e238ea7c6",
+      "origin": "team12",
+      "upload_name": "preservation_rich.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Budget",
+          "target": "xl/drawings/vmlDrawing1.vml#id=_x0000_s1025",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "The legacy VML comment note in xl/drawings/vmlDrawing1.vml is not interpreted (spec 7.2 keeps the Phase 3 manual-review behavior)."
+      ],
+      "corrections": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "effect": "Picture 1 gains title 'Team logo' and its description; every other part, including comments1.xml, vmlDrawing1.vml, printerSettings1.bin, both tables, the chart, the defined name, validation and conditional formatting, stays byte-identical"
+        }
+      ],
+      "notes": "Budget (sheetId 1): table 1 A1:B5 with a SUM total and its cached value; data validation D2; bold-only conditional formatting B2:B4; a comment on A2 (comments1.xml plus vmlDrawing1.vml); a printer-settings binary; drawing1.xml with Picture 1 (id 2, title only) and Chart 2 (id 3, complete). Rates (sheetId 2) is hidden with table 2. Defined name BudgetTotal. Pending pod contract 1.1: the VML note's finding and its #id target.",
+      "decision_sets": {
+        "preserve": [
+          {
+            "target": "xl/drawings/drawing1.xml#id=2",
+            "action": "APPLY",
+            "value": {
+              "title": "Team logo",
+              "description": "Team 12 logo placeholder."
+            }
+          }
+        ]
+      },
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "large_preservation": {
+      "kind": "accepted",
+      "file": "large_preservation.xlsx",
+      "sha256": "638cd27d42dbeda5785f2c286391eec106a52d045566b867dc72841e0b09fe1c",
+      "origin": "team12",
+      "upload_name": "large_preservation.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Photos",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Site photo",
+            "description": "Large site photo placeholder used to test downloads over 2 MiB."
+          },
+          "effect": "Picture 1 gains its description; the 2.4 MB image stays byte-identical"
+        }
+      ],
+      "notes": "Photos (sheetId 1): table 1 and a 900 x 900 stored PNG (about 2.4 MB) in Picture 1 (id 2, title only), so source and output exceed 2 MiB.",
+      "decision_sets": {
+        "large": [
+          {
+            "target": "xl/drawings/drawing1.xml#id=2",
+            "action": "APPLY",
+            "value": {
+              "title": "Site photo",
+              "description": "Large site photo placeholder used to test downloads over 2 MiB."
+            }
+          }
+        ]
+      },
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "inactive_protection": {
+      "kind": "accepted",
+      "file": "inactive_protection.xlsx",
+      "sha256": "602a688e30907f5926526b153831af814945299cbbf1efa2dc0ba5e9d5845b82",
+      "origin": "team12",
+      "upload_name": "inactive_protection.xlsx",
+      "http_status": 202,
+      "expected_status": "AUDIT_COMPLETE",
+      "findings": [],
+      "limitation_facts": [],
+      "corrections": [],
+      "notes": "Budget (sheetId 1): table 1 and sheetProtection with a real SHA-512 password hash but sheet=\"0\": stored but not active, so accepted and clean.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "unicode": {
+      "kind": "accepted",
+      "file": "unicode.xlsx",
+      "sha256": "96dec001e70bd7ea82a7843fde02b51a81b4de20bb41e05775070bf49ef9ee67",
+      "origin": "team12",
+      "upload_name": "unicode.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Café costs",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Café costs",
+          "target": "xl/drawings/drawing1.xml#id=4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Café costs",
+          "target": "xl/drawings/drawing1.xml#id=7",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "ｾｰﾙｽ",
+          "target": "xl/drawings/drawing3.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "📊 Summary",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "　Sheet2　",
+          "target": "xl/worksheets/sheet2.xml#sheetId=2",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [],
+      "notes": "The Phase 3 unicode cases rebuilt on a ruleset 2.0.0 clean background (each sheet a formal 2 x 2 table, black on white). Same sheet names, objects and White_Space vectors; see ../shared/README.md for the per-object intent.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "repeated_ids": {
+      "kind": "accepted",
+      "file": "repeated_ids.xlsx",
+      "sha256": "586bc55d748daa325fe3d5406dc9218dec63e296ba0fb31d0a46557c4031a13d",
+      "origin": "team12",
+      "upload_name": "repeated_ids.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[1]/pic[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Receipts",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [
+        "Pictures 1 and 2 in drawing1.xml share cNvPr id 2, so both are identified by their pic element paths and need manual review."
+      ],
+      "corrections": [],
+      "notes": "Spec 7.1's layout: two sibling twoCellAnchor pictures sharing id 2 (both MANUAL_REVIEW at the pic element, even the complete one), Rectangle 3 (id 3, title only), and Receipts' drawing2.xml reusing id 2 (not a repeat).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "multiple_drawings": {
+      "kind": "accepted",
+      "file": "multiple_drawings.xlsx",
+      "sha256": "785816d6ca4f8aff9204ed290cff1afb5e76e069625af3809964fa0d33b96bb2",
+      "origin": "team12",
+      "upload_name": "multiple_drawings.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Archive",
+          "target": "xl/drawings/drawing4.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Expenses",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Hidden costs",
+          "target": "xl/drawings/drawing2.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Summary",
+          "target": "xl/drawings/drawing3.xml#id=3",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [],
+      "corrections": [],
+      "notes": "As in ../shared/README.md (drawing numbers out of sheet order, hidden and veryHidden sheets, ids restarting per part, an absolute target), with every sheet's cells in a formal table.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "clean": {
+      "kind": "accepted",
+      "file": "clean_all_six.xlsx",
+      "sha256": "216a3e157b63888c855a699ca00b4acb712d614b9abf4079a4dfc7b9b9ecfbcd",
+      "origin": "team12",
+      "upload_name": "clean_all_six.xlsx",
+      "http_status": 202,
+      "expected_status": "AUDIT_COMPLETE",
+      "findings": [],
+      "limitation_facts": [],
+      "notes": "Alias of clean_all_six for the Phase 3-numbered cases, which under ruleset 2.0.0 use six-rule expectations (test-plan adaptation note).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      },
+      "corrections": []
+    },
+    "seeded_issues": {
+      "kind": "accepted",
+      "file": "seeded_all_six.xlsx",
+      "sha256": "90ad5e877e933f60466ceb1fb1b685386fa41b356b3ac0fd1ebfb17a26eaac32",
+      "origin": "team12",
+      "upload_name": "seeded_all_six.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "ALT_TEXT",
+          "category": "NON_TEXT_CONTENT",
+          "worksheet": "Sheet1",
+          "target": "xl/drawings/drawing1.xml#id=3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A11",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A9",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#merge=E1:F1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Summary",
+          "target": "xl/tables/table1.xml#tableId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "WORKSHEET_NAME",
+          "category": "WORKSHEET_NAME",
+          "worksheet": "Sheet1",
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "classification": "REQUIRES_USER_INPUT"
+        }
+      ],
+      "limitation_facts": [
+        "Populated single-cell, one-row or one-column components (Sheet1 E1, A7, A9 and A11) are not inferred as tables; spec 7.4 requires this disclosure once per audit."
+      ],
+      "notes": "Alias of seeded_all_six for the Phase 3-numbered cases, which under ruleset 2.0.0 use six-rule expectations (test-plan adaptation note).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      },
+      "corrections": [
+        {
+          "target": "xl/drawings/drawing1.xml#id=2",
+          "value": {
+            "title": "Team logo",
+            "description": "Team 12 logo placeholder."
+          },
+          "effect": "AltText: set cNvPr title and descr of Picture 1"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "value": {
+            "text": "Team 12 budget guidance"
+          },
+          "effect": "LinkLabel: A7 becomes an inline string; no shared-string table exists"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "HeaderRow: new table 2 (A11yTable2, xl/tables/table1.xml is taken, so xl/tables/table2.xml), worksheet relationship rId3, columns Item/Q1/Q2"
+        },
+        {
+          "target": "xl/tables/table1.xml#tableId=1",
+          "value": {
+            "headerRow": 1
+          },
+          "effect": "EnableHeader: headerRowCount 0 to 1"
+        },
+        {
+          "target": "xl/worksheets/sheet1.xml#sheetId=1",
+          "value": {
+            "name": "Quarterly costs"
+          },
+          "effect": "Rename: rewrite Summary!B2:B3 formulas (Sheet1!B2, C2, B3, C3) and the chart series references 'Sheet1'!$B$1, 'Sheet1'!$A$2:$A$4 and 'Sheet1'!$B$2:$B$4"
+        }
+      ]
+    },
+    "corrupt": {
+      "kind": "rejected",
+      "file": "corrupt.xlsx",
+      "sha256": "9cf891ba569c9de0a6b006bca6f481c9e3c17e3eb53342691ecea9f253e2dd09",
+      "origin": "team12",
+      "upload_name": "corrupt.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
       "excel_open": null
+    },
+    "zip_traversal": {
+      "kind": "rejected",
+      "file": "zip_traversal.xlsx",
+      "sha256": "b2d07b501310ca89cc38c4dfa9dae6c35451f7a53c15be0630dbe79fc3942af5",
+      "origin": "team12",
+      "upload_name": "zip_traversal.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "zip_duplicate": {
+      "kind": "rejected",
+      "file": "zip_duplicate.xlsx",
+      "sha256": "d97e27eea8d46d69d96cab1eeba004932768992dd7f2e6fcdd066d67f2f2af83",
+      "origin": "team12",
+      "upload_name": "zip_duplicate.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "xml_dtd": {
+      "kind": "rejected",
+      "file": "xml_dtd.xlsx",
+      "sha256": "0b05bf86d94eb855ab4db603a56d88822fcddaa8acbe66d7ec53ea396c187108",
+      "origin": "team12",
+      "upload_name": "xml_dtd.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "macro_parts": {
+      "kind": "rejected",
+      "file": "macro_parts.xlsx",
+      "sha256": "d5fb9d0fca22aaee67ae5cb387b068a5daaa73d892da62a1290a45e33a946d06",
+      "origin": "team12",
+      "upload_name": "macro_parts.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "encrypted_zip": {
+      "kind": "rejected",
+      "file": "encrypted_zip.xlsx",
+      "sha256": "58a2d8c291c64c8184c4d86c631e1638823843dfd1bec975ec2a43e600859551",
+      "origin": "team12",
+      "upload_name": "encrypted_zip.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "protected_sheet": {
+      "kind": "rejected",
+      "file": "protected_sheet.xlsx",
+      "sha256": "1bbe7342deae053aedd301d69010aec0aa6d86cb8fbf021b1d9faefd4942ee43",
+      "origin": "team12",
+      "upload_name": "protected_sheet.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "protected_structure": {
+      "kind": "rejected",
+      "file": "protected_structure.xlsx",
+      "sha256": "53835c995e98201b2a097c2115ad168c211337a20fad9ddeb574ab6acd6e948d",
+      "origin": "team12",
+      "upload_name": "protected_structure.xlsx",
+      "http_status": 422,
+      "error_code": null,
+      "notes": "Copied unchanged from ../shared/ (format-level rejection, independent of ruleset).",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": null
+    },
+    "table_header_vectors": {
+      "kind": "accepted",
+      "file": "table_header_vectors.xlsx",
+      "sha256": "128596370884694572f06946b24ed67a115a715deaab811a48240e9ff0fe81c4",
+      "origin": "team12",
+      "upload_name": "table_header_vectors.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Blank",
+          "target": "xl/tables/table3.xml#tableId=3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Duplicate",
+          "target": "xl/tables/table4.xml#tableId=4",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Formula",
+          "target": "xl/tables/table5.xml#tableId=5",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Hidden tables",
+          "target": "xl/tables/table6.xml#tableId=6",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "TABLE_HEADER",
+          "category": "TABLE_STRUCTURE",
+          "worksheet": "Sparse",
+          "target": "xl/worksheets/sheet5.xml#range=A1:B2",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Sparse!A1:B2 is a connected but not dense candidate, so its logical structure could not be established safely (spec 7.4).",
+        "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Sparse D4 and E5, Lists A1:C1, E1:E3 and G5)"
+      ],
+      "corrections": [],
+      "vectors": {
+        "P4-RULE-HEADER-DECLARED": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Declared"
+            ]
+          },
+          "findings": [],
+          "limitation_facts": []
+        },
+        "P4-RULE-HEADER-BLANK": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Blank"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "TABLE_HEADER",
+              "category": "TABLE_STRUCTURE",
+              "worksheet": "Blank",
+              "target": "xl/tables/table3.xml#tableId=3",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-HEADER-DUPLICATE": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Duplicate"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "TABLE_HEADER",
+              "category": "TABLE_STRUCTURE",
+              "worksheet": "Duplicate",
+              "target": "xl/tables/table4.xml#tableId=4",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-HEADER-FORMULA": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Formula"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "TABLE_HEADER",
+              "category": "TABLE_STRUCTURE",
+              "worksheet": "Formula",
+              "target": "xl/tables/table5.xml#tableId=5",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-HEADER-SPARSE": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Sparse"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "TABLE_HEADER",
+              "category": "TABLE_STRUCTURE",
+              "worksheet": "Sparse",
+              "target": "xl/worksheets/sheet5.xml#range=A1:B2",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": [
+            "Sparse!A1:B2 is a connected but not dense candidate, so its logical structure could not be established safely (spec 7.4)."
+          ]
+        },
+        "P4-RULE-HEADER-TITLE-LIST": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Lists"
+            ]
+          },
+          "findings": [],
+          "limitation_facts": [
+            "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Sparse D4 and E5, Lists A1:C1, E1:E3 and G5)"
+          ]
+        },
+        "P4-RULE-HEADER-HIDDEN": {
+          "rule": "TABLE_HEADER",
+          "scope": {
+            "worksheets": [
+              "Hidden tables"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "TABLE_HEADER",
+              "category": "TABLE_STRUCTURE",
+              "worksheet": "Hidden tables",
+              "target": "xl/tables/table6.xml#tableId=6",
+              "classification": "REQUIRES_USER_INPUT"
+            }
+          ],
+          "limitation_facts": []
+        }
+      },
+      "notes": "One sheet per vector. Declared: table 1 (header omitted = 1) and table 2 (headerRowCount 1), distinct matching labels. Blank: table 3 with B1 empty (column metadata Column2). Duplicate: table 4 'Name' and 'name ' (equal after trim and casefold). Formula: table 5 header B1 =\"Score\". Sparse: L-shaped A1, B1, A2 with no table, plus diagonal D4/E5 that must not be joined. Lists: one row A1:C1, one column E1:E3, title G5. Hidden tables (hidden sheet): table 6 with headerRowCount 0 and matching first row.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "repair_prompt",
+        "repaired_parts": [
+          "xl/tables/table3.xml",
+          "xl/tables/table4.xml"
+        ],
+        "expected": true,
+        "note": "Source fixture, not a correction output (the spec 13 no-repair gate covers outputs). Tables 3 (blank header cell, metadata Column2) and 4 ('Name' and 'name ') are states Excel cannot store but spec 7.4 requires systems to flag; both are MANUAL_REVIEW, so no output edits them. Excel's repair log named only these two parts. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "merge_vectors": {
+      "kind": "accepted",
+      "file": "merge_vectors.xlsx",
+      "sha256": "1aeb3214788d2ebaed69a03e3071383cc8213aab290edc13d9f3392660875b0b",
+      "origin": "team12",
+      "upload_name": "merge_vectors.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Merges",
+          "target": "xl/worksheets/sheet1.xml#merge=A1:D1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "MERGED_CELLS",
+          "category": "MERGED_CELLS",
+          "worksheet": "Merges",
+          "target": "xl/worksheets/sheet1.xml#merge=B3:C4",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit. (Merges A1 and B3)"
+      ],
+      "corrections": [],
+      "vectors": {
+        "P4-RULE-MERGE-POPULATED": {
+          "rule": "MERGED_CELLS",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#merge=A1:D1",
+              "xl/worksheets/sheet1.xml#merge=B3:C4"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "MERGED_CELLS",
+              "category": "MERGED_CELLS",
+              "worksheet": "Merges",
+              "target": "xl/worksheets/sheet1.xml#merge=A1:D1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "MERGED_CELLS",
+              "category": "MERGED_CELLS",
+              "worksheet": "Merges",
+              "target": "xl/worksheets/sheet1.xml#merge=B3:C4",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-MERGE-EMPTY": {
+          "rule": "MERGED_CELLS",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#merge=F1:G1",
+              "xl/worksheets/sheet1.xml#merge=F3:G3"
+            ]
+          },
+          "findings": [],
+          "limitation_facts": []
+        }
+      },
+      "notes": "Merges (sheetId 1): A1:D1 title merge with text in A1; B3:C4 with 42 in B3; F1:G1 with no cells; F3:G3 with styled but empty F3 and G3.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "link_vectors": {
+      "kind": "accepted",
+      "file": "link_vectors.xlsx",
+      "sha256": "962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa",
+      "origin": "team12",
+      "upload_name": "link_vectors.xlsx",
+      "http_status": 202,
+      "expected_status": "REMEDIATION_AVAILABLE",
+      "findings": [
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A10",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A11",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A12",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A13",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A2",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A3",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A4",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A6",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A7",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A8",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#cell=A9",
+          "classification": "REQUIRES_USER_INPUT"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[10]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[11]",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "LINK_TEXT",
+          "category": "LINK_TEXT",
+          "worksheet": "Links",
+          "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[12]",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Links!A13 =HYPERLINK(B13,\"link\") has a computed argument; it is not evaluated and needs manual review (spec 7.6)."
+      ],
+      "corrections": [],
+      "vectors": {
+        "P4-RULE-LINK-GENERIC": {
+          "rule": "LINK_TEXT",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#cell=A2",
+              "xl/worksheets/sheet1.xml#cell=A3",
+              "xl/worksheets/sheet1.xml#cell=A4",
+              "xl/worksheets/sheet1.xml#cell=A5"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A2",
+              "classification": "REQUIRES_USER_INPUT"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A3",
+              "classification": "REQUIRES_USER_INPUT"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A4",
+              "classification": "REQUIRES_USER_INPUT"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-LINK-RAW-ADDRESS": {
+          "rule": "LINK_TEXT",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#cell=A5",
+              "xl/worksheets/sheet1.xml#cell=A6",
+              "xl/worksheets/sheet1.xml#cell=A7",
+              "xl/worksheets/sheet1.xml#cell=A8",
+              "xl/worksheets/sheet1.xml#cell=A9"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A6",
+              "classification": "REQUIRES_USER_INPUT"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A7",
+              "classification": "REQUIRES_USER_INPUT"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A8",
+              "classification": "REQUIRES_USER_INPUT"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A9",
+              "classification": "REQUIRES_USER_INPUT"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-LINK-CELL-DISPLAY": {
+          "rule": "LINK_TEXT",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#cell=A10"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A10",
+              "classification": "REQUIRES_USER_INPUT"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-LINK-FORMULA-LITERAL": {
+          "rule": "LINK_TEXT",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#cell=A11",
+              "xl/worksheets/sheet1.xml#cell=A12"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A11",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A12",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-LINK-FORMULA-DYNAMIC": {
+          "rule": "LINK_TEXT",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet1.xml#cell=A13"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#cell=A13",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": [
+            "Links!A13 =HYPERLINK(B13,\"link\") has a computed argument; it is not evaluated and needs manual review (spec 7.6)."
+          ]
+        },
+        "P4-RULE-LINK-RANGE-DUPLICATE": {
+          "rule": "LINK_TEXT",
+          "scope": {
+            "target_prefixes": [
+              "xl/worksheets/sheet1.xml#xml="
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[10]",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[11]",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "LINK_TEXT",
+              "category": "LINK_TEXT",
+              "worksheet": "Links",
+              "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[12]",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        }
+      },
+      "notes": "Links (sheetId 1): table 1 A1:B15. Simple links A2 ' click HERE! ', A3 'Read more.', A4 'Learn   more?', A5 'Annual accessibility report' (descriptive), A6 'https://example.edu/d' to another host, A7 'www.example.edu', A8 'mailto:staff@example.edu', A9 'example.edu' equal to its destination, A10 'click here' with display 'Annual report'. Formulas A11 =HYPERLINK(url,\"here\"), A12 =HYPERLINK(url), A13 =HYPERLINK(B13,\"link\"). hyperlink[10] spans A14:B14; hyperlink[11] and [12] both declare A15. Pending pod contract 1.1: the #cell= targets for formula links and the indexed-path targets for range and duplicate links.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
+    },
+    "contrast_vectors": {
+      "kind": "accepted",
+      "file": "contrast_vectors.xlsx",
+      "sha256": "fd83260b1b50d8c35528c48b55944e9ca96227b89ee87c6ed153cece7cb1d4a8",
+      "origin": "team12",
+      "upload_name": "contrast_vectors.xlsx",
+      "http_status": 202,
+      "expected_status": "REVIEW_REQUIRED",
+      "findings": [
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Conditional",
+          "target": "xl/worksheets/sheet7.xml#cell=A5",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Conditional",
+          "target": "xl/worksheets/sheet7.xml#conditional=A1:A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Contrast",
+          "target": "xl/worksheets/sheet2.xml#cell=A1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Hidden cells",
+          "target": "xl/worksheets/sheet10.xml#cell=A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Hidden cells",
+          "target": "xl/worksheets/sheet10.xml#cell=C1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Indexed",
+          "target": "xl/worksheets/sheet5.xml#cell=A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Large",
+          "target": "xl/worksheets/sheet3.xml#cell=A1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Large",
+          "target": "xl/worksheets/sheet3.xml#cell=A7",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Meaning",
+          "target": "xl/worksheets/sheet6.xml#cell=A1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Meaning",
+          "target": "xl/worksheets/sheet6.xml#cell=A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Overlay",
+          "target": "xl/worksheets/sheet9.xml#cell=A1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Overlay",
+          "target": "xl/worksheets/sheet9.xml#cell=A2",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Overlay",
+          "target": "xl/worksheets/sheet9.xml#cell=B1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Overlay",
+          "target": "xl/worksheets/sheet9.xml#cell=B2",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Theme",
+          "target": "xl/worksheets/sheet4.xml#cell=A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Theme",
+          "target": "xl/worksheets/sheet4.xml#cell=A5",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Unsupported",
+          "target": "xl/worksheets/sheet8.xml#cell=A1",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Unsupported",
+          "target": "xl/worksheets/sheet8.xml#cell=A3",
+          "classification": "MANUAL_REVIEW"
+        },
+        {
+          "ruleId": "COLOR_CONTRAST",
+          "category": "COLOR_OR_CONTRAST",
+          "worksheet": "Unsupported",
+          "target": "xl/worksheets/sheet8.xml#cell=A5",
+          "classification": "MANUAL_REVIEW"
+        }
+      ],
+      "limitation_facts": [
+        "Default!A1 has no font colour and no fill, so the screening assumption (black text on white) is used and disclosed once (spec 7.7).",
+        "Gradient fill (Unsupported!A1), pattern fill (A3), mixed rich-text styling (A5) and a table style overlay (Overlay!A1:B2) cannot be given a numeric contrast result; each cell needs manual review (spec 7.7).",
+        "Populated single-cell, one-row or one-column components are not inferred as tables; spec 7.4 requires this disclosure once per audit."
+      ],
+      "corrections": [],
+      "vectors": {
+        "P4-RULE-COLOR-DEFAULT": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Default"
+            ]
+          },
+          "findings": [],
+          "limitation_facts": [
+            "Default!A1 has no font colour and no fill, so the screening assumption (black text on white) is used and disclosed once (spec 7.7)."
+          ]
+        },
+        "P4-RULE-COLOR-LOW-CONTRAST": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "targets": [
+              "xl/worksheets/sheet2.xml#cell=A1"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Contrast",
+              "target": "xl/worksheets/sheet2.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-LARGE-TEXT": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Large"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Large",
+              "target": "xl/worksheets/sheet3.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Large",
+              "target": "xl/worksheets/sheet3.xml#cell=A7",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-BOUNDARY": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Contrast",
+              "Large"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Contrast",
+              "target": "xl/worksheets/sheet2.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Large",
+              "target": "xl/worksheets/sheet3.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Large",
+              "target": "xl/worksheets/sheet3.xml#cell=A7",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-THEME-TINT": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Theme"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Theme",
+              "target": "xl/worksheets/sheet4.xml#cell=A3",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Theme",
+              "target": "xl/worksheets/sheet4.xml#cell=A5",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-INDEXED": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Indexed"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Indexed",
+              "target": "xl/worksheets/sheet5.xml#cell=A3",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-MEANING": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Meaning"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Meaning",
+              "target": "xl/worksheets/sheet6.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Meaning",
+              "target": "xl/worksheets/sheet6.xml#cell=A3",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-CONDITIONAL": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Conditional"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Conditional",
+              "target": "xl/worksheets/sheet7.xml#cell=A5",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Conditional",
+              "target": "xl/worksheets/sheet7.xml#conditional=A1:A3",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        },
+        "P4-RULE-COLOR-UNSUPPORTED": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Unsupported",
+              "Overlay"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Overlay",
+              "target": "xl/worksheets/sheet9.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Overlay",
+              "target": "xl/worksheets/sheet9.xml#cell=A2",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Overlay",
+              "target": "xl/worksheets/sheet9.xml#cell=B1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Overlay",
+              "target": "xl/worksheets/sheet9.xml#cell=B2",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Unsupported",
+              "target": "xl/worksheets/sheet8.xml#cell=A1",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Unsupported",
+              "target": "xl/worksheets/sheet8.xml#cell=A3",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Unsupported",
+              "target": "xl/worksheets/sheet8.xml#cell=A5",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": [
+            "Gradient fill (Unsupported!A1), pattern fill (A3), mixed rich-text styling (A5) and a table style overlay (Overlay!A1:B2) cannot be given a numeric contrast result; each cell needs manual review (spec 7.7)."
+          ]
+        },
+        "P4-RULE-COLOR-HIDDEN": {
+          "rule": "COLOR_CONTRAST",
+          "scope": {
+            "worksheets": [
+              "Hidden cells"
+            ]
+          },
+          "findings": [
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Hidden cells",
+              "target": "xl/worksheets/sheet10.xml#cell=A3",
+              "classification": "MANUAL_REVIEW"
+            },
+            {
+              "ruleId": "COLOR_CONTRAST",
+              "category": "COLOR_OR_CONTRAST",
+              "worksheet": "Hidden cells",
+              "target": "xl/worksheets/sheet10.xml#cell=C1",
+              "classification": "MANUAL_REVIEW"
+            }
+          ],
+          "limitation_facts": []
+        }
+      },
+      "notes": "All on white unless noted. Default: A1 default style (no colour, no fill), A3 333333 (12.63:1). Contrast: A1 777777 (4.478, fails), A3 767676 (4.542, passes). Large: A1 18 pt 959595 (2.995, fails 3.0), A3 18 pt 949494 (3.033, passes), A5 14 pt bold 949494 (passes), A7 14 pt regular 949494 (fails 4.5). Theme: A1 accent1 336699 tint -1 = 000000 (passes), A3 accent1 tint 0.5 = 8CB2D9 (nonneutral), A5 dk1 tint 0.5 = 808080 (3.949, fails), A7 dk1 tint 0.25 = 404040 (passes). Indexed: the workbook palette sets index 10 to black (passes), index 12 stays 0000FF (nonneutral). Meaning: A1 0000FF text (8.59, nonneutral), A3 black on FFFF00 fill (nonneutral fill). Conditional: A1:A3 has a fill-colour conditional format, so the 777777 cell A2 inside it is suppressed; A5 777777 outside it is not. Unsupported and Overlay: see the limitation fact. Hidden cells: A3 in a hidden row and C1 in a hidden column, both 777777.",
+      "review": {
+        "reviewers": [],
+        "date": null,
+        "decisions": null
+      },
+      "excel_open": {
+        "date": "2026-11-01",
+        "reviewer": null,
+        "excel_version": null,
+        "platform": null,
+        "result": "opened_clean",
+        "repaired_parts": [],
+        "expected": true,
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
+      }
     }
   }
 }

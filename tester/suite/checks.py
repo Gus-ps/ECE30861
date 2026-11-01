@@ -58,11 +58,13 @@ def _rejected(ctx, response, what, expected, code=None):
     return CaseResult.passed(f"{what} returned {expected} with a valid project error{named}.")
 
 
-def _accepted(ctx, response, what):
+def _accepted(ctx, response, what, mark=True):
     ##  An expected 202: a strict UploadResponse with three distinct PROCESSING identifiers.
+    ##  mark=False when the upload only prepares a resource for another assertion.
     if response.status >= 500:
         return _system_failure(what, response)
-    ctx.mark()
+    if mark:
+        ctx.mark()
     if response.status != 202:
         return CaseResult.failed(f"Expected 202 for {what}; received {response.status}.")
     try:
@@ -277,18 +279,23 @@ def _audit_problems(audit, upload, entry, ruleset):
     if audit.status != entry["expected_status"]:
         problems.append(f"status {audit.status}, expected {entry['expected_status']}")
     problems += _finding_problems(audit.findings, entry, ruleset)
-    ##  Limitation wording is not agreed, so only presence is compared.
-    if entry.get("limitations_required", False) and not audit.limitations:
+    ##  Limitation wording is not agreed, so only presence is compared. A Phase 4 entry lists the
+    ##  facts that must be disclosed (limitation_facts); Phase 4 also requires sorted, unique strings.
+    required = entry.get("limitations_required", False) or bool(entry.get("limitation_facts"))
+    if required and not audit.limitations:
         problems.append("limitations is empty, but this fixture's unusual metadata must be disclosed")
-    elif not entry.get("limitations_required", False) and audit.limitations:
+    elif not required and audit.limitations:
         problems.append(f"expected no limitations; received {len(audit.limitations)}")
+    if "limitation_facts" in entry and audit.limitations != sorted(set(audit.limitations)):
+        problems.append("limitations are not sorted by code point without duplicates")
     return problems
 
 
-def _finished_audit(ctx, upload, what, session=True):
+def _finished_audit(ctx, upload, what, session=True, mark=True):
     ##  (AuditResponse, None) once the owner's audit read leaves PROCESSING, or (None, the result
-    ##  to report). Marks the case once a finished response is evaluated. Every PROCESSING_FAILED
-    ##  audit is kept for P3-AUDIT-FAILURE-ENVELOPE. session names a fault session instead.
+    ##  to report). Marks the case once a finished response is evaluated (unless mark=False, for
+    ##  an audit that only prepares a resource). Every PROCESSING_FAILED audit is kept for
+    ##  P3-AUDIT-FAILURE-ENVELOPE. session names a fault session instead.
     response, finished = ctx.poll(lambda: ctx.call("GET", _audit_path(upload), role="userA", session=session),
                                   lambda r: not _processing(r))
     if response.status >= 500:
@@ -296,7 +303,8 @@ def _finished_audit(ctx, upload, what, session=True):
     if not finished:
         return None, CaseResult.failed(f"{what} was still PROCESSING after "
                                        f"{ctx.profile.timing.audit_poll_seconds:g} s.")
-    ctx.mark()
+    if mark:
+        ctx.mark()
     if response.status != 200:
         return None, CaseResult.failed(f"Expected 200 for {what}; received {response.status}.")
     try:
@@ -936,3 +944,8 @@ CHECKS = {
     "system_report": system_report,
     "system_setup_duplicate": system_setup_duplicate,
 }
+
+##  Phase 4 checks live in checks_phase4.py, which builds on the helpers above.
+from .checks_phase4 import PHASE4_CHECKS  # noqa: E402
+
+CHECKS.update(PHASE4_CHECKS)

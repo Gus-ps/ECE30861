@@ -58,13 +58,13 @@ class FakeSystem:
             return httpx.Response(200, json={"session_id": request.url.params["session_id"], "coverage": {
                 "code": {"covered": 40, "total": 50, "basis": "Fake target source lines"}}})
         if request.url.path.startswith("/system/api/v1/"):
-            override = self.project_reply and self.project_reply(request)
-            if override:
-                status, reply = override
-                return httpx.Response(status, **({"content": reply} if isinstance(reply, bytes) else {"json": reply}))
-            status, reply = self.project.handle(request.method, request.url.path.removeprefix("/system"),
-                                                dict(request.headers), request.content)
-            return httpx.Response(status, **({"content": reply} if isinstance(reply, bytes) else {"json": reply}))
+            result = self.project_reply and self.project_reply(request)
+            if not result:
+                result = self.project.handle(request.method, request.url.path.removeprefix("/system"),
+                                             dict(request.headers), request.content)
+            status, reply, headers = result[0], result[1], (result[2] if len(result) > 2 else {})
+            return httpx.Response(status, headers=headers,
+                                  **({"content": reply} if isinstance(reply, bytes) else {"json": reply}))
         return httpx.Response(404, json={"code": "NOT_FOUND", "message": "No route.", "requestId": "r1", "details": {}})
 
     def system_setup(self, authorization, body):
@@ -88,6 +88,7 @@ class FakeSystem:
         session_id = body["session_id"]
         if session_id in self.sessions:
             return refuse(409, "Session exists.")
+        self.project.cleanup(setup.get("cleanup_session_ids", []))
         self.sessions.add(session_id)
         if faults:
             self.project.armed.add(session_id)

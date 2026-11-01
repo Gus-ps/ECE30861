@@ -56,21 +56,31 @@ def wait_for(url, seconds=20):
     raise RuntimeError(f"{url} did not start")
 
 
-def tester_env(db):
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("TESTER_", "ALLOWED_", "TARGET_", "APP_ENV"))}
+FIXTURES = REPO / "tester" / "fixtures"
+PHASE4_ENV = {"MANIFEST_PATH": str(FIXTURES / "manifest_phase4.json"),
+              "POD_PROFILE_PATH": str(FIXTURES / "pod_profile_phase4.json"),
+              "EXPECTATIONS_PATH": str(FIXTURES / "phase4" / "expectations.json")}
+##  Phase 4 cases whose fixtures await pod contract 1.1; they skip with that reason.
+PHASE4_BLOCKED = 8
+
+
+def tester_env(db, overrides=None):
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("TESTER_", "ALLOWED_", "TARGET_", "APP_ENV", "MANIFEST_", "POD_PROFILE_", "EXPECTATIONS_"))}
     env.update(APP_ENV="development", TESTER_DB_PATH=str(db),
                TESTER_OPERATOR_TOKEN_HASHES_JSON=json.dumps({hashlib.sha256(OPERATOR.encode()).hexdigest(): "rehearsal"}),
                ALLOWED_TARGET_URLS=json.dumps([TARGET, DEAD_TARGET]),
                TARGET_AUTH_MAP_JSON=json.dumps({TARGET: TOKENS, DEAD_TARGET: TOKENS}),
-               EXPECTATIONS_PATH=str(REPO / "tester" / "fixtures" / "shared" / "expectations.json"))
+               EXPECTATIONS_PATH=str(FIXTURES / "shared" / "expectations.json"))
+    env.update(overrides or {})
     return env
 
 
-def start_tester(port, db, *extra):
+def start_tester(port, db, *extra, env=None):
     log = open(WORK / f"tester-{port}.log", "a", encoding="utf-8")
     proc = subprocess.Popen([PYTHON, "-m", "uvicorn", "tester.main:create_app", "--factory",
                              "--host", "127.0.0.1", "--port", str(port), *extra],
-                            cwd=REPO, env=tester_env(db), stdout=log, stderr=subprocess.STDOUT)
+                            cwd=REPO, env=tester_env(db, env), stdout=log, stderr=subprocess.STDOUT)
     wait_for(f"http://127.0.0.1:{port}/docs")
     return proc
 
@@ -251,6 +261,34 @@ def main():
         check("earlier completed report survives the restart unchanged", r.status_code == 200 and r.content == run_bytes)
         r = client.post("/test/setup", json={"target_url": TARGET}, headers=AUTH)
         check("new setup works after restart", r.status_code == 201, r.text)
+
+        print("\n== F. Phase 4 draft manifest over real HTTP ==")
+        control(ruleset="2.0.0", processing_polls=1)
+        phase4 = start_tester(PREFIXED_PORT, WORK / "phase4.db", env=PHASE4_ENV)
+        procs.append(phase4)
+        phase4_client = httpx.Client(base_url=f"http://127.0.0.1:{PREFIXED_PORT}", timeout=1900, trust_env=False)
+        started = time.monotonic()
+        r = phase4_client.post("/test/setup", json={"target_url": TARGET}, headers=AUTH)
+        session = r.json().get("session_id") if r.status_code == 201 else None
+        r = phase4_client.post("/test/run", json={"session_id": session}, headers=AUTH) if session else r
+        elapsed = time.monotonic() - started
+        report4 = SuiteReport.model_validate_json(r.content).model_dump() if r.status_code == 200 else None
+        counts4 = {}
+        for item in (report4 or {}).get("results", []):
+            counts4[item["outcome"]] = counts4.get(item["outcome"], 0) + 1
+        check(f"215 Phase 4 results: {215 - PHASE4_BLOCKED} pass, {PHASE4_BLOCKED} skip (fixtures awaiting pod contract 1.1)",
+              counts4 == {"pass": 215 - PHASE4_BLOCKED, "skip": PHASE4_BLOCKED}, f"{json.dumps(counts4)} in {elapsed:.0f}s")
+        failing = [f"{x['test_id']}: {x['message']}" for x in (report4 or {}).get("results", []) if x["outcome"] in ("fail", "error")]
+        if failing:
+            print("   " + "\n   ".join(failing[:10]))
+        if report4:
+            (WORK / "phase4_report.json").write_bytes(r.content)
+        r = phase4_client.post("/test/setup", json={"target_url": TARGET}, headers=AUTH)
+        cleanup_ids = [e for e in system_log() if e["path"] == "/system/test/setup"][-1]["body"]["setup"].get(
+            "cleanup_session_ids", [])
+        check("the next Phase 4 setup queues the run's 5 extra sessions for cleanup",
+              r.status_code == 201 and len(cleanup_ids) >= 5, json.dumps(cleanup_ids))
+        control(ruleset="1.0.0", processing_polls=0)
     finally:
         for proc in procs:
             if proc.poll() is None:

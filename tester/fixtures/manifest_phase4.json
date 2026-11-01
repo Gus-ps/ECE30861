@@ -1,0 +1,4212 @@
+{
+  "manifest_version": "2.1.0-team12-draft",
+  "ruleset_version": "2.0.0",
+  "specification_version": "2.1.0",
+  "note": "Team 12 draft generated from the shared Phase 4 test plan; replace with Team 9's executable manifest 2.1.0 once it exists. Local and manual cases are evidence tasks outside this manifest.",
+  "components": {
+    "C1": "Authentication and access",
+    "C2": "Intake and validation",
+    "C3": "Immutable sources and version metadata",
+    "C4": "Six-rule audit engine",
+    "C5": "Durable jobs and audit API",
+    "C6": "Isolated sessions and actual execution measurement",
+    "C7": "Human decisions and remediation",
+    "C8": "Downloads reports and history",
+    "C9": "Review user interface"
+  },
+  "acceptance": {
+    "AC-01": "Intake acceptance",
+    "AC-02": "Input rejection",
+    "AC-03": "Source protection",
+    "AC-04": "Six-rule detection",
+    "AC-05": "Actionable findings",
+    "AC-06": "Human judgment",
+    "AC-07": "Authorized remediation",
+    "AC-08": "Separate downloads",
+    "AC-09": "Preservation including Excel inspection",
+    "AC-10": "Complete report",
+    "AC-11": "Versions audits and status history"
+  },
+  "tests": [
+    {
+      "test_id": "P3-HEALTH",
+      "check": "health",
+      "description": "Public health returns HealthResponse with the expected ruleset. Status 200 and HealthResponse schema evaluated.",
+      "components": [],
+      "acceptance": [],
+      "operations": [
+        1
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUTH-UPLOAD",
+      "check": "upload_without_token",
+      "description": "Upload without a bearer token is rejected with no accepted IDs. 401 status and strict project envelope evaluated.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUTH-UPLOAD-INVALID",
+      "check": "upload_invalid_token",
+      "description": "Upload with an unknown bearer token is rejected. 401 status and project envelope evaluated.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-MISSING-FILE",
+      "check": "upload_missing_file",
+      "description": "Multipart upload without the file field returns 400. 400 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-CSV",
+      "check": "upload_csv",
+      "description": "CSV upload returns 415. 415 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-MISSING-EXTENSION",
+      "check": "upload_no_extension",
+      "description": "Missing filename extension returns 415. 415 status and strict project error envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-XLS",
+      "check": "upload_xls",
+      "description": "Legacy .xls upload returns 415. 415 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-XLSM",
+      "check": "upload_xlsm",
+      "description": "Named .xlsm upload returns 422 MACRO_ENABLED_WORKBOOK_UNSUPPORTED. 422 status, envelope and code evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-CORRUPT",
+      "check": "upload_corrupt",
+      "description": "Corrupt workbook returns 422 with no accepted identifiers. Status and strict project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-PROTECTED",
+      "check": "upload_protected",
+      "description": "Workbook with password-protected structure returns 422. 422 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-BYTES-OVER",
+      "check": "upload_over_limit",
+      "description": "An upload of 25,000,001 bytes returns 413. 413 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-BYTES-AT",
+      "check": "upload_at_limit",
+      "description": "A valid workbook of exactly 25,000,000 bytes is accepted. 202 status and UploadResponse evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-SHEETS-OVER",
+      "check": "upload_worksheets_over",
+      "description": "A valid workbook with 51 worksheets returns 422. 422 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-SHEETS-AT",
+      "check": "upload_worksheets_at",
+      "description": "A valid workbook with exactly 50 worksheets is accepted. 202 status and UploadResponse evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-SHEETS-CHARTSHEET",
+      "check": "upload_worksheets_chartsheet",
+      "description": "A valid workbook with exactly 50 worksheets plus one chartsheet is accepted; chartsheets do not count toward the worksheet limit (pod contract 1.1). 202 status and UploadResponse evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-CELLS-OVER",
+      "check": "upload_cells_over",
+      "description": "A valid workbook with 250,001 nonempty cells returns 422. 422 status and project envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-INPUT-CELLS-AT",
+      "check": "upload_cells_at",
+      "description": "A valid workbook with exactly 250,000 nonempty cells is accepted. 202 status and UploadResponse evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-UPLOAD-CLEAN",
+      "check": "upload_clean",
+      "description": "Clean fixture is accepted with three PROCESSING identifiers. 202 status and UploadResponse evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-UPLOAD-SEEDED",
+      "check": "upload_seeded",
+      "description": "Seeded fixture is accepted with three PROCESSING identifiers. 202 status and UploadResponse evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-VERSION-VALID",
+      "check": "version_clean",
+      "description": "Version metadata matches the upload and the tester's own SHA256. VersionResponse identifiers, fileName and sha256 evaluated.",
+      "components": [
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        4
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-VERSION-UNAUTHENTICATED",
+      "check": "version_unauthenticated",
+      "description": "Version read without a bearer token returns 401. 401 status and project envelope evaluated.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        4
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUDIT-CLEAN",
+      "check": "audit_clean",
+      "description": "Clean fixture audit completes with no findings. Terminal AuditResponse status and findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUDIT-SEEDED",
+      "check": "audit_seeded",
+      "description": "Seeded audit returns exactly the expected findings in contract order. Terminal status and finding identity/fields/order evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-SOURCE-HASH",
+      "check": "hash_after_audit",
+      "description": "Source SHA256 is unchanged after auditing. Post-audit VersionResponse sha256 and latestAuditId evaluated.",
+      "components": [
+        "C3"
+      ],
+      "acceptance": [
+        "AC-03"
+      ],
+      "operations": [
+        4
+      ],
+      "prerequisites": [
+        "P3-AUDIT-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-VERSION-FOREIGN",
+      "check": "foreign_owner_forbidden",
+      "description": "User B cannot read user A's version. 403 status and project envelope evaluated.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        4
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUDIT-UNAUTHENTICATED",
+      "check": "audit_unauthenticated",
+      "description": "Audit read without a bearer token returns 401. 401 status and project envelope evaluated.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUDIT-FOREIGN",
+      "check": "audit_foreign_owner",
+      "description": "User B cannot read user A's audit. 403 status and project envelope evaluated.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-VERSION-REVIEWER",
+      "check": "reviewer_version",
+      "description": "Explicitly granted reviewer reads user A's version. Authorized reviewer 200 status, strict schema, resource IDs and returned metadata evaluated.",
+      "components": [
+        "C1",
+        "C3"
+      ],
+      "acceptance": [],
+      "operations": [
+        4
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUDIT-REVIEWER",
+      "check": "reviewer_audit",
+      "description": "Explicitly granted reviewer reads user A's audit. Authorized reviewer 200 status, strict schema, resource IDs and returned metadata evaluated.",
+      "components": [
+        "C1",
+        "C5"
+      ],
+      "acceptance": [],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-NOT-FOUND",
+      "check": "unknown_resources",
+      "description": "version-unknown returns 404. 404 status and project error envelope evaluated.",
+      "components": [
+        "C3"
+      ],
+      "acceptance": [],
+      "operations": [
+        4
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "case": "version-unknown"
+      }
+    },
+    {
+      "test_id": "P3-VERSION-MISMATCH",
+      "check": "unknown_resources",
+      "description": "version-mismatch returns 404. 404 status and project error envelope evaluated.",
+      "components": [
+        "C3"
+      ],
+      "acceptance": [],
+      "operations": [
+        4
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN",
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {
+        "case": "version-mismatch"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-MISMATCH",
+      "check": "unknown_resources",
+      "description": "audit-mismatch returns 404. 404 status and project error envelope evaluated.",
+      "components": [
+        "C5"
+      ],
+      "acceptance": [],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN",
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {
+        "case": "audit-mismatch"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-UNKNOWN",
+      "check": "unknown_resources",
+      "description": "audit-unknown returns 404. 404 status and project error envelope evaluated.",
+      "components": [
+        "C5"
+      ],
+      "acceptance": [],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-CLEAN",
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {
+        "case": "audit-unknown"
+      }
+    },
+    {
+      "test_id": "P3-DETERMINISM",
+      "check": "determinism",
+      "description": "Audit 2 matches the first of five uploads. Semantic findings and within-target message/recommendation compared.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [
+        "P3-AUDIT-SEEDED"
+      ],
+      "parameters": {
+        "run": 2
+      }
+    },
+    {
+      "test_id": "P3-DETERMINISM-3",
+      "check": "determinism",
+      "description": "Audit 3 matches the first of five uploads. Semantic findings and within-target message/recommendation compared.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [
+        "P3-AUDIT-SEEDED"
+      ],
+      "parameters": {
+        "run": 3
+      }
+    },
+    {
+      "test_id": "P3-DETERMINISM-4",
+      "check": "determinism",
+      "description": "Audit 4 matches the first of five uploads. Semantic findings and within-target message/recommendation compared.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [
+        "P3-AUDIT-SEEDED"
+      ],
+      "parameters": {
+        "run": 4
+      }
+    },
+    {
+      "test_id": "P3-DETERMINISM-5",
+      "check": "determinism",
+      "description": "Audit 5 matches the first of five uploads. Semantic findings and within-target message/recommendation compared.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [
+        "P3-AUDIT-SEEDED"
+      ],
+      "parameters": {
+        "run": 5
+      }
+    },
+    {
+      "test_id": "P3-SESSION-UNKNOWN",
+      "check": "unknown_session_header",
+      "description": "A project call naming an unknown X-Test-Session returns 400. 400 status and project envelope evaluated.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [
+        "P3-UPLOAD-SEEDED"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-SESSION-DUPLICATE",
+      "check": "system_setup_duplicate",
+      "description": "Repeating system setup with an existing session_id returns 409. 409 status and TestEndpointError evaluated.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-UPLOAD-UNICODE",
+      "check": "edge_upload",
+      "description": "unicode accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "unicode"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-UNICODE",
+      "check": "edge_audit",
+      "description": "unicode exact findings and limitations. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-UNICODE"
+      ],
+      "parameters": {
+        "fixture": "unicode"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-REPEATED-IDS",
+      "check": "edge_upload",
+      "description": "repeated_ids accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "repeated_ids"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-REPEATED-IDS",
+      "check": "edge_audit",
+      "description": "repeated_ids exact findings and limitations. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-REPEATED-IDS"
+      ],
+      "parameters": {
+        "fixture": "repeated_ids"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-MULTIPLE-DRAWINGS",
+      "check": "edge_upload",
+      "description": "multiple_drawings accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "multiple_drawings"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-MULTIPLE-DRAWINGS",
+      "check": "edge_audit",
+      "description": "multiple_drawings exact findings and limitations. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-MULTIPLE-DRAWINGS"
+      ],
+      "parameters": {
+        "fixture": "multiple_drawings"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-IN-CELL-PICTURE",
+      "check": "blocked_fixture",
+      "description": "in_cell_picture (in-cell picture with rich-data and cell-image parts) accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "in_cell_picture",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-IN-CELL-PICTURE",
+      "check": "blocked_fixture",
+      "description": "in_cell_picture (in-cell picture with rich-data and cell-image parts) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "in_cell_picture",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-IMAGE-FORMULA",
+      "check": "blocked_fixture",
+      "description": "image_formula (IMAGE() formula cell) accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "image_formula",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-IMAGE-FORMULA",
+      "check": "blocked_fixture",
+      "description": "image_formula (IMAGE() formula cell) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "image_formula",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-FORM-CONTROLS",
+      "check": "blocked_fixture",
+      "description": "form_controls (form control and OLE object in AlternateContent, drawing AlternateContent, group container) accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "form_controls",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-FORM-CONTROLS",
+      "check": "blocked_fixture",
+      "description": "form_controls (form control and OLE object in AlternateContent, drawing AlternateContent, group container) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "form_controls",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-VML-COMMENTS",
+      "check": "blocked_fixture",
+      "description": "vml_comments (legacy VML comment notes) accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "vml_comments",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-VML-COMMENTS",
+      "check": "blocked_fixture",
+      "description": "vml_comments (legacy VML comment notes) exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "blocked": "vml_comments",
+        "reason": "its expected findings follow pod contract 1.1, which is not in the Team 12 repo"
+      }
+    },
+    {
+      "test_id": "P3-UPLOAD-INACTIVE-PROTECTION",
+      "check": "edge_upload",
+      "description": "inactive_protection (stored sheet password with sheet=\"0\") accepted. 202 and upload identifiers evaluated.",
+      "components": [
+        "C2",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "inactive_protection"
+      }
+    },
+    {
+      "test_id": "P3-AUDIT-INACTIVE-PROTECTION",
+      "check": "edge_audit",
+      "description": "inactive_protection (stored sheet password with sheet=\"0\") exact findings per pod contract 1.1. Terminal schema/identity and independent expected findings evaluated.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P3-UPLOAD-INACTIVE-PROTECTION"
+      ],
+      "parameters": {
+        "fixture": "inactive_protection"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-ZIP-TRAVERSAL",
+      "check": "rejected_fixture",
+      "description": "zip_traversal rejects with no accepted IDs. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "zip_traversal"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-ZIP-DUPLICATE",
+      "check": "rejected_fixture",
+      "description": "zip_duplicate rejects with no accepted IDs. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "zip_duplicate"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-XML-DTD",
+      "check": "rejected_fixture",
+      "description": "xml_dtd rejects with no accepted IDs. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "xml_dtd"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-MACRO-PARTS",
+      "check": "rejected_fixture",
+      "description": "macro_parts rejects with no accepted IDs. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "macro_parts"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-ENCRYPTED-ZIP",
+      "check": "rejected_fixture",
+      "description": "encrypted_zip rejects with no accepted IDs. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "encrypted_zip"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-PROTECTED-SHEET",
+      "check": "rejected_fixture",
+      "description": "protected_sheet separately rejected. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "protected_sheet"
+      }
+    },
+    {
+      "test_id": "P3-INPUT-PROTECTED-STRUCTURE",
+      "check": "rejected_fixture",
+      "description": "protected_structure separately rejected. Expected rejection status and strict envelope evaluated.",
+      "components": [
+        "C2"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "protected_structure"
+      }
+    },
+    {
+      "test_id": "P4-FAULT-SETUP",
+      "check": "fault_setup",
+      "description": "Test-admin creates a separate fresh isolated session with setup.faults.audit_failures equal to integer 1; 201 echoes the supplied session_id. Setup does not execute a test or fail an ordinary session. Refused capability is fail, not skip.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-AUDIT-FAILURE-ENVELOPE",
+      "check": "fault_failure_envelope",
+      "description": "In the dedicated fault session, accept a valid clean fixture with normal 202 IDs, then observe PROCESSING_FAILED with completedAt, empty findings, TEST_AUDIT_FAILURE and exact specified test-only error details. Verify failed report checksPerformed empty and unchanged downloadable source. This is a required deliberately exercised case, not conditional observation.",
+      "components": [
+        "C3",
+        "C5",
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [
+        2,
+        4,
+        5,
+        "S",
+        "R"
+      ],
+      "prerequisites": [
+        "P4-FAULT-SETUP"
+      ],
+      "parameters": {
+        "fixture": "clean_all_six"
+      }
+    },
+    {
+      "test_id": "P4-FAULT-RECOVERY",
+      "check": "fault_recovery",
+      "description": "A manual re-audit of the same accepted version runs normally after one injected failure. Other sessions are unaffected; the historical failed audit/report remains unchanged.",
+      "components": [
+        "C5",
+        "C6"
+      ],
+      "acceptance": [
+        "AC-11"
+      ],
+      "operations": [
+        6,
+        5,
+        10
+      ],
+      "prerequisites": [
+        "P3-AUDIT-FAILURE-ENVELOPE"
+      ],
+      "parameters": {}
+    },
+    {
+      "test_id": "P3-CODE-REPORT",
+      "check": "system_report",
+      "description": "System report returns this session's code coverage (counts and basis, or paired nulls). 200 status and SystemReport evaluated.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P4-UPLOAD-ALL-SIX",
+      "check": "edge_upload",
+      "description": "202 UploadResponse with fresh IDs and PROCESSING.",
+      "components": [
+        "C2",
+        "C3",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "operations": [
+        2
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "seeded_all_six"
+      }
+    },
+    {
+      "test_id": "P4-AUDIT-ALL-SIX",
+      "check": "edge_audit",
+      "description": "Exact reviewed finding tuples and limitations for all six categories, correctly sorted and hashed.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        5
+      ],
+      "prerequisites": [
+        "P4-UPLOAD-ALL-SIX"
+      ],
+      "parameters": {
+        "fixture": "seeded_all_six"
+      }
+    },
+    {
+      "test_id": "P4-CLEAN-ALL-SIX",
+      "check": "upload_and_audit",
+      "description": "New clean_all_six upload accepted; completed audit has AUDIT_COMPLETE and zero findings.",
+      "components": [
+        "C2",
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "clean_all_six"
+      }
+    },
+    {
+      "test_id": "P4-MANUAL-ONLY-STATUS",
+      "check": "upload_and_audit",
+      "description": "All-manual fixture audit completes REVIEW_REQUIRED, with no advertised APPLY correction.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "review_only",
+        "no_apply": true
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-DECLARED",
+      "check": "rule_vector",
+      "description": "Formal table with headerRowCount 1 or omitted and distinct matching labels produces no TABLE_HEADER finding.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-DECLARED"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-DISABLED",
+      "check": "rule_vector",
+      "description": "Safe formal table with headerRowCount 0 produces one REQUIRES_USER_INPUT at actual tableId target.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "header_disabled_table",
+        "rule": "TABLE_HEADER"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-BLANK",
+      "check": "rule_vector",
+      "description": "Formal table with a blank header produces one MANUAL_REVIEW; no label is generated.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-BLANK"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-DUPLICATE",
+      "check": "rule_vector",
+      "description": "Casefold/trim duplicate formal header labels produce one MANUAL_REVIEW.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-DUPLICATE"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-FORMULA",
+      "check": "rule_vector",
+      "description": "Formula header is MANUAL_REVIEW; cached text does not authorize editing the formula.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-FORMULA"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-DENSE-RANGE",
+      "check": "rule_vector",
+      "description": "Dense 2x2-or-larger unstructured candidate with safe first-row labels requires explicit header-row input.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "header_range",
+        "rule": "TABLE_HEADER"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-SPARSE",
+      "check": "rule_vector",
+      "description": "Nondense connected candidate is MANUAL_REVIEW with a limitation; disconnected regions are not joined.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-SPARSE"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-TITLE-LIST",
+      "check": "rule_vector",
+      "description": "Single row, single column, and isolated title do not produce inferred-table findings; scope limitation is present.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-TITLE-LIST"
+      }
+    },
+    {
+      "test_id": "P4-RULE-HEADER-HIDDEN",
+      "check": "rule_vector",
+      "description": "Hidden-sheet tables are inspected using the same criteria.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "table_header_vectors",
+        "vector": "P4-RULE-HEADER-HIDDEN"
+      }
+    },
+    {
+      "test_id": "P4-RULE-MERGE-POPULATED",
+      "check": "rule_vector",
+      "description": "Each populated merge produces one MANUAL_REVIEW at #merge= rectangle; title merges included.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "merge_vectors",
+        "vector": "P4-RULE-MERGE-POPULATED"
+      }
+    },
+    {
+      "test_id": "P4-RULE-MERGE-EMPTY",
+      "check": "rule_vector",
+      "description": "Empty and formatting-only merges produce no MERGED_CELLS finding.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "merge_vectors",
+        "vector": "P4-RULE-MERGE-EMPTY"
+      }
+    },
+    {
+      "test_id": "P4-RULE-LINK-GENERIC",
+      "check": "rule_vector",
+      "description": "Finite vocabulary, whitespace collapse, casefold, and one trailing punctuation mark follow Section 7.6.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_vectors",
+        "vector": "P4-RULE-LINK-GENERIC"
+      }
+    },
+    {
+      "test_id": "P4-RULE-LINK-RAW-ADDRESS",
+      "check": "rule_vector",
+      "description": "http/https/www/mailto labels and exact-destination labels trigger; descriptive text does not.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_vectors",
+        "vector": "P4-RULE-LINK-RAW-ADDRESS"
+      }
+    },
+    {
+      "test_id": "P4-RULE-LINK-CELL-DISPLAY",
+      "check": "rule_vector",
+      "description": "Actual cell text determines the label; a misleading display attribute alone does not mask an ambiguous cell.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_vectors",
+        "vector": "P4-RULE-LINK-CELL-DISPLAY"
+      }
+    },
+    {
+      "test_id": "P4-RULE-LINK-FORMULA-LITERAL",
+      "check": "rule_vector",
+      "description": "One/two literal HYPERLINK arguments are screened, but any correction remains MANUAL_REVIEW.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_vectors",
+        "vector": "P4-RULE-LINK-FORMULA-LITERAL"
+      }
+    },
+    {
+      "test_id": "P4-RULE-LINK-FORMULA-DYNAMIC",
+      "check": "rule_vector",
+      "description": "Computed/localized/unsupported HYPERLINK forms produce MANUAL_REVIEW and a limitation without evaluation.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_vectors",
+        "vector": "P4-RULE-LINK-FORMULA-DYNAMIC"
+      }
+    },
+    {
+      "test_id": "P4-RULE-LINK-RANGE-DUPLICATE",
+      "check": "rule_vector",
+      "description": "Multi-cell and duplicate link representations are MANUAL_REVIEW with distinct indexed locations.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_vectors",
+        "vector": "P4-RULE-LINK-RANGE-DUPLICATE"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-DEFAULT",
+      "check": "rule_vector",
+      "description": "Default black/white and a neutral high-contrast pair produce no COLOR_CONTRAST finding.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-DEFAULT"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-LOW-CONTRAST",
+      "check": "rule_vector",
+      "description": "Low-contrast static pair produces one cell MANUAL_REVIEW; no automatic recoloring.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-LOW-CONTRAST"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-LARGE-TEXT",
+      "check": "rule_vector",
+      "description": "18pt ordinary and 14pt bold text use 3.0; smaller text uses 4.5.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-LARGE-TEXT"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-BOUNDARY",
+      "check": "rule_vector",
+      "description": "Use unrounded ratio for comparison; include vectors immediately above and below both thresholds.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-BOUNDARY"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-THEME-TINT",
+      "check": "rule_vector",
+      "description": "Theme indices, HSL tint, and channel rounding match the frozen policy vectors.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-THEME-TINT"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-INDEXED",
+      "check": "rule_vector",
+      "description": "Explicit workbook palette overrides the standard 64-entry indexed palette.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-INDEXED"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-MEANING",
+      "check": "rule_vector",
+      "description": "Nonneutral color at adequate contrast still yields one manual color-meaning finding.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-MEANING"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-CONDITIONAL",
+      "check": "rule_vector",
+      "description": "Visual conditional-formatting ranges get manual findings; static results inside them are suppressed.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-CONDITIONAL"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-UNSUPPORTED",
+      "check": "rule_vector",
+      "description": "Gradient/pattern/rich text/ambiguous inheritance/table overlay causes disclosure and manual review, not a guessed ratio.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-UNSUPPORTED"
+      }
+    },
+    {
+      "test_id": "P4-RULE-COLOR-HIDDEN",
+      "check": "rule_vector",
+      "description": "Hidden cells use the same policy and deterministic locations.",
+      "components": [
+        "C4"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "operations": [
+        2,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "contrast_vectors",
+        "vector": "P4-RULE-COLOR-HIDDEN"
+      }
+    },
+    {
+      "test_id": "P4-REVIEW-CONTEXT",
+      "check": "review_context",
+      "description": "ReviewResponse matches source current values, canonical item order and owner actions; no unknown fields are injected into Finding. Missing alt fields are null and existing values preserved.",
+      "components": [
+        "C7",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07"
+      ],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions"
+      }
+    },
+    {
+      "test_id": "P4-REVIEW-REVIEWER",
+      "check": "review_reviewer",
+      "description": "Granted reviewer sees current values but allowedActions empty and cannot submit a decision batch.",
+      "components": [
+        "C1",
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06"
+      ],
+      "operations": [
+        "V",
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions"
+      }
+    },
+    {
+      "test_id": "P4-VERSION-NEW",
+      "check": "version_new",
+      "description": "Owner adds changed bytes with the same filename through operation 3; workbook ID preserved, version/audit IDs fresh, parent null, earlier records unchanged.",
+      "components": [
+        "C2",
+        "C3",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-01",
+        "AC-11"
+      ],
+      "operations": [
+        3,
+        4,
+        5,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "clean_all_six",
+        "new_bytes": "seeded_all_six"
+      }
+    },
+    {
+      "test_id": "P4-VERSION-SAME-BYTES",
+      "check": "version_same_bytes",
+      "description": "Same bytes uploaded as a new version still produce fresh version/audit IDs with the same byte hash.",
+      "components": [
+        "C3"
+      ],
+      "acceptance": [
+        "AC-11"
+      ],
+      "operations": [
+        3,
+        4,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "clean_all_six"
+      }
+    },
+    {
+      "test_id": "P4-REAUDIT",
+      "check": "reaudit",
+      "description": "POST absent body, empty object, and MANUAL_REAUDIT reason on separate trials returns 202; new audit IDs on same version; previous audit/report bytes unchanged.",
+      "components": [
+        "C3",
+        "C5",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-11"
+      ],
+      "operations": [
+        6,
+        5,
+        10,
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "seeded_all_six"
+      }
+    },
+    {
+      "test_id": "P4-REAUDIT-INVALID",
+      "check": "reaudit_invalid",
+      "description": "Wrong reason or unknown field returns 400 INVALID_REQUEST; no extra audit.",
+      "components": [
+        "C5"
+      ],
+      "acceptance": [
+        "AC-11"
+      ],
+      "operations": [
+        6,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "clean_all_six"
+      }
+    },
+    {
+      "test_id": "P4-REAUDIT-DETERMINISM",
+      "check": "reaudit_determinism",
+      "description": "Five manual re-audits return identical findings, limitations, classification, status and within-target prose; IDs/timestamps of audits are fresh.",
+      "components": [
+        "C4",
+        "C5"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-11"
+      ],
+      "operations": [
+        6,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "seeded_all_six",
+        "runs": 5
+      }
+    },
+    {
+      "test_id": "P4-SOURCE-BEFORE",
+      "check": "source_before",
+      "description": "Authorized source download equals uploaded bytes, not a regenerated workbook; correct media type and disposition.",
+      "components": [
+        "C3",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-03"
+      ],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "preservation_rich"
+      }
+    },
+    {
+      "test_id": "P4-DECISIONS-MIXED",
+      "check": "remediation",
+      "description": "Approve one supported correction, decline a second, mark another manual and omit another. Accepted job completes with only the approved edit, unresolved others, coherent output provenance.",
+      "components": [
+        "C7",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-10"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        "R"
+      ],
+      "prerequisites": [
+        "P4-AUDIT-ALL-SIX"
+      ],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "mixed"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-ALT",
+      "check": "remediation",
+      "description": "Title and description exactly match user input, including Unicode/XML escaping; existing IDs, media, anchors, relationships and all unselected fields unchanged.",
+      "components": [
+        "C7",
+        "C4",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "alt_supported",
+        "set": "corrections"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-RENAME",
+      "check": "remediation",
+      "description": "New sheet name and all supported references correctly rewritten; similar strings, literal cell text, formula caches and all other content preserved.",
+      "components": [
+        "C7",
+        "C4",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "rename_references",
+        "set": "corrections"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-LINK",
+      "check": "remediation",
+      "description": "Only selected cell label/display changes; reused shared string remains intact for other cells and target relationship is unchanged.",
+      "components": [
+        "C7",
+        "C4",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_supported",
+        "set": "corrections"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-HEADER-RANGE",
+      "check": "remediation",
+      "description": "Exact rectangle becomes valid minimally styled table with selected first header row and deterministic new part/relationship/table IDs; values/formulas/styles unchanged.",
+      "components": [
+        "C7",
+        "C4",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "header_range",
+        "set": "corrections"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-HEADER-TABLE",
+      "check": "remediation",
+      "description": "Only supported disabled header is enabled; no row insertion, data rewriting or unrelated metadata change.",
+      "components": [
+        "C7",
+        "C4",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        5
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "header_disabled_table",
+        "set": "corrections"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-COMBINED",
+      "check": "remediation",
+      "description": "All four supported edit families apply in deterministic source-target order, including rename on a sheet containing another selected target.",
+      "components": [
+        "C7",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "combined"
+      }
+    },
+    {
+      "test_id": "P4-APPLY-STRING-LABEL",
+      "check": "remediation",
+      "description": "A hyperlink label starting with = is an explicit inline string, never a new formula.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        8,
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "link_supported",
+        "set": "corrections",
+        "targets": [
+          "xl/worksheets/sheet1.xml#cell=A3"
+        ]
+      }
+    },
+    {
+      "test_id": "P4-APPLY-NO-EDITS",
+      "check": "remediation",
+      "description": "All DECLINE/manual batch creates a separate version and output with byte-identical bytes, zero approvedChanges and unresolved findings.",
+      "components": [
+        "C7",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        8,
+        9,
+        10,
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "review_only",
+        "set": "no_edits"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-EMPTY",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code INVALID_REQUEST; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "EMPTY"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-UNKNOWN-FIELD",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code INVALID_REQUEST; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "UNKNOWN-FIELD"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-DUPLICATE",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code DUPLICATE_DECISION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "DUPLICATE"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-UNKNOWN-FINDING",
+      "check": "reject_decisions",
+      "description": "404 ProjectError code FINDING_NOT_FOUND; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "UNKNOWN-FINDING"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-CROSS-AUDIT-FINDING",
+      "check": "reject_decisions",
+      "description": "404 ProjectError code FINDING_NOT_FOUND; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "CROSS-AUDIT-FINDING"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-STALE-AUDIT",
+      "check": "reject_decisions",
+      "description": "409 ProjectError code STALE_AUDIT; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "STALE-AUDIT"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-AUDIT-PROCESSING",
+      "check": "reject_decisions",
+      "description": "409 ProjectError code ACTIVE_OPERATION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "AUDIT-PROCESSING"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-AUDIT-FAILED",
+      "check": "reject_decisions",
+      "description": "409 ProjectError code AUDIT_NOT_READY; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "AUDIT-FAILED"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-VALUE-MISSING",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code MISSING_VALUE; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "VALUE-MISSING"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-VALUE-WRONG-SHAPE",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code INVALID_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "VALUE-WRONG-SHAPE"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-VALUE-ON-DECLINE",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code INVALID_REQUEST; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "VALUE-ON-DECLINE"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-ALT-BLANK",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code INVALID_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "ALT-BLANK"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-ALT-TOO-LONG",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code INVALID_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "ALT-TOO-LONG"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-NAME-INVALID",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code INVALID_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "NAME-INVALID"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-NAME-SWAP",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code CONFLICTING_CORRECTIONS; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "NAME-SWAP"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-LINK-AMBIGUOUS",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code INVALID_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "LINK-AMBIGUOUS"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-HEADER-ROW",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code INVALID_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "HEADER-ROW"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-MANUAL-APPLY",
+      "check": "reject_decisions",
+      "description": "422 ProjectError code UNSUPPORTED_CORRECTION; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "unsupported_edits",
+        "condition": "MANUAL-APPLY"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-MISSING-KEY",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code IDEMPOTENCY_KEY_REQUIRED; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "MISSING-KEY"
+      }
+    },
+    {
+      "test_id": "P4-REJECT-DECISIONS-OVER",
+      "check": "reject_decisions",
+      "description": "400 ProjectError code INVALID_REQUEST; no accepted remediation/output or decision batch; source and prior history unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "condition": "DECISIONS-OVER"
+      }
+    },
+    {
+      "test_id": "P4-BATCH-ATOMIC-REJECTION",
+      "check": "batch_atomic",
+      "description": "One valid APPLY plus one invalid decision rejects entire batch; the valid edit is not applied.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-09"
+      ],
+      "operations": [
+        7,
+        9,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions"
+      }
+    },
+    {
+      "test_id": "P4-IDEMPOTENCY-REPLAY",
+      "check": "idempotency",
+      "description": "Identical valid key/body returns exact original 202 body while pending and after completion; reordered decisions/object keys are equivalent; exactly one job/output.",
+      "components": [
+        "C7",
+        "C3"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        8,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "mode": "REPLAY"
+      }
+    },
+    {
+      "test_id": "P4-IDEMPOTENCY-CONFLICT",
+      "check": "idempotency",
+      "description": "Same scope/key with changed valid body returns 409 IDEMPOTENCY_CONFLICT; first operation unchanged.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-07",
+        "AC-11"
+      ],
+      "operations": [
+        7,
+        8,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "mode": "CONFLICT"
+      }
+    },
+    {
+      "test_id": "P4-IDEMPOTENCY-INVALID-FIRST",
+      "check": "idempotency",
+      "description": "Rejected invalid request does not consume key; corrected valid body with same key can be accepted.",
+      "components": [
+        "C7"
+      ],
+      "acceptance": [
+        "AC-07"
+      ],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "mode": "INVALID-FIRST"
+      }
+    },
+    {
+      "test_id": "P4-OUTPUT-HASH",
+      "check": "remediation_followup",
+      "description": "Downloaded output equals version source download, matches output-version metadata hash, has correct type/filename and stable repeated bytes.",
+      "components": [
+        "C3",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-03",
+        "AC-08",
+        "AC-09"
+      ],
+      "operations": [
+        4,
+        9,
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "preservation_rich",
+        "set": "preserve",
+        "aspect": "output_hash"
+      }
+    },
+    {
+      "test_id": "P4-SOURCE-AFTER",
+      "check": "remediation_followup",
+      "description": "Source bytes/hash and historical audits/reports are identical before/after remediation and repeated downloads.",
+      "components": [
+        "C3",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-03",
+        "AC-09",
+        "AC-11"
+      ],
+      "operations": [
+        4,
+        5,
+        9,
+        "S",
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "preservation_rich",
+        "set": "preserve",
+        "aspect": "source_after"
+      }
+    },
+    {
+      "test_id": "P4-PRESERVATION",
+      "check": "remediation_followup",
+      "description": "Independent package comparator finds exactly the approved differences, covering the complete Section 11 inventory including opaque untouched part bytes.",
+      "components": [
+        "C7",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-09"
+      ],
+      "operations": [
+        9,
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "preservation_rich",
+        "set": "preserve",
+        "aspect": "preservation"
+      }
+    },
+    {
+      "test_id": "P4-OUTPUT-AUDIT",
+      "check": "remediation_followup",
+      "description": "Successful output has a completed six-rule audit against output bytes and current ruleset, corrected supported findings absent, declined/unselected findings retained semantically.",
+      "components": [
+        "C4",
+        "C5",
+        "C7"
+      ],
+      "acceptance": [
+        "AC-04",
+        "AC-07",
+        "AC-10"
+      ],
+      "operations": [
+        5,
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "mixed",
+        "aspect": "output_audit"
+      }
+    },
+    {
+      "test_id": "P4-REPORT-COMPLETE",
+      "check": "remediation_followup",
+      "description": "Downloaded JSON validates AuditReport, six checks and exact findings/decisions/applied/unresolved/manual/limitations/provenance match actual records.",
+      "components": [
+        "C8"
+      ],
+      "acceptance": [
+        "AC-08",
+        "AC-10"
+      ],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "mixed",
+        "aspect": "report_complete"
+      }
+    },
+    {
+      "test_id": "P4-REPORT-STABLE",
+      "check": "remediation_followup",
+      "description": "Repeated report downloads are byte-identical; later decisions/re-audits do not rewrite the earlier report.",
+      "components": [
+        "C8"
+      ],
+      "acceptance": [
+        "AC-10",
+        "AC-11"
+      ],
+      "operations": [
+        "R",
+        6,
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "mixed",
+        "aspect": "report_stable"
+      }
+    },
+    {
+      "test_id": "P4-HISTORY",
+      "check": "remediation_followup",
+      "description": "History arrays follow creation/acceptance sequence, preserve distinct same-filename uploads, derived parent, all audits, statuses and failed audit records.",
+      "components": [
+        "C3",
+        "C8"
+      ],
+      "acceptance": [
+        "AC-11"
+      ],
+      "operations": [
+        3,
+        6,
+        7,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "mixed",
+        "aspect": "history"
+      }
+    },
+    {
+      "test_id": "P4-REMEDIATED-STATUS",
+      "check": "remediation_followup",
+      "description": "Generated version status REMEDIATED can coexist with an audit requiring review; no compliant status appears.",
+      "components": [
+        "C3",
+        "C7"
+      ],
+      "acceptance": [
+        "AC-06",
+        "AC-11"
+      ],
+      "operations": [
+        4,
+        5,
+        8,
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "set": "mixed",
+        "aspect": "remediated_status"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-REVIEWER-WRITE-REFUSED",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 403; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "REVIEWER-WRITE-REFUSED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-REVIEWER-WRITE-REFUSED",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 403; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "REVIEWER-WRITE-REFUSED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-REVIEWER-WRITE-REFUSED",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 403; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "REVIEWER-WRITE-REFUSED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-REVIEWER-READ",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 200; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "REVIEWER-READ"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-REVIEWER-READ",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 200; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "REVIEWER-READ"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-REVIEWER-READ",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 200; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "REVIEWER-READ"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-REVIEWER-READ",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 200; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "REVIEWER-READ"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-REVIEWER-READ",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 200; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "REVIEWER-READ"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-UNAUTHENTICATED",
+      "check": "access",
+      "description": "401 ProjectError under unauthenticated conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "UNAUTHENTICATED"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-INVALID-TOKEN",
+      "check": "access",
+      "description": "401 ProjectError under invalid-token conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "INVALID-TOKEN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-FOREIGN",
+      "check": "access",
+      "description": "403 ProjectError under foreign conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "FOREIGN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-UNKNOWN",
+      "check": "access",
+      "description": "404 ProjectError under unknown conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "UNKNOWN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-WRONG-NAMESPACE",
+      "check": "access",
+      "description": "404 ProjectError under wrong-namespace conditions; no artifact leakage or mutation. Use schema-valid IDs/values and a valid key when testing authentication.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "WRONG-NAMESPACE"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-REVIEWER-READ",
+      "check": "access",
+      "description": "Explicitly granted read-only reviewer receives 200; role alone is not sufficient.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "REVIEWER-READ"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-NEW-VERSION-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        3
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "NEW-VERSION",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REAUDIT-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        6
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REAUDIT",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-DECISIONS-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        7
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "DECISIONS",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REMEDIATION-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        8
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REMEDIATION",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-OUTPUT-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        9
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "OUTPUT",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-HISTORY-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        10
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "HISTORY",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-SOURCE-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "SOURCE",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REPORT-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "R"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REPORT",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-ACCESS-REVIEW-TEST-ADMIN",
+      "check": "access",
+      "description": "403 FORBIDDEN: test-admin credentials do not authorize business data access or writes.",
+      "components": [
+        "C1"
+      ],
+      "acceptance": [],
+      "operations": [
+        "V"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "mixed_decisions",
+        "operation": "REVIEW",
+        "condition": "TEST-ADMIN"
+      }
+    },
+    {
+      "test_id": "P4-DOWNLOAD-LARGE",
+      "check": "download_large",
+      "description": "An accepted source/output over 2 MiB downloads successfully within the new binary limit; no legacy target-client truncation.",
+      "components": [
+        "C8"
+      ],
+      "acceptance": [
+        "AC-08",
+        "AC-09"
+      ],
+      "operations": [
+        9,
+        "S"
+      ],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "large_preservation",
+        "set": "large"
+      }
+    },
+    {
+      "test_id": "P4-SESSION-COVERAGE",
+      "check": "session_coverage",
+      "description": "System report returns only this session actual code coverage or paired nulls with scope; repeated retrieval does not execute/reset work.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P4-SESSION-CLEANUP",
+      "check": "session_cleanup",
+      "description": "Later caller-owned cleanup removes this inactive session’s sources, outputs, jobs, keys and measurements, while another session and ordinary data remain accessible.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {
+        "fixture": "clean_all_six"
+      }
+    },
+    {
+      "test_id": "P4-REPORT-FORMAT",
+      "check": "report_format",
+      "description": "Every planned hosted ID appears once in order; source exists exactly for error outcomes, coverage types/counts valid; stored report stable.",
+      "components": [
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P4-FAULT-AUTH",
+      "check": "fault_auth",
+      "description": "User/reviewer credentials cannot configure faults through system setup; return testing 403, while absent/invalid credentials return 401, with no new runnable namespace.",
+      "components": [
+        "C1",
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    },
+    {
+      "test_id": "P4-FAULT-INVALID",
+      "check": "fault_invalid",
+      "description": "Empty faults, wrong count/type including true or string 1, and unknown fault keys return testing 400 source system; no new runnable namespace.",
+      "components": [
+        "C1",
+        "C6"
+      ],
+      "acceptance": [],
+      "operations": [],
+      "prerequisites": [],
+      "parameters": {}
+    }
+  ]
+}

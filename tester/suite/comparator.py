@@ -334,6 +334,7 @@ class Plan:
         self.table_parts = {}           # worksheet part -> rIds an approved change appends to tableParts
         self.rels_additions = {}        # rels path -> {Id: (type, target, mode)}
         self.content_type_additions = {}
+        self.new_tables = {}            # new table part -> (table id, name, ref, header labels)
         self.descriptions = {}          # part -> [what the approved changes do there]
         self._allocated_tables, self._allocated_ids, self._allocated_names = set(), set(), set()
         for change in changes:
@@ -481,6 +482,7 @@ class Plan:
         def check(data):
             return self._check_table(table_part, data, table_id, name, change.range, labels)
         self.new_parts[table_part] = check
+        self.new_tables[table_part] = (table_id, name, change.range, labels)
         if rels not in self.entries:
             self.new_parts[rels] = lambda data: self._check_rels(rels, b"", data)
 

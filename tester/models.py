@@ -184,9 +184,66 @@ class HistoryResponse(Strict):
     audits: list[HistoryAudit]
 
 
+RuleId = Literal["ALT_TEXT", "WORKSHEET_NAME", "TABLE_HEADER", "MERGED_CELLS", "LINK_TEXT", "COLOR_CONTRAST"]
+Action = Literal["APPLY", "DECLINE", "MANUAL_REVIEW"]
+
+
+class RemediationAccepted(Strict):
+    remediationId: Identifier
+    sourceVersionId: Identifier
+    status: Literal["REMEDIATING"]
+
+
+class RemediationResponse(Strict):
+    remediationId: Identifier
+    status: Literal["REMEDIATING", "REMEDIATED", "PROCESSING_FAILED"]
+    sourceVersionId: Identifier
+    outputVersionId: Identifier | None
+    outputId: Identifier | None
+    auditId: Identifier | None
+    error: ProjectError | None
+
+    @model_validator(mode="after")
+    def coherent(self):
+        outputs = (self.outputVersionId, self.outputId, self.auditId)
+        if self.status == "REMEDIATED" and (None in outputs or self.error is not None):
+            raise ValueError("REMEDIATED needs outputVersionId, outputId and auditId, and a null error")
+        if self.status != "REMEDIATED" and any(o is not None for o in outputs):
+            raise ValueError(f"{self.status} must have null output and audit IDs")
+        if (self.status == "PROCESSING_FAILED") != (self.error is not None):
+            raise ValueError("error is required exactly when the status is PROCESSING_FAILED")
+        return self
+
+
+class ReviewItem(Strict):
+    findingId: Sha256
+    allowedActions: list[Action] = Field(max_length=3)
+    currentValue: dict[str, object] | None
+    reason: FindingText
+
+
+class ReviewResponse(Strict):
+    workbookId: Identifier
+    versionId: Identifier
+    auditId: Identifier
+    items: list[ReviewItem]
+
+
+class ReportDecision(Strict):
+    sourceAuditId: Identifier
+    findingId: Sha256
+    ruleId: RuleId
+    worksheet: str
+    target: NonBlank
+    action: Action
+    value: dict[str, object] | None
+
+
+class ApprovedChange(ReportDecision):
+    action: Literal["APPLY"]
+
+
 class AuditReport(Strict):
-    ##  Top-level shape only; decision and approved-change items are validated once the
-    ##  remediation checks that produce them exist.
     reportVersion: Literal["2.0.0"]
     specificationVersion: Literal["2.1.0"]
     workbookId: Identifier
@@ -201,8 +258,8 @@ class AuditReport(Strict):
     checksPerformed: list[Literal["ALT_TEXT", "WORKSHEET_NAME", "TABLE_HEADER", "MERGED_CELLS", "LINK_TEXT",
                                   "COLOR_CONTRAST"]]
     findings: list[Finding]
-    decisions: list[dict[str, object]]
-    approvedChanges: list[dict[str, object]]
+    decisions: list[ReportDecision]
+    approvedChanges: list[ApprovedChange]
     unresolvedFindings: list[Finding]
     manualReviewItems: list[Finding]
     limitations: list[NonBlank]

@@ -77,9 +77,15 @@ def wrap(fake, match, transform):
     def reply(request):
         if not match(request):
             return None
-        status, body = fake.project.handle(request.method, request.url.path.removeprefix("/system"),
-                                           dict(request.headers), request.content)
-        return transform(status, body if isinstance(body, bytes) else json.loads(json.dumps(body)))
+        status, body, *rest = fake.project.handle(request.method, request.url.path.removeprefix("/system"),
+                                                  dict(request.headers), request.content)
+        headers = rest[0] if rest else {}
+        is_json = headers.get("content-type") == "application/json"
+        value = json.loads(body) if is_json else body if isinstance(body, bytes) else json.loads(json.dumps(body))
+        status, value = transform(status, value)
+        if is_json and isinstance(value, dict) and "reportVersion" in value:
+            return status, json.dumps(value).encode(), headers
+        return (status, value, headers) if isinstance(value, bytes) else (status, value)
     fake.project_reply = reply
 
 
