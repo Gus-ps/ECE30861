@@ -195,6 +195,9 @@ NON_REFERENCE_KINDS = {
     "calcChain",
 }
 SAFE_FUNCTIONS = frozenset(FORMULAE) | {"IMAGE"}
+# These are scalar display/layout metadata, not formula/reference containers.
+CHART_TAGS.add("invertIfNegative")
+KNOWN_ATTRIBUTES.update({"horzOverflow", "vertOverflow", "rtlCol"})
 
 
 def _qualified_reference(value):
@@ -490,6 +493,8 @@ def rename_limitations(archive, root, workbook_relations):
                         known = namespace in DRAW_NS and (
                             local == "extLst"
                             or element.get("uri") == "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
+                            or (set(element.attrib) == {"cx", "cy"}
+                                and all(value.isascii() and value.isdigit() for value in element.attrib.values()))
                         )
                         # xdr:ext (anchor size) is not an extension container.
                         known = known or (namespace in XDR_NS and local == "ext")

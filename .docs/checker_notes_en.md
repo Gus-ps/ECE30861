@@ -1,5 +1,13 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+Current status (2026-11-15): the checker now matches the deployed Gustavo-branch engine (AE-021); the developer treats that branch as canonical. Ruleset 2.0.0 and the six-rule order are unchanged. Behavior changes:
+
+- **LINK_TEXT:** every HYPERLINK-formula finding targets its indexed cell element (`<part>#xml=/worksheet[1]/sheetData[1]/row[n]/c[m]`). Screened literal formulas previously used `#cell=`; their finding IDs change. Simple text-cell links keep `#cell=`.
+- **TABLE_HEADER:** a candidate becomes MANUAL_REVIEW when in-cell image/rich-data (`vm`) metadata overlaps it, or when a drawing anchor overlaps it or cannot be proven disjoint. When the reason is in-cell metadata, a limitation is recorded.
+- **WORKSHEET_NAME rename inventory:** `invertIfNegative`, the `horzOverflow`, `vertOverflow` and `rtlCol` attributes, and numeric-only `cx`/`cy` drawing extensions are known non-reference content.
+
+Verification: `tests/test_deployment_regressions.py` (5 tests, using the deployed fixtures in `tests/fixtures/deployment/`) and the full suite of 155 tests pass. Whether this resolves the Team 12 rename mismatch is unverified. No Excel UI evidence exists. Statements below that describe formula-link `#cell=` targets are historical.
+
 Current verified status: all six screening rules run in contract order under corrected pack 2.1.1 (specification 2.1.0, ruleset 2.0.0; suite target 2.1.1, no executable manifest added). Eleven helper tests, three color-check tests, three dedicated six-rule integration tests and all 150 regression tests pass. Dependency, whitespace and seven pack hash checks pass. Old fixture/snapshot bytes remain historical; new complete six-rule clean/seeded inputs have independent tuples/IDs, five-repeat and source-preservation checks. No remediation/API/tester implementation or Excel manual no-repair verification is claimed. Historical pending/unregistered statements below describe earlier stages, not current status.
 
 COLOR_CONTRAST is now registered, completing six-rule execution (not Phase 4/remediation acceptance). Static low contrast/color meaning combine per cell; visual conditional ranges are deduplicated and suppress static results. Unknown visual extension scope receives whole-part manual disclosure, not an invented range/ratio. Formula caches are never calculated. Three color-check tests and all 147 tests pass. Historical two-rule mocks remain explicit; five-rule fixtures now run through the current six-rule runner without rewriting their bytes or five-rule tuples. Dedicated six-rule fixtures follow.

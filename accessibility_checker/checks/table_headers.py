@@ -13,7 +13,7 @@ from accessibility_checker.cell_reader import (
     _part,
     _relationships,
 )
-from accessibility_checker.coordinates import canonical_range, cell_reference, range_sort_key
+from accessibility_checker.coordinates import canonical_range, cell_reference, cell_position, range_sort_key
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.phase3_policy import UNICODE_WHITE_SPACE
 from accessibility_checker.results import Findings, finalize_findings
@@ -105,8 +105,59 @@ def _tables(reader):
     return inventory
 
 
+def _drawing_affects_rectangle(reader, sheet, drawing, rectangle):
+    """Only proven disjoint standard anchors can be ignored for table edits.
+
+    No drawing XML is edited. Unknown/absolute placements stay manual rather
+    than inferring a cell range from pixels, column widths or shape geometry.
+    """
+    ids = [value for key, value in drawing.attrib.items() if key.endswith('}id')]
+    if len(ids) != 1:
+        return True
+    relation = _relationships(reader._archive, sheet.part).get(ids[0])
+    if relation is None or relation.get('TargetMode') == 'External':
+        return True
+    root = safe_xml.fromstring(reader._archive.read(_part(sheet.part, relation.attrib['Target'])))
+    top, left, bottom, right = range_sort_key(rectangle)
+    for anchor in root:
+        kind = anchor.tag.rsplit('}', 1)[-1]
+        start, end = anchor.find('{*}from'), anchor.find('{*}to')
+        if kind not in ('oneCellAnchor', 'twoCellAnchor') or start is None:
+            return True
+        try:
+            row = int(start.find('{*}row').text) + 1
+            col = int(start.find('{*}col').text) + 1
+            if kind == 'twoCellAnchor' and end is not None:
+                last_row = int(end.find('{*}row').text) + 1
+                last_col = int(end.find('{*}col').text) + 1
+                if not (max(row,last_row) < top or min(row,last_row) > bottom
+                        or max(col,last_col) < left or min(col,last_col) > right):
+                    return True
+            elif not (row > bottom or col > right):
+                return True
+        except (AttributeError, TypeError, ValueError):
+            return True
+    return False
+
+
 def _feature_reasons(reader, sheet, rectangle, *, formal=False):
     reasons = []
+    # vm marks an in-cell/rich-data representation outside the header editor's
+    # proven profile. Ordinary body formulas are still allowed unchanged.
+    row = column = 0
+    with reader._archive.open(sheet.part) as stream:
+        for event, element in safe_xml.iterparse(stream, ('start','end')):
+            local = element.tag.rsplit('}',1)[-1]
+            if event == 'start' and local == 'row':
+                row = int(element.get('r', str(row+1)))
+                column = 0
+            elif event == 'end' and local == 'c':
+                cell_row, column = cell_position(element.get('r')) if element.get('r') else (row,column+1)
+                if element.get('vm') is not None and contains(rectangle,cell_row,column):
+                    reasons.append('In-cell image/rich-data metadata overlaps the header candidate.')
+                    break
+            if event == 'end':
+                element.clear()
     if sum(s.part == sheet.part for s in reader.sheets) != 1:
         reasons.append("Worksheet part has multiple owning sheets.")
     if any(overlaps(rectangle, merge) for merge in merge_ranges(reader, sheet)):
@@ -132,6 +183,9 @@ def _feature_reasons(reader, sheet, rectangle, *, formal=False):
         if kind == "autoFilter":
             if overlaps(rectangle, canonical_range(item.attrib["ref"])):
                 reasons.append("Existing auto-filter overlaps the candidate.")
+        elif kind == 'drawing':
+            if _drawing_affects_rectangle(reader, sheet, item, rectangle):
+                reasons.append('Unsupported or overlapping drawing requires header preservation review.')
         elif kind in {"conditionalFormatting", "dataValidations", "hyperlinks"}:
             ns = item.tag.split("}")[0] + "}"
             refs = (

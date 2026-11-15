@@ -133,7 +133,13 @@ class LinkTextTests(unittest.TestCase):
         result = check_link_text(self.path)
         self.assertEqual(len(result), 4)
         self.assertTrue(all(f["classification"] == "MANUAL_REVIEW" for f in result))
-        self.assertIn("xl/worksheets/sheet1.xml#cell=A1", [f["target"] for f in result])
+        # Phase 4 Section 7.6: formula links are never edited, so even a
+        # screened literal formula uses its indexed cell element target.
+        self.assertIn(
+            "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[1]/c[1]",
+            [f["target"] for f in result],
+        )
+        self.assertNotIn("xl/worksheets/sheet1.xml#cell=A1", [f["target"] for f in result])
         self.assertIn(
             "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[1]",
             [f["target"] for f in result],

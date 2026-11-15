@@ -1,0 +1,291 @@
+{
+  "seeded_all_six": {
+    "file": "seeded_all_six.xlsx",
+    "sha256": "90ad5e877e933f60466ceb1fb1b685386fa41b356b3ac0fd1ebfb17a26eaac32",
+    "findings": [
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Sheet1",
+        "target": "xl/drawings/drawing1.xml#id=2",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Sheet1",
+        "target": "xl/drawings/drawing1.xml#id=3",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "COLOR_CONTRAST",
+        "category": "COLOR_OR_CONTRAST",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#cell=A11",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "COLOR_CONTRAST",
+        "category": "COLOR_OR_CONTRAST",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#cell=A9",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#cell=A7",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "MERGED_CELLS",
+        "category": "MERGED_CELLS",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#merge=E1:F1",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "TABLE_HEADER",
+        "category": "TABLE_STRUCTURE",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#range=A1:C4",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "TABLE_HEADER",
+        "category": "TABLE_STRUCTURE",
+        "worksheet": "Summary",
+        "target": "xl/tables/table1.xml#tableId=1",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "WORKSHEET_NAME",
+        "category": "WORKSHEET_NAME",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#sheetId=1",
+        "classification": "REQUIRES_USER_INPUT"
+      }
+    ]
+  },
+  "unicode": {
+    "file": "unicode.xlsx",
+    "sha256": "96dec001e70bd7ea82a7843fde02b51a81b4de20bb41e05775070bf49ef9ee67",
+    "findings": [
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Café costs",
+        "target": "xl/drawings/drawing1.xml#id=3",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Café costs",
+        "target": "xl/drawings/drawing1.xml#id=4",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Café costs",
+        "target": "xl/drawings/drawing1.xml#id=7",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "ｾｰﾙｽ",
+        "target": "xl/drawings/drawing3.xml#id=2",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "📊 Summary",
+        "target": "xl/drawings/drawing2.xml#id=2",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "WORKSHEET_NAME",
+        "category": "WORKSHEET_NAME",
+        "worksheet": "　Sheet2　",
+        "target": "xl/worksheets/sheet2.xml#sheetId=2",
+        "classification": "REQUIRES_USER_INPUT"
+      }
+    ]
+  },
+  "rename_references": {
+    "file": "rename_references.xlsx",
+    "sha256": "81f528ede4f9ce11e4980cf46841dea3911841c9899acd6dc04e26d16a174194",
+    "findings": [
+      {
+        "ruleId": "WORKSHEET_NAME",
+        "category": "WORKSHEET_NAME",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#sheetId=1",
+        "classification": "REQUIRES_USER_INPUT"
+      }
+    ]
+  },
+  "link_vectors": {
+    "file": "link_vectors.xlsx",
+    "sha256": "962b5532a307421600568a83b4bef62d4be71a4817c41f72259d0e2b767876aa",
+    "findings": [
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A10",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A2",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A3",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A4",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A6",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A7",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A8",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#cell=A9",
+        "classification": "REQUIRES_USER_INPUT"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[10]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[11]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/hyperlinks[1]/hyperlink[12]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[11]/c[1]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[12]/c[1]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Links",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[13]/c[1]",
+        "classification": "MANUAL_REVIEW"
+      }
+    ]
+  },
+  "unsupported_edits": {
+    "file": "unsupported_edits.xlsx",
+    "sha256": "cf27357110fd3e42de442c7b35f9f9440ddb9eb2ccbfdbdf39b1ecc75e33a8d2",
+    "findings": [
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Sheet1",
+        "target": "xl/drawings/drawing1.xml#id=2",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Sheet1",
+        "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[2]/pic[1]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "ALT_TEXT",
+        "category": "NON_TEXT_CONTENT",
+        "worksheet": "Sheet1",
+        "target": "xl/drawings/drawing1.xml#xml=/wsDr[1]/twoCellAnchor[3]/pic[1]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "COLOR_CONTRAST",
+        "category": "COLOR_OR_CONTRAST",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#cell=B2",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "LINK_TEXT",
+        "category": "LINK_TEXT",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#xml=/worksheet[1]/sheetData[1]/row[3]/c[2]",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "MERGED_CELLS",
+        "category": "MERGED_CELLS",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#merge=D1:E1",
+        "classification": "MANUAL_REVIEW"
+      },
+      {
+        "ruleId": "WORKSHEET_NAME",
+        "category": "WORKSHEET_NAME",
+        "worksheet": "Sheet1",
+        "target": "xl/worksheets/sheet1.xml#sheetId=1",
+        "classification": "MANUAL_REVIEW"
+      }
+    ]
+  }
+}

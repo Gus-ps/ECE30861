@@ -1,5 +1,24 @@
 # Assumptions and Extensions
 
+Current verified status (2026-11-15): the deployed Gustavo-branch checker corrections are adopted (AE-021). All 155 regression tests pass. Formula-link LINK_TEXT targets and their finding IDs changed; earlier `#cell=` formula-link results below are historical.
+
+## AE-021 — Adopt deployed checker corrections from Gustavo branch (2026-11-15)
+
+- **Source/scope:** Phase 4 specification 2.1.0 §7.6 (partial 2.4.4 Link Purpose (In Context)): supported simple text-cell links use the cell target, while unsupported representations use indexed XML targets, and formula links are never edited. §7.4/§8.6 (partial 1.3.1 Info and Relationships) and §8.5 rename safety (partial 2.4.2 Page Titled; related 2.4.6 Headings and Labels). The specification does not list every OOXML attribute that is safe for the rename inventory, or say how drawings near a header candidate should be judged. Phase 5 specification 3.0.0 keeps ruleset 2.0.0 and the six rules unchanged.
+- **Adopted behavior:** This is the deployed `origin/Gustavo` commit `c880566`, copied unchanged.
+  1. Every reported HYPERLINK-formula finding uses its indexed cell-element target `#xml=/worksheet[1]/sheetData[1]/row[n]/c[m]`. This now includes screened literal formulas, which previously used `#cell=`.
+  2. A TABLE_HEADER candidate becomes MANUAL_REVIEW when either of these overlaps the candidate rectangle: a cell with `vm` (in-cell image/rich-data) metadata, or a drawing anchor. A drawing anchor also counts if it is unknown, absolute, external or unparseable. Only proven disjoint one/two-cell anchors are ignored.
+  3. The rename inventory treats `c:invertIfNegative`, the `horzOverflow`, `vertOverflow` and `rtlCol` attributes, and a drawing extension element with only numeric `cx`/`cy` as known non-reference content.
+- **Rationale/evidence:** The deployed system is canonical, as the developer stated on 2026-11-15. Team 12 tester vectors (`origin/Logan` `formula_link_identity_vectors.json`) expect the indexed formula targets. Item 1 matches §7.6. Items 2 and 3 are prototype classification choices. They only add manual review or recognize scalar layout metadata, and generate no content. **Risk:** finding IDs for formula links differ from earlier outputs of this branch. Earlier stored results are not rewritten. Whether item 3 resolves the outstanding Team 12 rename mismatch is unverified.
+- **Approval:** The developer authorized adopting the deployed branch as canonical and dropping the old `#cell=` expectations (2026-11-15). Recorded pod adoption of these specific classification details has not been found.
+- **Implementation/verification:** `checks/link_text.py`, `checks/table_headers.py` and `rename_safety.py` now match `origin/Gustavo`. `tests/test_deployment_regressions.py` (5 tests) adds the deployed fixtures `tests/fixtures/deployment/` and checks the following:
+  - exact finding tuples and independently calculated IDs
+  - source preservation
+  - no `#cell=` target for any formula link
+  - the disjoint/overlapping drawing cases, an unknown extension, and in-cell metadata
+
+  `tests/test_link_text.py` now expects the indexed target. A temporary revert of each module made the new tests fail. The full suite (155 tests) passed on 2026-11-15. A redundant second `_formula_location` call (an extra sheet stream) is kept unchanged to match the deployed code. No Excel UI evidence exists.
+
 Current verified status: all six screening rules run in contract order under corrected pack 2.1.1 (specification 2.1.0, ruleset 2.0.0; suite target 2.1.1, no executable manifest added). Eleven helper tests, three color-check tests, three dedicated six-rule integration tests and all 150 regression tests pass. Dependency, whitespace and seven pack hash checks pass. Old fixture/snapshot bytes remain historical; new complete six-rule clean/seeded inputs have independent tuples/IDs, five-repeat and source-preservation checks. No remediation/API/tester implementation or Excel manual no-repair verification is claimed. Historical pending/unregistered statements below describe earlier stages, not current status.
 
 COLOR_CONTRAST is now registered, completing six-rule execution (not Phase 4/remediation acceptance). Static low contrast/color meaning combine per cell; visual conditional ranges are deduplicated and suppress static results. Unknown visual extension scope receives whole-part manual disclosure, not an invented range/ratio. Formula caches are never calculated. Three color-check tests and all 147 tests pass. Historical two-rule mocks remain explicit; five-rule fixtures now run through the current six-rule runner without rewriting their bytes or five-rule tuples. Dedicated six-rule fixtures follow.
