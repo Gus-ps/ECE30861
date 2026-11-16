@@ -647,3 +647,13 @@ Raw evidence: .perf/results/worker_20261116.json; detailed tables:
 | A/d/unlimited | 220278049 | 155277911 | 393555838 | 250000/250000/250000 | no/no/no | exact |
 | B/d/unlimited | 220278049 | 155277911 | 393555838 | 250000/250000/250000 | no/no/no | exact |
 | B/c/bounded | 38316575 | 26849642 | 68891505 | 44123/40034/44123 | yes/yes/no | exact |
+
+## Finding text review preparation (2026-11-16, AE-023)
+
+[Finding text inventory](finding_text_inventory.md) records the six active rules,
+source templates and limitation reasons, observed examples, length analysis and
+unapproved improvement proposals. scripts/export_finding_texts.py exports actual
+fixture output deterministically; tests/test_finding_texts.py adds 3 tests.
+Executed: 172 unittest tests OK, skipped=1. No >500 message/recommendation found;
+limitations can contain unbounded metadata. Human review remains open, all prose
+unchanged, no Pod approval of improvements. See AE-023 for scope and evidence.

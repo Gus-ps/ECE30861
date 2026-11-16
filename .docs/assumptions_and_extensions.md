@@ -4,6 +4,41 @@ Performance status (2026-11-16, AE-022 worker): B c 5/5 succeeds; A c 5/5 timeou
 
 Current verified status (2026-11-15): the deployed Gustavo-branch checker corrections are adopted (AE-021). All 155 regression tests pass. Formula-link LINK_TEXT targets and their finding IDs changed; earlier `#cell=` formula-link results below are historical.
 
+## AE-023 — Finding prose inventory and deferred improvements (2026-11-16)
+
+- **Criterion references:** partial 1.1.1 Non-text Content; 1.3.1 Info and Relationships;
+  1.4.1 Use of Color; 1.4.3 Contrast (Minimum); 2.4.2 Page Titled (related
+  2.4.6 Headings and Labels); 2.4.4 Link Purpose (In Context).
+- **Source/scope:** shared finding contract §3/§7 and AC-05 require nonblank
+  plain-text message/recommendation, 1–500 Unicode code points, accurate and stable
+  for a target. Limitations must be deterministic, unique and code-point sorted.
+  Phase 5 §2 leaves human explanation review open. Cross-team prose may differ.
+  Exact preferred wording and prose-specific REQ-XX mapping remain unspecified.
+- **Rule/decision:** inventory ruleset 2.0.0 without changing any checker output.
+  Finding IDs exclude prose, but other teams may assert text; defer all wording
+  changes until Pod coordination. Proposed clearer terminology and reason-specific
+  advice are proposals only, not approved requirements or implemented behavior.
+- **Analysis/evidence:** active messages have 5/1/2/3/1/7 forms for
+  ALT_TEXT/WORKSHEET_NAME/TABLE_HEADER/MERGED_CELLS/LINK_TEXT/COLOR_CONTRAST
+  (parameterized color resolver errors have finite subvariants). No unbounded
+  cell/label/title value enters messages/recommendations. Contrast is 1–21 with
+  fixed formatting; controlled style identifiers bound resolver reasons; ALT_TEXT
+  slices at 500. No >500 message/recommendation case found. Location, XML names
+  and formula functions can make limitations long, but that field has no stated
+  individual 500-point limit. This is source analysis, not an arbitrary-input proof.
+- **Approval:** developer work request only (2026-11-16). No Pod approval of
+  proposed text changes. Human review is unperformed.
+- **Implementation:** [inventory](finding_text_inventory.md), deterministic
+  scripts/export_finding_texts.py and tests/test_finding_texts.py. Existing fixtures
+  supply 13 observed rule/classification/message/recommendation groups; source
+  tables additionally list unexercised reasons and limitation wrappers.
+- **Verification:** executed 2026-11-16: 172 unittest tests OK, skipped=1
+  (169 existing plus 3 added). Fixture repeats, limits, limitation ordering,
+  exporter determinism/deduplication and a raw 100,000-code-point cell, maximum
+  valid sheet name and long destination passed. No checker/fixture bytes changed.
+  No human accuracy/comprehensibility/actionability sign-off or wording change.
+  User-requested failure gate was not triggered.
+
 ## AE-022 — Synthetic boundary workbooks and checker-only performance measurement (2026-11-15)
 
 - **Criterion reference:** none. This is not a WCAG check. It measures all six rules together: 1.1.1, 1.3.1, 1.4.1/1.4.3, 2.4.2 (related 2.4.6) and 2.4.4. It serves the performance requirement REQ-15 / AC-18.
