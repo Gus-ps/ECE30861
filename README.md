@@ -28,6 +28,8 @@ SQLite defaults to `data/workbooks.sqlite3`; `DATABASE_PATH` can override it.
 | 2 | `POST /api/v1/workbooks` | Multipart `file`; 202 with workbookId, versionId, auditId and PROCESSING |
 | 4 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}` | Filename, SHA-256, timestamps, status and audit/source IDs |
 | 5 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}` | Audit status, findings, limitations and error |
+| 11 | `PUT /api/v1/workbooks/{workbookId}/schedule` | Owner replaces the audit interval and supplied deadline |
+| G | `GET /api/v1/workbooks/{workbookId}/schedule` | Owner or granted reviewer reads schedule and newest version |
 
 The owner-authorized `/api/v1/workbooks/{workbookId}/versions/{versionId}/original`
 download supports the prompt's requirement that unchanged originals remain accessible.
@@ -121,3 +123,5 @@ python -m unittest discover -s tests -v
 Focused API tests cover the listed operations, validator integration, source
 preservation, errors and owner access. The optional PostgreSQL storage test runs
 only with `RUN_POSTGRES_TESTS=1` and a dedicated TLS test database configured.
+
+Schedule configuration decisions and verification limits: [Phase 5 system decisions](docs/phase5_system_decisions.md).
