@@ -1,6 +1,6 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
-Performance (2026-11-15, AE-022): local synthetic checker-only measurement; see "Performance measurement". The mixed 250,000-cell profile exceeds 60 s on all 5 runs (66–78 s). No optimization has been made.
+Performance (2026-11-16, AE-022 repeat): all 40 runs match baseline; c is below 60 s in all five runs under both conditions. See repeat results below.
 
 Current status (2026-11-15): the checker now matches the deployed Gustavo-branch engine (AE-021); the developer treats that branch as canonical. Ruleset 2.0.0 and the six-rule order are unchanged. Behavior changes:
 
@@ -359,7 +359,7 @@ Every rule re-opens the package and re-streams each sheet. `worksheet_features` 
 
 Memory peaks while full cell tuples are held (TABLE_HEADER/LINK_TEXT: about 160–176 MiB for one 250k-cell sheet) and while findings accumulate. In profile d, COLOR_CONTRAST holds 250,000 findings plus 250,000 limitation strings (337 MiB).
 
-**Not implemented — improvement options needing authorization**
+**Historical improvement options (2026-11-15; items 1–2 implemented below)**
 
 1. **Cache the parsed rectangle and cell positions** (`lru_cache` on `range_sort_key`/`cell_position`, or pre-parse merges to integer bounds). This is the smallest change: the functions are pure, so findings should be unchanged. It mainly helps MERGED_CELLS, LINK_TEXT and COLOR_CONTRAST. The cache uses bounded extra memory.
 2. **Rewrite MERGED_CELLS as a single pass over the cells**, using numeric merge bounds or a row index. This would remove the M×N cost. It must keep finding order and IDs exact; verify with the fixtures and these fingerprints.
@@ -413,3 +413,117 @@ exhaustively tested. Performance was not benchmarked at that time (see the 2026-
 
 Decision status and remaining limits are recorded in
 [the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-015**.
+
+### Stage 1 executed (2026-11-16)
+
+| Profile / limit | Before engine s / RSS MiB / ok | Stage 1 engine s / RSS MiB / ok | Baseline fingerprint |
+|---|---|---|---|
+| a / unlimited | 24.3–28.5 / 176.6 / 5/5 | 51.7–53.7 / 176.7 / 5/5 | exact |
+| a / rlimit384_t60 | 23.5–24.8 / 176.7 / 5/5 | 22.4–23.8 / 176.7 / 5/5 | exact |
+| b / unlimited | 24.8–25.8 / 37.5 / 5/5 | 51.0–52.2 / 93.9 / 5/5 | exact |
+| b / rlimit384_t60 | 23.3–24.0 / 37.5 / 5/5 | 21.6–22.6 / 37.4 / 5/5 | exact |
+| c / unlimited | 66.4–77.9 / 83.8 / 5/5 | 54.0–72.3 / 93.9 / 5/5 | exact |
+| c / rlimit384_t60 | N/A (timeout) / 67.9 / 0/5 | 28.3–29.7 / 84.9 / 5/5 | exact |
+| d / unlimited | 23.8–28.9 / 338.6 / 5/5 | 21.3–31.4 / 340.4 / 5/5 | exact |
+| d / rlimit384_t60 | 22.7–24.8 / 338.5 / 5/5 | 19.6–20.7 / 339.9 / 5/5 | exact |
+
+Per-rule seconds (one independent child per rule and mode):
+
+| Rule | c before | c unlimited | c limited | d before | d unlimited | d limited |
+|---|---|---|---|---|---|---|
+| ALT_TEXT | 2.24 | 3.95 | 2.16 | 2.31 | 2.32 | 2.21 |
+| WORKSHEET_NAME | 3.82 | 6.88 | 3.79 | 0.00 | 0.00 | 0.00 |
+| TABLE_HEADER | 7.45 | 12.83 | 7.15 | 8.29 | 7.74 | 7.25 |
+| MERGED_CELLS | 31.14 | 5.74 | 3.14 | 0.65 | 0.71 | 0.65 |
+| LINK_TEXT | 10.34 | 8.83 | 4.74 | 4.99 | 5.33 | 4.83 |
+| COLOR_CONTRAST | 12.09 | 15.89 | 8.65 | 6.58 | 6.16 | 5.48 |
+
+Stage 1 uses a 4,096-entry LRU only on pure range_sort_key (immutable tuples;
+exceptions are not retained). A local tracemalloc probe of 4,096 distinct valid
+rectangles retained 1,111,556 bytes (about 1.06 MiB, 0.28% of 384 MiB; not a
+universal bound on arbitrary input-string sizes). Avoiding cell_position and
+canonical_range caches limits retained strings and per-cell cache churn.
+Caller-side parsing was an alternative but would touch several rules.
+MERGED_CELLS (1.3.1 Info and Relationships, partial) now builds sorted populated
+row/column indexes, bisects rows and columns and never expands rectangles.
+It streams cells without retaining full Cell objects. Conflict precedence,
+single-cell handling and append order remain unchanged. Merge/merge overlap
+remains quadratic; populated-row search can still visit many rows.
+
+Executed sequentially with no concurrent tests/cProfile: regenerated a–d SHA256
+matched every baseline; all 40 successful runs matched every baseline run's
+complete fingerprint, including counts and ordered full digest. Per-rule
+fingerprints also match the earlier clean c/d measurements. Files:
+.perf/results/stage1_{unlimited,rlimit384_t60}_{a,b,c,d}.json.
+The interrupted d fragment is excluded; d was restarted for five complete runs.
+The unlimited a–c pass before the interruption was markedly slower than the
+resumed runs; the cause is unverified, so speed ratios are not controlled
+comparisons. Its RSS includes the generator parent's inherited high-water mark
+(b/c floor 93.9 MiB); the resumed measurements use existing files without
+generation. These values must not be interpreted as cache memory growth.
+
+The limited c pass meets the local target: 5/5, 28.33–29.73 s, 84.9 MiB peak;
+engine headroom 30.27 s, RSS headroom 299.1 MiB. RLIMIT_AS limits virtual memory,
+so RSS subtraction is not guaranteed allocation headroom. Limited d has 44.1
+MiB RSS headroom; its service_worker JSON problem is unchanged.
+Unlimited c still exceeded 60 s in 3/5 runs; there is no environment-independent
+performance guarantee. Largest measured c candidates are COLOR_CONTRAST style
+resolution and TABLE_HEADER, followed by LINK_TEXT; sharing reads or changing
+these algorithms needs separate authorization. LINK_TEXT overlap and merge
+overlap remain quadratic for dense declarations.
+
+Verification: 169 unittest tests, OK, skipped=1 (166 existing unchanged plus
+3 new tests). tests/test_stage1_optimization.py covers bounded-cache hits,
+uncached invalid-input exceptions and legacy contains-scan equivalence across
+interior/boundary/outside, empty/single/overlapping/huge merges and multiple
+sheets, including findings order and limitations. No dependencies added.
+Ruff is unavailable; whitespace and changed-Python line length checked.
+Unverified: production Python 3.13, hardware, full service_worker child,
+hosted AC-18 acceptance, hyperlink-dense sheets, sheets with very many merges,
+and Excel UI. Ruleset remains 2.0.0; no shared requirement approval is inferred.
+
+### Stage 1 repeat measurement (2026-11-16)
+
+Developer-requested repeat, unchanged implementation and ruleset 2.0.0.
+Regenerated inputs in a separate process, verified SHA256 against all four
+original baselines, then measured existing files in a new parent. No generator
+high-water RSS inheritance this time. All measurements ran sequentially without
+concurrent tests or cProfile. All 40 runs succeeded and their entire
+fingerprints (including counts and order) exactly match every original baseline
+run. All c/d per-rule fingerprints also match the original clean measurements.
+Results: .perf/results/stage1_remeasure_{unlimited,rlimit384_t60}_{a,b,c,d}.json;
+comparison: .perf/results/stage1_remeasure_comparison.md. Prior results remain
+historical; none were overwritten. This repeat supersedes the earlier pass for
+current local performance assessment, but does not explain its slowdown.
+
+Limited c: time headroom 29.43 s; RSS difference
+299.7 MiB. RSS difference is not virtual-memory
+allocation headroom. Both unlimited and limited c now finish under 60 s on
+all five runs. No production acceptance claim: Python 3.13, production hardware,
+full service_worker child, hyperlink-dense sheets, very many merge declarations,
+hosted AC-18 and Excel UI remain unverified. COLOR_CONTRAST and TABLE_HEADER
+remain the largest measured c costs; quadratic hyperlink/merge overlap and d's
+JSON memory issue are unchanged. No code or test changes for this repeat;
+the earlier 169-test result (skip 1) is unchanged and was not rerun.
+
+| Profile / limit | Before: seconds / RSS MiB / ok | Remeasured: seconds / RSS MiB / ok | Fingerprint |
+|---|---|---|---|
+| a / unlimited | 24.26–28.48 / 176.6 / 5/5 | 22.75–24.74 / 176.6 / 5/5 | exact |
+| a / rlimit384_t60 | 23.53–24.76 / 176.7 / 5/5 | 22.49–22.95 / 176.6 / 5/5 | exact |
+| b / unlimited | 24.82–25.81 / 37.5 / 5/5 | 23.63–25.54 / 37.4 / 5/5 | exact |
+| b / rlimit384_t60 | 23.27–23.99 / 37.5 / 5/5 | 22.76–23.44 / 37.4 / 5/5 | exact |
+| c / unlimited | 66.36–77.89 / 83.8 / 5/5 | 29.22–29.88 / 85.1 / 5/5 | exact |
+| c / rlimit384_t60 | timeout / 67.9 / 0/5 | 29.56–30.57 / 84.3 / 5/5 | exact |
+| d / unlimited | 23.77–28.91 / 338.6 / 5/5 | 20.41–20.93 / 338.6 / 5/5 | exact |
+| d / rlimit384_t60 | 22.72–24.75 / 338.5 / 5/5 | 20.41–20.88 / 338.7 / 5/5 | exact |
+
+Per-rule seconds / ルール別秒（各1回）:
+
+| Rule | c before | c unlimited | c limited | d before | d unlimited | d limited |
+|---|---|---|---|---|---|---|
+| ALT_TEXT | 2.24 | 2.19 | 2.30 | 2.31 | 2.23 | 2.21 |
+| WORKSHEET_NAME | 3.82 | 3.69 | 3.80 | 0.00 | 0.00 | 0.00 |
+| TABLE_HEADER | 7.45 | 7.17 | 7.15 | 8.29 | 7.27 | 7.33 |
+| MERGED_CELLS | 31.14 | 3.15 | 3.19 | 0.65 | 0.65 | 0.66 |
+| LINK_TEXT | 10.34 | 4.85 | 4.77 | 4.99 | 4.97 | 4.99 |
+| COLOR_CONTRAST | 12.09 | 8.78 | 8.72 | 6.58 | 5.33 | 5.54 |
