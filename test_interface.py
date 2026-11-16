@@ -121,6 +121,7 @@ class SystemTests:
             if body.setup.faults is not None:
                 db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
             for session_id in cleanup:
+                db.execute('DELETE FROM p5_schedules WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_keys WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_jobs WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_resources WHERE namespace=?', (session_id,))

@@ -25,6 +25,7 @@ from phase4_contracts import (AuditReport, HistoryResponse, ReauditRequest, Reau
                              RemediationAccepted, RemediationRequest, RemediationResponse, ReviewResponse)
 from phase4_jobs import Runner, child, identifier
 from phase4_store import Store, encode, now
+import phase5_schedule as schedules
 from service_errors import ApiError
 from test_interface import SystemTests
 
@@ -45,6 +46,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     database = Database(db_path)
     database.initialize()
     store = Store(database)
+    schedules.initialize(store)
     tests = SystemTests(database,
                         enable_test_interface if enable_test_interface is not None else os.getenv('ENABLE_TEST_INTERFACE', '').lower() == 'true',
                         admins, test_session_users if test_session_users is not None else json.loads(os.getenv('TEST_SESSION_USERS_JSON', '{}')))
@@ -122,6 +124,27 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         if mutate and (row['owner'] != identity or identity in reviewers):
             raise ApiError(403, 'FORBIDDEN', 'Only the owner may change this workbook.')
         return row
+
+    @app.get('/api/v1/workbooks/{workbook_id}/schedule',
+             response_model=schedules.ScheduleResponse)
+    def get_schedule(workbook_id: str, request: Request, identity=Depends(user)):
+        with store.connect() as db:
+            workbook = lookup(db, workbook_id, 'workbook', request, identity)
+            return schedules.read(db, workbook)
+
+    @app.put('/api/v1/workbooks/{workbook_id}/schedule',
+             response_model=schedules.ScheduleResponse,
+             openapi_extra={'requestBody': {'required': True, 'content': {
+                 'application/json': {'schema': schedules.ScheduleRequest.model_json_schema()}}}})
+    async def put_schedule(workbook_id: str, request: Request, identity=Depends(user)):
+        raw = await request.body()
+        with store.connect(write=True) as db:
+            workbook = lookup(db, workbook_id, 'workbook', request, identity, mutate=True)
+            if database.postgres:
+                db.execute('SELECT id FROM p4_resources WHERE id=? FOR UPDATE',
+                           (workbook_id,)).fetchone()
+            body = schedules.parse_body(raw)
+            return schedules.write(db, workbook, body)
 
     def blob(db, version):
         try:

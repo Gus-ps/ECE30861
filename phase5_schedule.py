@@ -9,9 +9,16 @@ from service_errors import ApiError
 
 
 class ScheduleRequest(Contract):
+    model_config = {**Contract.model_config, 'json_schema_extra': {
+        'anyOf': [
+            {'properties': {'enabled': {'const': False}}},
+            {'properties': {'enabled': {'const': True}, 'intervalDays': {
+                'type': 'integer', 'minimum': 1, 'maximum': 90}},
+             'required': ['intervalDays']}
+        ]}}
     enabled: bool
     intervalDays: int | None = Field(default=None, ge=1, le=90)
-    complianceDeadline: str | None = Field(default=None, pattern=r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+    complianceDeadline: str | None = Field(default=None, pattern=r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$', json_schema_extra={'format': 'date'})
 
 
 class ScheduleResponse(Contract):
@@ -21,7 +28,7 @@ class ScheduleResponse(Contract):
     complianceDeadline: str | None
     versionId: Identifier
     nextAuditAt: Timestamp | None
-    reminderDays: list[int]
+    reminderDays: list[int] = Field(json_schema_extra={'const': [90, 30, 7]})
 
 
 def effective_now(db, namespace):
