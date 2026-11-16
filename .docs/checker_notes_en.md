@@ -1,6 +1,6 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
-Performance (2026-11-16, AE-022 repeat): all 40 runs match baseline; c is below 60 s in all five runs under both conditions. See repeat results below.
+Performance (2026-11-16, AE-022 worker): B c 5/5 succeeds; A c 5/5 timeout; A/B d 5/5 JSON MemoryError. Report-array lower bounds exceed 64 MiB for c/d.
 
 Current status (2026-11-15): the checker now matches the deployed Gustavo-branch engine (AE-021); the developer treats that branch as canonical. Ruleset 2.0.0 and the six-rule order are unchanged. Behavior changes:
 
@@ -527,3 +527,123 @@ Per-rule seconds / ルール別秒（各1回）:
 | MERGED_CELLS | 31.14 | 3.15 | 3.19 | 0.65 | 0.65 | 0.66 |
 | LINK_TEXT | 10.34 | 4.85 | 4.77 | 4.99 | 4.97 | 4.99 |
 | COLOR_CONTRAST | 12.09 | 8.78 | 8.72 | 6.58 | 5.33 | 5.54 |
+
+### Real production-worker path measurement (2026-11-16, AE-022)
+
+Executed locally with Python 3.14.4, no new dependencies, no checker/worker edits.
+Read-only detached origin/Gustavo worktree at c880566; A imports its checker,
+B imports f94330f checker through an explicit sys.path/PYTHONPATH bootstrap.
+Import paths were verified separately. Both execute the unchanged real
+service_worker.py main through runpy; the worker sets 384 MiB RLIMIT_AS itself.
+Fresh child per run; monotonic elapsed includes start/import/items/JSON/stdout;
+os.wait4 peak RSS; 60 s timeout. stdout captured to a file, not a pipe, avoiding
+parent capture-memory cost; thus parent json.loads/DB/HTTP memory is excluded.
+Inputs from .perf/workbooks match all original SHA256. Sequential execution,
+no concurrent tests/cProfile/generation. No workbook generation in measurement parent.
+Size definition: UTF-8 default json.dumps separators, ensure_ascii=False.
+stdout includes worker envelope and print newline; audit size is only the
+{findings, limitations} object, not the entire audit HTTP response.
+
+Results: A a/b 5/5 success; A c 5/5 timeout inside check_workbook; A/B d each
+5/5 MemoryError, exit 1, no stdout. B a/b/c 5/5 success. Every successful
+regular-run fingerprint exactly matches every original baseline run, including
+full digest and classification counts. Failed runs have no fingerprint and
+are NOT counted as matches or valid <=64 MiB responses.
+A c's failure prevents validating its worker findings under production limits.
+
+The earlier one-off d approximation is CONFIRMED by the real worker:
+check_workbook and items creation complete, final json.dumps fails while
+serializing findings, before stdout writing. Final bounded stage diagnostics
+are worker_diag_final_{A,B}_d_bounded.json; neither reached json.dumps:done.
+Corrected c diagnostic shows check_workbook:start without completion before
+timeout. Initial diagnostic json.dumps event markers were intercepted by
+checker-internal JSON calls, so those markers are NOT used as final-serialization
+evidence. Their successful outputs and size/fingerprint measurements remain
+valid. Diagnostic RSS after a large parent parse can inherit high-water marks;
+use the ordinary 40-run RSS and fresh-parent final diagnostics for memory evidence.
+
+Additional unlimited d diagnostic (one per version, NOT production acceptance)
+finishes and fingerprints match baseline: 250,000 findings/limitations/items,
+220,278,049 stdout bytes (~210.1 MiB), 155,277,911 audit bytes (~148.1 MiB).
+Fresh-parent unlimited diagnostic RSS is about 762 MiB.
+B c has 44,123 findings/items, 40,034 limitations, 38,316,575 stdout bytes
+(~36.5 MiB), 26,849,642 audit bytes (~25.6 MiB).
+
+Report projection, derived from actual phase4_jobs.report fields:
+{findings, unresolvedFindings, manualReviewItems, limitations}. This excludes
+metadata and is a lower bound, not a DB/HTTP measurement. It is 68,891,505 bytes
+for c (~65.7 MiB) and 393,555,838 for d (~375.3 MiB), exceeding 64 MiB
+(67,108,864 bytes) before metadata. Manual-review arrays repeat findings.
+Audit portions for a/b/c fit; d does not even without worker items.
+
+Impact: B fixes c's worker timeout, but worker success does not establish report
+size acceptance. d cannot currently publish a successful worker result under
+384 MiB; the parent observes failure rather than usable JSON. Raising memory
+alone would not fix response-size limits. Report duplication makes c exceed
+64 MiB in the measured projection. No claim about actual endpoint enforcement.
+
+UNAPPROVED / POD COORDINATION ONLY, not implemented:
+- Stream worker JSON: reduces transient whole-string memory, but findings/items
+  and parent capture/loads/DB memory remain; does not reduce byte size.
+- Aggregate limitations or change finding/output granularity: reduces memory and
+  bytes, but changes shared output evidence/contracts and requires pod approval.
+- Review memory limit: preserves output format but raises concurrent-host risk;
+  does not solve 64 MiB.
+- Remove repeated report arrays, paginate or change report delivery: reduces
+  responses but changes shared API/schema and needs pod coordination.
+
+No code/test changes; prior 169-test run (skip 1) remains applicable and was not
+rerun. git diff --check executed. No commit/push. Production Python 3.13,
+production hardware, DB payload persistence and actual HTTP audit/report
+responses remain unverified; this is not hosted AC-18 acceptance.
+Raw evidence: .perf/results/worker_20261116.json; detailed tables:
+.perf/results/worker_20261116_tables.md; wrappers under .perf/ (gitignored).
+
+| Version | Profile | Run | Status / code | Seconds | RSS MiB | stdout bytes | audit bytes | F/L/items | 64 MiB stdout/audit | Fingerprint |
+|---|---|---|---|---|---|---|---|---|---|---|
+| A | a | 1 | ok / 0 | 22.78 | 180.1 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| A | a | 2 | ok / 0 | 23.54 | 178.8 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| A | a | 3 | ok / 0 | 28.58 | 178.6 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| A | a | 4 | ok / 0 | 25.83 | 178.7 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| A | a | 5 | ok / 0 | 24.69 | 178.6 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| A | b | 1 | ok / 0 | 24.91 | 39.2 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| A | b | 2 | ok / 0 | 24.58 | 39.1 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| A | b | 3 | ok / 0 | 25.04 | 39.2 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| A | b | 4 | ok / 0 | 24.71 | 39.1 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| A | b | 5 | ok / 0 | 24.97 | 39.3 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| A | c | 1 | timeout / -9 | 60.01 | 64.7 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | c | 2 | timeout / -9 | 60.00 | 64.6 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | c | 3 | timeout / -9 | 60.00 | 64.5 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | c | 4 | timeout / -9 | 60.00 | 67.4 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | c | 5 | timeout / -9 | 60.00 | 66.4 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | d | 1 | failed MemoryError / 1 | 24.27 | 373.2 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | d | 2 | failed MemoryError / 1 | 24.23 | 373.0 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | d | 3 | failed MemoryError / 1 | 24.34 | 373.3 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | d | 4 | failed MemoryError / 1 | 24.72 | 373.4 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| A | d | 5 | failed MemoryError / 1 | 24.91 | 373.0 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| B | a | 1 | ok / 0 | 24.13 | 178.8 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| B | a | 2 | ok / 0 | 24.93 | 178.7 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| B | a | 3 | ok / 0 | 24.00 | 178.8 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| B | a | 4 | ok / 0 | 24.11 | 178.8 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| B | a | 5 | ok / 0 | 23.10 | 178.7 | 1037 | 646 | 1/2/1 | yes/yes | exact |
+| B | b | 1 | ok / 0 | 23.18 | 39.1 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| B | b | 2 | ok / 0 | 23.03 | 39.2 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| B | b | 3 | ok / 0 | 24.24 | 39.3 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| B | b | 4 | ok / 0 | 24.21 | 39.5 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| B | b | 5 | ok / 0 | 24.68 | 39.3 | 40705 | 27917 | 50/51/50 | yes/yes | exact |
+| B | c | 1 | ok / 0 | 36.74 | 170.8 | 38316575 | 26849642 | 44123/40034/44123 | yes/yes | exact |
+| B | c | 2 | ok / 0 | 34.49 | 170.7 | 38316575 | 26849642 | 44123/40034/44123 | yes/yes | exact |
+| B | c | 3 | ok / 0 | 34.44 | 171.3 | 38316575 | 26849642 | 44123/40034/44123 | yes/yes | exact |
+| B | c | 4 | ok / 0 | 34.98 | 171.1 | 38316575 | 26849642 | 44123/40034/44123 | yes/yes | exact |
+| B | c | 5 | ok / 0 | 34.96 | 170.8 | 38316575 | 26849642 | 44123/40034/44123 | yes/yes | exact |
+| B | d | 1 | failed MemoryError / 1 | 21.99 | 373.2 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| B | d | 2 | failed MemoryError / 1 | 21.79 | 373.5 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| B | d | 3 | failed MemoryError / 1 | 21.90 | 373.4 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| B | d | 4 | failed MemoryError / 1 | 21.92 | 373.0 | 0 | N/A | N/A | N/A (no result) | unavailable |
+| B | d | 5 | failed MemoryError / 1 | 21.98 | 373.4 | 0 | N/A | N/A | N/A (no result) | unavailable |
+
+| Diagnostic | stdout bytes | audit bytes | report arrays bytes | findings/limitations/items | 64 MiB stdout/audit/report | fingerprint |
+|---|---|---|---|---|---|---|
+| A/d/unlimited | 220278049 | 155277911 | 393555838 | 250000/250000/250000 | no/no/no | exact |
+| B/d/unlimited | 220278049 | 155277911 | 393555838 | 250000/250000/250000 | no/no/no | exact |
+| B/c/bounded | 38316575 | 26849642 | 68891505 | 44123/40034/44123 | yes/yes/no | exact |
