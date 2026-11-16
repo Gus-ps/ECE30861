@@ -1,6 +1,53 @@
 # Assumptions and Extensions
 
+Performance status (2026-11-15, AE-022): local synthetic checker-only measurement. Profile c (mixed, 250,000 cells) exceeds the 60 s engine bound on all 5 runs. Profile d (styled table) fits 384 MiB in the checker but not in an emulated service_worker JSON output step. No optimization has been made.
+
 Current verified status (2026-11-15): the deployed Gustavo-branch checker corrections are adopted (AE-021). All 155 regression tests pass. Formula-link LINK_TEXT targets and their finding IDs changed; earlier `#cell=` formula-link results below are historical.
+
+## AE-022 — Synthetic boundary workbooks and checker-only performance measurement (2026-11-15)
+
+- **Criterion reference:** none. This is not a WCAG check. It measures all six rules together: 1.1.1, 1.3.1, 1.4.1/1.4.3, 2.4.2 (related 2.4.6) and 2.4.4. It serves the performance requirement REQ-15 / AC-18.
+- **Source/scope:** Phase 5 specification 3.0.0 §12 and §17. AC-18 requires five documented runs of supported boundary work. Each run must finish within 60 seconds or end in a controlled failure. Successful findings must be identical across runs. Queue time and execution time are reported separately, using monotonic real time. The supported bounds are 25,000,000 bytes, 50 worksheets and 250,000 nonempty cells, and the audit engine bound is 60 s. Ruleset 2.0.0 is unchanged.
+  - **Not specified:** the composition of a "boundary workbook", and any engine memory bound. The 384 MiB `RLIMIT_AS` comes from the deployed worker (`origin/Gustavo` `service_worker.py`). It is not a specification value.
+- **Prototype choices (not specification values):**
+  - **(a)** One sheet with 25,000 × 10 numeric cells.
+  - **(b)** 50 sheets, each with 500 × 10 numeric cells.
+  - **(c) "Mixed realistic":** 10 sheets of 25,000 cells each. Each sheet has:
+    - a bold 14 pt title merged over A1:J1, and a blank row 2;
+    - a bold header row on a neutral grey fill;
+    - a dense 10-column data block (2,496 rows) with these columns: unique ID string, a category from 20 repeating strings, an integer, a money-format decimal, a numeric formula `C*D` with a cached value, a score, a date serial, a status (every 20th row "Late" in a red font), a link column and a note (every 25th row on a yellow fill);
+    - conditional formatting on the formula column (`cellIs` with a fill dxf) and on the score column (`colorScale`);
+    - after a blank row, 29 notes rows, each merged A:J (30 merges per sheet, 300 in total).
+
+    Link column: every 10th data row is an external hyperlink with a descriptive label (2,490 in total), each sheet has one "click here" hyperlink, and each sheet has two `HYPERLINK(...,"here")` formulas. Sheets 1 and 6 hold formal tables with `TableStyleMedium2`. The last sheet keeps the default name `Sheet10`, so the whole-workbook rename preflight runs. 25,553 unique shared strings.
+  - **(d)** One sheet that is a single `TableStyleMedium2` table: header plus 24,999 rows of the same 10 columns, with no hyperlinks, merges or conditional formatting. Excel's "Format as Table" always assigns a style, which makes every populated cell a COLOR_CONTRAST manual review (table-style overlay).
+  - Workbooks are written as raw OOXML with fixed ZIP timestamps and member order. The theme is openpyxl 3.1.5's bundled default theme.
+- **Rationale/limits:** Profiles a and b are minimal grids. Profiles c and d are guesses at ordinary business workbooks, not human-reviewed boundary fixtures; those are owned by the tester team (`origin/Logan`). Byte determinism holds for the same Python/zlib build (verified with zlib 1.3.1), not across zlib versions. Excel UI validity of the generated packages has not been checked.
+- **Local vs deployed:**
+  - Python 3.14.4 locally, versus `python:3.13-slim` in production.
+  - Local hardware: i7-1360P, WSL2, 16 logical CPUs, 7.6 GiB RAM. Production hardware is unknown.
+  - The harness measures `check_workbook` only. It excludes intake validation, queue, HTTP, storage and service_worker's review-item and JSON-output step; that step opens a further WorkbookReader for each LINK_TEXT user-input finding.
+  - Queue time is reported as `null`.
+- **Approval:** developer work request only (2026-11-15). No pod approval of the profiles, and these results are not AC-18 acceptance evidence.
+- **Implementation:** `scripts/perf_workbooks.py` (generator; checks the limits before and after writing and deletes an oversized output), `scripts/perf_harness.py` (fresh child per run, `os.wait4` peak RSS, optional `--rlimit-as`, `--per-rule`, `--cprofile`, findings fingerprints and run comparison), `tests/test_perf_tools.py` (10 tests plus 1 opt-in test, `CHECKER_PERF_FULL=1`). Outputs go to the gitignored `.perf/`. The runner and all rules are unchanged.
+- **Verification (executed 2026-11-15, sequential, otherwise idle machine):**
+  - Generator output: all four profiles are 1.14–1.66 MB with exactly 250,000 nonempty cells, and regeneration gave identical SHA256.
+  - Results, 5 runs each:
+    - **a:** engine 24.3–28.5 s, peak RSS 176.6 MiB.
+    - **b:** 24.8–25.8 s, 37.5 MiB.
+    - **c:** **66.4–77.9 s, over 60 s on every run**, 83.8 MiB.
+    - **d:** 23.8–28.9 s, **338.6 MiB**.
+  - With 384 MiB `RLIMIT_AS` and a 60 s kill (production conditions):
+    - **a, b and d:** 5/5 ok. d's peak was 338.5 MiB, about 46 MiB below the limit.
+    - **c:** **5/5 timeouts**, a controlled failure with no successful audit.
+  - Every successful set had identical tuples, findingIds and limitations.
+  - Profile c bottleneck (clean per-rule run, 67.1 s in total): MERGED_CELLS 31.1 s (each of 300 merge rectangles is tested against every populated cell, and `contains` re-parses the range strings each time, about 7.2M calls), COLOR_CONTRAST 12.1 s, LINK_TEXT 10.3 s (pairwise hyperlink `overlaps`), TABLE_HEADER 7.5 s, WORKSHEET_NAME rename preflight 3.8 s.
+  - Across rules, each sheet's XML is streamed many times: `worksheet_features` is called per feature, and `read_cells` runs about 4 times per sheet.
+  - d's memory is held by the COLOR_CONTRAST results: 250,000 findings plus 250,000 limitation strings.
+  - **One-off probe (not committed):** emulating service_worker's items list and `json.dumps` for d under 384 MiB raised MemoryError (peak 370 MiB). c serialized fine (38.3 MB JSON, 119 MiB peak).
+  - An earlier exploratory pass was distorted by concurrent work and is not used as evidence.
+- **Unverified:** Python 3.13, production hardware, the full service_worker child process, hosted P5-PERFORMANCE runs, hyperlink-dense sheets (LINK_TEXT pairwise cost grows quadratically), and the Excel UI.
+- **Status:** no optimization was made, as the work request specified. Improvement options are listed in the checker notes and need separate authorization.
 
 ## AE-021 — Adopt deployed checker corrections from Gustavo branch (2026-11-15)
 

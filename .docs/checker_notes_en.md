@@ -1,5 +1,7 @@
 # Accessibility Checker Notes — Phase 4 Common Foundation
 
+Performance (2026-11-15, AE-022): local synthetic checker-only measurement; see "Performance measurement". The mixed 250,000-cell profile exceeds 60 s on all 5 runs (66–78 s). No optimization has been made.
+
 Current status (2026-11-15): the checker now matches the deployed Gustavo-branch engine (AE-021); the developer treats that branch as canonical. Ruleset 2.0.0 and the six-rule order are unchanged. Behavior changes:
 
 - **LINK_TEXT:** every HYPERLINK-formula finding targets its indexed cell element (`<part>#xml=/worksheet[1]/sheetData[1]/row[n]/c[m]`). Screened literal formulas previously used `#cell=`; their finding IDs change. Simple text-cell links keep `#cell=`.
@@ -306,6 +308,73 @@ Workbook Title (**2.4.2**) and table headers (**1.3.1 Info and Relationships**)
 remain callable but inactive in the runner. Their detection and legacy ID helper
 are unchanged; see the assumptions log for their provisional values.
 
+## Performance measurement — REQ-15 / AC-18 preparation (2026-11-15)
+
+This is checker-only, local and synthetic. It is not AC-18 acceptance evidence: the hosted five-run measurement belongs to the system/tester side. There is no WCAG criterion; the measurement covers all six rules together. Profile compositions and decision status are recorded in AE-022.
+
+**Commands**
+
+```
+.venv/bin/python -m scripts.perf_workbooks --out .perf/workbooks            # profiles a-d, prints SHA256
+.venv/bin/python -m scripts.perf_harness --workbook X.xlsx --runs 5 \
+    [--rlimit-as] [--per-rule] [--cprofile] [--timeout 60] [--output .perf/results/x.json]
+.venv/bin/python -m scripts.perf_harness --generate --profile c --runs 5   # generate, then measure
+CHECKER_PERF_FULL=1 .venv/bin/python -m unittest tests.test_perf_tools     # opt-in full check
+```
+
+- Each run is a fresh child process.
+- Engine time is `perf_counter` around `check_workbook`. Child wall time is `time.monotonic` in the parent.
+- Peak RSS comes from `os.wait4`, so it is recorded even for a crashed or killed child.
+- `--rlimit-as` sets 384 MiB `RLIMIT_AS` after the child's imports, like the deployed worker (Linux only).
+- `--per-rule` calls each checker in its own child; the runner is not modified.
+- Run comparison uses SHA256 over the ordered tuples, findingIds and limitations, plus a full digest.
+- Queue time is `null`, because there is no queue locally.
+- Normal `unittest discover` runs only small-size tests; it adds about 6 s.
+
+**Measured** (Python 3.14.4, i7-1360P on WSL2, sequential runs, otherwise idle machine):
+
+| Profile (250,000 cells) | Engine, 5 runs | Peak RSS | 384 MiB + 60 s kill | Findings identical |
+|---|---|---|---|---|
+| a: 1 sheet numeric | 24.3–28.5 s | 176.6 MiB | 5/5 ok (23.5–24.8 s) | yes |
+| b: 50 sheets numeric | 24.8–25.8 s | 37.5 MiB | 5/5 ok (23.3–24.0 s) | yes |
+| c: mixed, 10 sheets | **66.4–77.9 s** | 83.8 MiB | **5/5 timeout** | yes (unlimited runs) |
+| d: one styled table | 23.8–28.9 s | 338.6 MiB | 5/5 ok (338.5 MiB) | yes |
+
+**Bottlenecks**
+
+Profile c, per rule (clean single run, 67.1 s in total):
+
+| Rule | Time | What dominates |
+|---|---|---|
+| MERGED_CELLS | 31.1 s | each merge × each populated cell; `contains` → `range_sort_key` re-parses the range string about 7.2M times |
+| COLOR_CONTRAST | 12.1 s | |
+| LINK_TEXT | 10.3 s | pairwise hyperlink `overlaps` |
+| TABLE_HEADER | 7.5 s | |
+| WORKSHEET_NAME | 3.8 s | rename preflight |
+| ALT_TEXT | 2.2 s | |
+
+Profile a, per rule: COLOR_CONTRAST 9.8 s (exact Fraction `tinted` math per cell), TABLE_HEADER 6.5 s, LINK_TEXT 4.1 s.
+
+Every rule re-opens the package and re-streams each sheet. `worksheet_features` is called separately for each feature, and `read_cells` runs about 4 times per sheet.
+
+Memory peaks while full cell tuples are held (TABLE_HEADER/LINK_TEXT: about 160–176 MiB for one 250k-cell sheet) and while findings accumulate. In profile d, COLOR_CONTRAST holds 250,000 findings plus 250,000 limitation strings (337 MiB).
+
+**Not implemented — improvement options needing authorization**
+
+1. **Cache the parsed rectangle and cell positions** (`lru_cache` on `range_sort_key`/`cell_position`, or pre-parse merges to integer bounds). This is the smallest change: the functions are pure, so findings should be unchanged. It mainly helps MERGED_CELLS, LINK_TEXT and COLOR_CONTRAST. The cache uses bounded extra memory.
+2. **Rewrite MERGED_CELLS as a single pass over the cells**, using numeric merge bounds or a row index. This would remove the M×N cost. It must keep finding order and IDs exact; verify with the fixtures and these fingerprints.
+3. **Fix LINK_TEXT's pairwise overlap test** with pre-parsed bounds or a sweep. Hyperlink-dense sheets are not measured yet, and the cost there is quadratic.
+4. **Memoize COLOR_CONTRAST style resolution** for each distinct style input.
+5. **Share sheet reads and feature scans across rules for each sheet.** This is a larger cross-module change. Caching all cells for every sheet would increase memory; caching one sheet at a time would not.
+6. **Profile-d memory:** the number of findings is a behavior/contract matter. Compacting limitation text needs pod agreement. Streaming serialization in the worker, or a different memory bound, is a deployment decision.
+
+**Unverified**
+
+- Python 3.13 and production hardware.
+- The full service_worker child, which also builds review items and JSON. A one-off local emulation for profile d hit MemoryError at 370 MiB in `json.dumps`; profile c produced 38.3 MB JSON.
+- Hosted P5-PERFORMANCE runs, tester-owned boundary fixtures, hyperlink-dense workbooks, and the Excel UI.
+- An earlier exploratory pass was distorted by concurrent work; it is not used.
+
 ## Verification and limits
 
 On 2026-10-29, `.venv/bin/python -m unittest discover -s tests -q` passed
@@ -340,7 +409,7 @@ Excel UI serialization, escaped strings from Excel, and shared HTTP transport
 remain unverified. Minimum-version Python 3.10 execution was not available.
 Some policy controls cannot appear literally in XML 1.0; their set membership
 is checked separately. VML/rich-data and all unsupported variants are not
-exhaustively tested. Performance has not been benchmarked.
+exhaustively tested. Performance was not benchmarked at that time (see the 2026-11-15 performance section).
 
 Decision status and remaining limits are recorded in
 [the assumptions log](assumptions_and_extensions.md), especially **AE-008–AE-015**.
