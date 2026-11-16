@@ -52,6 +52,20 @@ so no unpublished source file is needed. No claim of full Phase 5 acceptance.
 - **Approval status:** Developer continuation authorization only; no Pod approval and no authorization to fix legacy failures.
 - **Implementation / verification status:** After implementation 94 tests: same 14 failures/41 errors/1 skip; 6 new tests pass. Exact 55 event tuples unchanged: new failures 0, resolved failures 0. .perf/baseline.json, storage.json and after_api.json retain subTest IDs; full logs and recorder are gitignored.
 
+## SYS-007 — Content-Type validation: not implemented; decision required (2026-11-16)
+
+- **Source / scope:** Schedule GET / PUT review follow-up.
+- **Exact rule / interpretation:** Content-Type validation is deferred for this change. PUT continues to use the existing strict JSON body validation.
+- **Approval status:** Not implemented; decision required. Accepted media types and responses to mismatches remain to be decided.
+- **Implementation / verification status:** No Content-Type validation or dedicated tests have been added.
+
+Review follow-up verification: schedule GET / PUT now use contracts.Identifier.
+Schedule tests cover malformed IDs, unknown test sessions, the seven-field wire
+response, and disabled interval retention. All 9 schedule tests pass. Full suite:
+97 tests, 14 failures, 41 errors, 1 skip. Exact failure/error event comparisons
+against .perf/baseline.json, storage.json, after_api.json and final.json found
+0 new and 0 removed events; review.json and review.log record this run.
+
 ## Investigated inherited discrepancies (not fixed)
 
 - test_cleanup_rejects_active_audits updates only the legacy audits table to

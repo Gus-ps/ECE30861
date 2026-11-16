@@ -23,6 +23,54 @@ class ScheduleTests(unittest.TestCase):
         self.assertEqual(set(response.json()),{'code','message','requestId','details'})
         self.assertEqual(response.headers['X-Request-ID'],response.json()['requestId'])
 
+    def test_invalid_workbook_identifiers(self):
+        for identifier in ('a'*65, 'invalid!id'):
+            path='/api/v1/workbooks/'+identifier+'/schedule'
+            for method in ('get', 'put'):
+                with self.subTest(identifier=identifier, method=method):
+                    kwargs={'json': {'enabled':False}} if method == 'put' else {}
+                    response=getattr(self.client,method)(path,headers=self.headers,**kwargs)
+                    self.assert_error(response,400)
+                    self.assertEqual(response.json()['code'],'INVALID_REQUEST')
+
+    def test_unknown_test_session(self):
+        ids,base,path=self.resource()
+        headers=dict(self.headers,**{'X-Test-Session':'nonexistent'})
+        for method in ('get', 'put'):
+            with self.subTest(method=method):
+                kwargs={'json': {'enabled':False}} if method == 'put' else {}
+                response=getattr(self.client,method)(path,headers=headers,**kwargs)
+                self.assert_error(response,400)
+                self.assertEqual(response.json()['code'],'INVALID_TEST_SESSION')
+
+    def test_schedule_response_wire_contract(self):
+        # phase5-wire-schemas.json $defs.ScheduleResponse: all seven keys are
+        # required, additionalProperties=false, reminderDays is constant, and
+        # disabled schedules require a null nextAuditAt.
+        ids,base,path=self.resource()
+        expected=dict(workbookId=ids['workbookId'],enabled=False,
+            intervalDays=None,complianceDeadline=None,versionId=ids['versionId'],
+            nextAuditAt=None,reminderDays=[90,30,7])
+        response=self.client.get(path,headers=self.headers)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json(),expected)
+        for body,due in [
+            ({'enabled':True,'intervalDays':30,'complianceDeadline':'2027-12-31'},
+             '2027-01-31T00:00:00Z'),
+            ({'enabled':False,'intervalDays':30},None),
+        ]:
+            with self.subTest(body=body):
+                with patch('phase5_schedule.effective_now',
+                           return_value=datetime(2027,1,1,tzinfo=timezone.utc)):
+                    response=self.client.put(path,headers=self.headers,json=body)
+                expected.update(body,nextAuditAt=due,
+                                complianceDeadline=body.get('complianceDeadline'))
+                self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(response.json(),expected)
+                response=self.client.get(path,headers=self.headers)
+                self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(response.json(),expected)
+
     def test_invalid_vectors_preserve_state(self):
         ids, base, path = self.resource()
         original=self.client.put(path,headers=self.headers,json={'enabled':True,'intervalDays':30}).json()

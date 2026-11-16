@@ -127,7 +127,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @app.get('/api/v1/workbooks/{workbook_id}/schedule',
              response_model=schedules.ScheduleResponse)
-    def get_schedule(workbook_id: str, request: Request, identity=Depends(user)):
+    def get_schedule(workbook_id: Identifier, request: Request, identity=Depends(user)):
         with store.connect() as db:
             workbook = lookup(db, workbook_id, 'workbook', request, identity)
             return schedules.read(db, workbook)
@@ -136,7 +136,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
              response_model=schedules.ScheduleResponse,
              openapi_extra={'requestBody': {'required': True, 'content': {
                  'application/json': {'schema': schedules.ScheduleRequest.model_json_schema()}}}})
-    async def put_schedule(workbook_id: str, request: Request, identity=Depends(user)):
+    async def put_schedule(workbook_id: Identifier, request: Request, identity=Depends(user)):
         raw = await request.body()
         with store.connect(write=True) as db:
             workbook = lookup(db, workbook_id, 'workbook', request, identity, mutate=True)
