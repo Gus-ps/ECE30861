@@ -1,5 +1,11 @@
 # Worksheet rename classification: read-only profile
 
+> Historical implementation reference. For current Phase 5 status, test counts,
+> deployed corrections and unresolved coordination items, see
+> [checker notes](checker_notes_en.md). Earlier “current” statements apply to
+> their recorded increment; this document is not the current implementation status.
+
+
 Readiness stage 3 implements developer-authorized classification under Phase 4
 specification 2.1.0 Sections 7.3, 8.4 and 11. Criterion references are partial
 `2.4.2 Page Titled`, related `2.4.6 Headings and Labels`. This is not shared

@@ -1,4 +1,88 @@
-# Accessibility Checker Notes — Phase 4 Common Foundation
+# Accessibility Checker Notes — Phase 5 Start
+
+## Current state at Phase 5 start (updated 2026-11-16)
+
+Phase 5 specification 3.0.0 keeps ruleset 2.0.0 and the six-rule order:
+ALT_TEXT → WORKSHEET_NAME → TABLE_HEADER → MERGED_CELLS → LINK_TEXT →
+COLOR_CONTRAST. It introduces no new checker rules or changed finding behavior;
+system integration and acceptance evidence remain separate responsibilities.
+Criterion mappings are partial screening, not legal compliance.
+
+AE-021 adopts the deployed Gustavo checker corrections. Formula links use indexed
+XML targets; TABLE_HEADER vm/drawing classification and scalar rename-inventory
+exceptions are implemented but their specific Pod adoption is not established.
+
+AE-022: stage 1 caches parsed ranges (4,096 entries) and indexes populated merge
+rows/columns. Sequential repeat measurement: limited c 29.56–30.57 s checker-only,
+all 40 fingerprints unchanged. Real worker B c completes 5/5 in 34.44–36.74 s;
+A c times out 5/5. A/B d fail 5/5 with MemoryError in final json.dumps.
+d's diagnostic stdout is ~210 MiB, audit portion ~148 MiB. Report-array lower
+bounds exceed 64 MiB for both c (~65.7 MiB) and d (~375.3 MiB).
+These are local synthetic measurements, not hosted AC-18 acceptance.
+
+AE-023: [finding text inventory](finding_text_inventory.md), deterministic
+scripts/export_finding_texts.py and 3 added tests prepare human review.
+No >500 message/recommendation found in source analysis and tested inputs.
+Limitations may contain unbounded metadata. Wording is unchanged; proposals are
+unapproved. Automated validation does not complete human explanation review.
+
+Executed verification: 172 unittest tests OK, skipped=1 on 2026-11-16.
+No checker behavior or dependencies changed in the inventory/document increments.
+The later dated records retain earlier measurements and executed-test counts.
+
+## Open issues and Pod coordination
+
+- AE-021 items 2–3: TABLE_HEADER vm/drawing-anchor rules and scalar rename
+  inventory exceptions remain without recorded Pod approval.
+- Team 12 rename mismatch: resolution unverified; Team 9 evidence/report needed.
+- AE-022: per-cell COLOR_CONTRAST output versus 64 MiB responses; repeated
+  findings in report arrays. Changing granularity/contracts needs Pod coordination.
+- d worker MemoryError: worker-side implementation response is planned according
+  to the developer request; no fix or shared approval is established here.
+- Stage 2 optimization is deferred until production instance type is known.
+- AE-023: human explanation review and proposed wording improvements remain open.
+- Microsoft Excel no-repair inspections and precision evaluation on five real
+  workbooks remain unperformed. Automated fixture reads do not replace these.
+- Production Python 3.13/hardware, DB persistence and actual HTTP response sizes
+  remain unverified. Worker streaming/memory limits/output changes are proposals.
+
+## Evidence and document status
+
+See [assumptions and extensions](assumptions_and_extensions.md) for separate
+approval and implementation status, source scope and verification history.
+The old readiness/foundation/rename documents are historical implementation
+references. The received Team 9 → Team 12 guide describes Phase 3 (ruleset 1.0.0,
+53 planned cases, integration pending); it is retained unchanged and is not a
+current Phase 5 status authority. Its reported readiness and version are historical.
+Relative-link targets were checked locally; local existence alone does not make
+unpublished materials self-contained sources.
+
+### Relative-link verification (2026-11-16)
+
+Checked 235 relative links across the two notes, AE log, inventory, readiness,
+foundation, rename profile and received guide. Nine missing targets are all in
+the received guide; other checked targets exist. The guide is unchanged; these
+paths describe missing references, not sources used to establish behavior.
+Executed final regression: 172 tests OK, skipped=1.
+
+- `../contracts/phase3.md`
+- `../implementation/dixon_phase3.md`
+- `../../tests/fixtures/README.md`
+- `../../tests/fixtures/manifest.json`
+- `../../tests/fixtures/expectations.json`
+- `../contracts/tester.openapi.json`
+- `../contracts/system.openapi.json`
+- `../../README.md`
+- `../evidence/dixon_local_selfcheck/report.json`
+
+## Historical status and implementation reference
+
+Everything below retains dated historical evidence and earlier descriptions.
+“Current”, pending/unregistered and test-count statements in these records apply
+to their original increment, not the current state above. Earlier titles and
+status are retained here to explain the implementation history.
+
+### Accessibility Checker Notes — Phase 4 Common Foundation
 
 Performance (2026-11-16, AE-022 worker): B c 5/5 succeeds; A c 5/5 timeout; A/B d 5/5 JSON MemoryError. Report-array lower bounds exceed 64 MiB for c/d.
 
@@ -18,7 +102,7 @@ Color foundation verified against corrected pack 2.1.1: exact Fraction HSL inter
 
 Current adoption: corrected pack revision 2.1.1 resolves AE-020; implementation resumes using CORRECTIONS.md. Specification remains 2.1.0, ruleset 2.0.0, suite target 2.1.1 (no executable tester created). All seven SHA256SUMS members verified. Earlier pending statements below are historical; neither team deployment nor complete implementation is established. See [corrected pack](phase4_agent_context_pack/README.md).
 
-## Current status — five-rule integration (2026-10-30)
+## Historical status — five-rule integration (2026-10-30)
 
 The runner executes ALT_TEXT → WORKSHEET_NAME → TABLE_HEADER → MERGED_CELLS →
 LINK_TEXT. COLOR_CONTRAST is unregistered; six-rule integration and remediation
@@ -65,7 +149,7 @@ Stage 2 (2026-10-30): `checks.table_headers.check_table_headers` now inspects re
 
 Current increment (2026-10-30): MERGED_CELLS is now active after ALT_TEXT and WORKSHEET_NAME. It screens populated declared merges (including titles), deduplicates identical rectangles, and discloses overlapping declarations, including empty conflicts. Sparse stored cells are used; chartsheets are excluded from grid inspection. Direct call: `checks.merged_cells.check_merged_cells(path, *, source_sha256=None)`. Four focused tests and all 110 tests pass. The remaining three new rules and remediation are not implemented. Earlier two-rule evidence below is historical.
 
-## Current decisions and usage
+## Historical decisions and usage
 
 All four readiness increments are verified: **106 tests pass**, including
 automated complete-XLSX integration (2026-10-29, Python 3.14.0). The runner still

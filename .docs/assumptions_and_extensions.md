@@ -1,5 +1,30 @@
 # Assumptions and Extensions
 
+## Current summary (2026-11-16)
+
+Ruleset 2.0.0 runs six rules in Phase 5 specification 3.0.0 order.
+AE-021 deployed corrections are implemented; specific items 2–3 lack recorded
+Pod approval. AE-022 stage 1 and repeat fingerprints are verified; real-worker
+B c succeeds, A c times out, A/B d fail at JSON serialization. c/d report-array
+lower bounds exceed 64 MiB. AE-023 inventories unchanged prose; human review and
+improvements remain open. Executed regression: 172 tests OK, skipped=1.
+Implementation/test success does not establish shared approval or acceptance.
+
+## Pod coordination index
+
+- AE-021: TABLE_HEADER vm/drawing handling, scalar rename inventory; Team 12
+  rename mismatch resolution unverified pending Team 9 report.
+- AE-022: output granularity/report duplication, worker memory, response limits.
+  Stage 2 optimization deferred until production instance type is known.
+- AE-023: human explanation review and proposed prose improvements.
+- AE-020: tint conflict RESOLVED by corrected pack 2.1.1; retained as history,
+  not an outstanding Pod decision.
+
+See [checker notes](checker_notes_en.md) for current state, remaining Excel
+no-repair/five-workbook precision evidence and production verification limits.
+
+### Historical introductory status (superseded)
+
 Performance status (2026-11-16, AE-022 worker): B c 5/5 succeeds; A c 5/5 timeout; A/B d 5/5 JSON MemoryError. c/d report-array lower bounds exceed 64 MiB.
 
 Current verified status (2026-11-15): the deployed Gustavo-branch checker corrections are adopted (AE-021). All 155 regression tests pass. Formula-link LINK_TEXT targets and their finding IDs changed; earlier `#cell=` formula-link results below are historical.
@@ -343,7 +368,21 @@ Color foundation verified against corrected pack 2.1.1: exact Fraction HSL inter
 
 Current adoption: corrected pack revision 2.1.1 resolves AE-020; implementation resumes using CORRECTIONS.md. Specification remains 2.1.0, ruleset 2.0.0, suite target 2.1.1 (no executable tester created). All seven SHA256SUMS members verified. Earlier pending statements below are historical; neither team deployment nor complete implementation is established. See [corrected pack](phase4_agent_context_pack/README.md).
 
-## AE-020 — Tint rounding conflict; pod decision pending (2026-10-30)
+## AE-020 — Tint rounding conflict resolved by corrected pack 2.1.1
+
+- **Current resolution:** corrected pack 2.1.1 establishes exact half-up tint
+  vectors; specification 2.1.0 and ruleset 2.0.0 remain unchanged.
+- **Approval status:** resolution is recorded by the supplied correction pack,
+  not inferred from passing implementation tests. This closes this tint conflict
+  only, not other prototype decisions or cross-team deployment.
+- **Implementation / verification:** Fraction HSL and final half-up rounding are
+  implemented; all corrected tint/contrast vectors and half-boundary tests were
+  verified during color integration. Current regression is 172 tests OK, skip 1.
+- **History:** original heading: “AE-020 — Tint rounding conflict; pod decision
+  pending (2026-10-30)”. Earlier evidence/proposals below are historical and were
+  superseded by the corrected pack; no original vector was silently edited.
+
+### Historical AE-020 investigation (2026-10-30)
 
 - **Source/scope:** Specification 2.1.0 §7.7, partial 1.4.1 Use of Color and
   1.4.3 Contrast (Minimum), versus the developer-supplied policy vectors.

@@ -1,5 +1,11 @@
 # Phase 4 common checker foundation
 
+> Historical implementation reference. For current Phase 5 status, test counts,
+> deployed corrections and unresolved coordination items, see
+> [checker notes](checker_notes_en.md). Earlier “current” statements apply to
+> their recorded increment; this document is not the current implementation status.
+
+
 Current verified status: all six screening rules run in contract order under corrected pack 2.1.1 (specification 2.1.0, ruleset 2.0.0; suite target 2.1.1, no executable manifest added). Eleven helper tests, three color-check tests, three dedicated six-rule integration tests and all 150 regression tests pass. Dependency, whitespace and seven pack hash checks pass. Old fixture/snapshot bytes remain historical; new complete six-rule clean/seeded inputs have independent tuples/IDs, five-repeat and source-preservation checks. No remediation/API/tester implementation or Excel manual no-repair verification is claimed. Historical pending/unregistered statements below describe earlier stages, not current status.
 
 COLOR_CONTRAST is now registered, completing six-rule execution (not Phase 4/remediation acceptance). Static low contrast/color meaning combine per cell; visual conditional ranges are deduplicated and suppress static results. Unknown visual extension scope receives whole-part manual disclosure, not an invented range/ratio. Formula caches are never calculated. Three color-check tests and all 147 tests pass. Historical two-rule mocks remain explicit; five-rule fixtures now run through the current six-rule runner without rewriting their bytes or five-rule tuples. Dedicated six-rule fixtures follow.
