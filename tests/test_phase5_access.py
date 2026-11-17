@@ -40,10 +40,10 @@ class AccessOrderTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.app = create_app(Path(self.temp.name) / 'service.sqlite3',
-                              {'a': 'owner', 'b': 'other', 'r': 'reviewer', 'u': 'stranger'},
+                              {'a': 'alice', 'b': 'other', 'r': 'reviewer', 'u': 'stranger'},
                               enable_test_interface=True, test_admin_tokens={'admin': 'administrator'},
-                              test_session_users={'administrator': ['owner', 'other', 'reviewer', 'stranger']},
-                              reviewer_grants={'reviewer': ['owner'], 'stranger': ['nobody']})
+                              test_session_users={'administrator': ['alice', 'other', 'reviewer', 'stranger']},
+                              reviewer_grants={'reviewer': ['alice'], 'stranger': ['nobody']})
         self.client = TestClient(self.app); self.addCleanup(self.client.close)
 
     def counts(self):
@@ -53,7 +53,8 @@ class AccessOrderTests(unittest.TestCase):
     def test_access_check_order_for_every_workbook_route(self):
         up = self.client.post('/api/v1/workbooks', headers=OWNER, files={'file': ('book.xlsx', workbook())}).json()
         base = VERSION.format(wb=up['workbookId'], v=up['versionId'])
-        finding = self.client.get(base + '/audits/' + up['auditId'], headers=OWNER).json()['findings'][0]
+        audit = self.client.get(base + '/audits/' + up['auditId'], headers=OWNER).json()
+        finding = audit['findings'][0]
         body = {'auditId': up['auditId'], 'decisions': [{'findingId': finding['findingId'], 'action': 'DECLINE'}]}
         rem = self.client.post(base + '/remediations', headers=dict(OWNER, **{'Idempotency-Key': 'k'}), json=body).json()
         job = self.client.get('/api/v1/remediations/' + rem['remediationId'], headers=OWNER).json()
@@ -62,6 +63,12 @@ class AccessOrderTests(unittest.TestCase):
                                           json={'session_id': 'elsewhere'}).status_code, 201)
         known = dict(wb=up['workbookId'], v=up['versionId'], a=up['auditId'], rem=rem['remediationId'], out=job['outputId'])
         unknown = dict.fromkeys(known, 'missing-id')
+        # Nothing identifying the resource may appear in a denial (ACC-3).
+        meta, outmeta = (self.client.get(VERSION.format(wb=up['workbookId'], v=v), headers=OWNER).json()
+                         for v in (up['versionId'], job['outputVersionId']))
+        secrets = {*known.values(), job['outputVersionId'], job['auditId'], finding['findingId'], 'alice',
+                   meta['fileName'], audit['startedAt'], audit['completedAt'],
+                   *(m[k] for m in (meta, outmeta) for k in ('sha256', 'createdAt'))}
         store = self.app.state.store
         for op, method, path, kwargs in OPERATIONS:
             for caller, (headers, read, write, missing) in CALLERS.items():
@@ -77,6 +84,8 @@ class AccessOrderTests(unittest.TestCase):
                         self.assertEqual(response.status_code, expected, response.text)
                         if expected >= 400:
                             self.assertEqual(set(response.json()), {'code', 'message', 'requestId', 'details'})
+                            exposed = response.text + str(response.headers)
+                            self.assertEqual([s for s in secrets if s in exposed], [])
                             reads.assert_not_called()
                             self.assertEqual(self.counts(), before)
 
