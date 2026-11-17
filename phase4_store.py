@@ -33,6 +33,8 @@ class Store:
                 response TEXT NOT NULL, namespace TEXT, workbook_id TEXT NOT NULL,
                 PRIMARY KEY(scope,key))''')
             db.execute('CREATE TABLE IF NOT EXISTS p4_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+            db.execute('''CREATE TABLE IF NOT EXISTS p5_upload_reservations (
+                id TEXT PRIMARY KEY, workbook_id TEXT NOT NULL, expires DOUBLE PRECISION NOT NULL)''')
             db.execute('''CREATE TABLE IF NOT EXISTS p4_faults (
                 session_id TEXT PRIMARY KEY, remaining INTEGER NOT NULL)''')
             if not db.execute("SELECT 1 FROM p4_meta WHERE key='legacy_import'").fetchone():

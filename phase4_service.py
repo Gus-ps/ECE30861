@@ -10,6 +10,7 @@ import re
 import secrets
 import tempfile
 import threading
+import time
 from urllib.parse import quote
 from zipfile import ZipFile
 
@@ -129,6 +130,11 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         except ValueError:
             raise ApiError(500, 'SOURCE_INTEGRITY_FAILED', 'Stored workbook integrity check failed.')
 
+    def fence(db, wb):
+        # Serialize writes to one workbook against its deletion. SQLite's BEGIN IMMEDIATE already does.
+        if database.postgres:
+            db.execute('SELECT pg_advisory_xact_lock(hashtext(?))', (wb,))
+
     def check_active(db, vid):
         if store.active(db, vid):
             raise ApiError(409, 'ACTIVE_OPERATION', 'An operation is already active for this version.')
@@ -201,23 +207,31 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     async def upload_to(request, background, identity, file, wb=None):
         if identity in reviewers and not wb:
             raise ApiError(403, 'FORBIDDEN', 'Reviewers have read-only access.')
-        if wb:
-            with store.connect() as db:
-                lookup(db, wb, 'workbook', request, identity, mutate=True)
-        filename, data = await validate_upload(request, file)
         vid = identifier('version')
-        with store.connect(write=True) as db:
-            tests.check(db, request.state.namespace, identity, lock=True)
-            if wb:
+        if wb:
+            with store.connect(write=True) as db:
+                fence(db, wb)
                 lookup(db, wb, 'workbook', request, identity, mutate=True)
-            else:
-                wb = identifier('workbook')
-                store.insert(db, 'workbook', wb, {'workbookId':wb}, identity, request.state.namespace, wb)
-            body = dict(workbookId=wb, versionId=vid, fileName=filename, sha256=hashlib.sha256(data).hexdigest(),
-                        createdAt=now(), status='PROCESSING', latestAuditId=None, sourceVersionId=None)
-            store.insert(db, 'version', vid, body, identity, request.state.namespace, wb, vid, data)
-            version = store.get(db, vid)
-            aid = begin_audit(db, version, request.state.request_id)
+                # Staging reservation: DELETE returns 409 until it is released or the 35 s upload bound passes.
+                db.execute('INSERT INTO p5_upload_reservations VALUES (?,?,?)', (vid, wb, time.time() + 35))
+        try:
+            filename, data = await validate_upload(request, file)
+            with store.connect(write=True) as db:
+                tests.check(db, request.state.namespace, identity, lock=True)
+                if wb:
+                    fence(db, wb)
+                    lookup(db, wb, 'workbook', request, identity, mutate=True)
+                else:
+                    wb = identifier('workbook')
+                    store.insert(db, 'workbook', wb, {'workbookId':wb}, identity, request.state.namespace, wb)
+                body = dict(workbookId=wb, versionId=vid, fileName=filename, sha256=hashlib.sha256(data).hexdigest(),
+                            createdAt=now(), status='PROCESSING', latestAuditId=None, sourceVersionId=None)
+                store.insert(db, 'version', vid, body, identity, request.state.namespace, wb, vid, data)
+                version = store.get(db, vid)
+                aid = begin_audit(db, version, request.state.request_id)
+        finally:
+            with store.connect(write=True) as db:
+                db.execute('DELETE FROM p5_upload_reservations WHERE id=?', (vid,))
         background.add_task(runner.drain)
         return dict(workbookId=wb, versionId=vid, auditId=aid, status='PROCESSING')
 
@@ -253,6 +267,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     def reaudit(request:Request, background:BackgroundTasks, workbook_id:Identifier, version_id:Identifier,
                 body:ReauditRequest|None=None, identity=Depends(user)):
         with store.connect(write=True) as db:
+            fence(db,workbook_id)
             version = lookup(db,version_id,'version',request,identity,wb=workbook_id,mutate=True)
             check_active(db,version_id)
             blob(db,version)
@@ -275,10 +290,16 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @app.delete('/api/v1/workbooks/{workbook_id}', status_code=204, response_class=Response)
     def delete_workbook(request:Request, workbook_id:Identifier, identity=Depends(user)):
+        versions="SELECT id FROM p4_resources WHERE workbook_id=? AND kind='version'"
         with store.connect(write=True) as db:
+            fence(db,workbook_id)
             lookup(db,workbook_id,'workbook',request,identity,mutate=True)
-            db.execute("DELETE FROM p4_jobs WHERE version_id IN (SELECT id FROM p4_resources WHERE workbook_id=? AND kind='version')",(workbook_id,))
-            for table in ('p4_keys','p4_resources','audits','test_workbooks','versions'):
+            if db.execute(f"""SELECT 1 FROM p4_jobs WHERE state IN ('PENDING','RUNNING') AND version_id IN ({versions})
+                UNION ALL SELECT 1 FROM p5_upload_reservations WHERE workbook_id=? AND expires>?""",
+                          (workbook_id,workbook_id,time.time())).fetchone():
+                raise ApiError(409,'ACTIVE_OPERATION','An operation is active for this workbook.')
+            db.execute(f'DELETE FROM p4_jobs WHERE version_id IN ({versions})',(workbook_id,))
+            for table in ('p4_keys','p4_resources','audits','test_workbooks','versions','p5_upload_reservations'):
                 db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
         return Response(status_code=204)
 
@@ -376,6 +397,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         response=dict(accepted,outputVersionId=None,outputId=None,auditId=None,error=None)
         with store.connect(write=True) as db:
             # Recheck all state under the reservation transaction, including concurrent identical replays.
+            fence(db,workbook_id)
             version=lookup(db,version_id,'version',request,identity,wb=workbook_id,mutate=True)
             previous=db.execute('SELECT * FROM p4_keys WHERE scope=? AND key=?',(scope,key)).fetchone()
             if previous:
