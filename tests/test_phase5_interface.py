@@ -1,5 +1,6 @@
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 import unittest
 
 PAGE = Path(__file__).resolve().parent.parent / 'static' / 'index.html'
@@ -13,9 +14,12 @@ class Page(HTMLParser):
     def __init__(self):
         super().__init__()
         self.label_for, self.fields, self.named, self.open, self.in_label = set(), [], [], [], 0
+        self.css, self.in_style = '', False
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        self.in_style = tag == 'style'
+        self.css += attrs.get('style') or ''
         if tag == 'label':
             self.in_label += 1
             self.label_for.add(attrs.get('for'))
@@ -25,10 +29,13 @@ class Page(HTMLParser):
             self.open.append(dict(attrs, tag=tag, text=''))
 
     def handle_data(self, data):
+        if self.in_style:
+            self.css += data
         for element in self.open:
             element['text'] += data
 
     def handle_endtag(self, tag):
+        self.in_style = False
         if tag == 'label':
             self.in_label -= 1
         if self.open and tag == self.open[-1]['tag']:
@@ -49,6 +56,12 @@ class InterfaceTests(unittest.TestCase):
         for element in self.page.named:
             with self.subTest(element=element.get('id') or element['text']):
                 self.assertTrue(element['text'].strip() or element.get('aria-label') or element.get('aria-labelledby'))
+
+    def test_focus_is_always_visible(self):
+        css = re.sub(r'\s+', '', self.page.css)
+        # A global :focus-visible rule covers every element, including script-built ones.
+        self.assertRegex(css, r'(^|})(\*)?:focus-visible\{[^}]*outline:[2-9]px(solid|double)#[0-9a-f]{3,6}')
+        self.assertNotRegex(css, r'outline(-style|-width)?:(none|0(?![\d.]))')
 
 
 if __name__ == '__main__':
