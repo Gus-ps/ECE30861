@@ -199,7 +199,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         return dict(status='AVAILABLE', apiVersion='1.0', rulesetVersion=RULESET_VERSION)
 
     async def upload_to(request, background, identity, file, wb=None):
-        if identity in reviewers:
+        if identity in reviewers and not wb:
             raise ApiError(403, 'FORBIDDEN', 'Reviewers have read-only access.')
         if wb:
             with store.connect() as db:
@@ -332,8 +332,10 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         digest=hashlib.sha256(json.dumps(canonical,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
         scope=encode([identity,request.state.namespace,request.method,request.url.path])
         with store.connect() as db:
-            version,audit=get_audit(db,request,identity,workbook_id,version_id,body.auditId)
+            # Resolve the audit, then authorize the write, before get_audit reads bytes.
+            lookup(db,body.auditId,'audit',request,identity,wb=workbook_id,vid=version_id)
             lookup(db,version_id,'version',request,identity,wb=workbook_id,mutate=True)
+            version,audit=get_audit(db,request,identity,workbook_id,version_id,body.auditId)
             if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',key):
                 raise ApiError(400,'IDEMPOTENCY_KEY_REQUIRED','A valid Idempotency-Key is required.')
             previous=db.execute('SELECT * FROM p4_keys WHERE scope=? AND key=?',(scope,key)).fetchone()
