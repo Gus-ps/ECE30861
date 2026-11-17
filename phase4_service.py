@@ -298,9 +298,17 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 UNION ALL SELECT 1 FROM p5_upload_reservations WHERE workbook_id=? AND expires>?""",
                           (workbook_id,workbook_id,time.time())).fetchone():
                 raise ApiError(409,'ACTIVE_OPERATION','An operation is active for this workbook.')
-            db.execute(f'DELETE FROM p4_jobs WHERE version_id IN ({versions})',(workbook_id,))
-            for table in ('p4_keys','p4_resources','audits','test_workbooks','versions','p5_upload_reservations'):
-                db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
+            # Commit the one-shot claim but remove nothing, then report the injected failure.
+            injected = request.state.namespace is not None and db.execute(
+                "UPDATE p5_faults SET remaining=0 WHERE session_id=? AND kind='deletion' AND remaining=1",
+                (request.state.namespace,)).rowcount == 1
+            if not injected:
+                db.execute(f'DELETE FROM p4_jobs WHERE version_id IN ({versions})',(workbook_id,))
+                for table in ('p4_keys','p4_resources','audits','test_workbooks','versions','p5_upload_reservations'):
+                    db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
+        if injected:
+            raise ApiError(500,'TEST_DELETION_FAILURE','Deletion failure requested by the isolated test session.',
+                           {'stage':'deletion','testOnly':True})
         return Response(status_code=204)
 
     @app.get('/api/v1/workbooks/{workbook_id}/history', response_model=HistoryResponse)
