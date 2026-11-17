@@ -25,7 +25,8 @@ Start a session in this folder, switch to auto mode or accept-edits mode, and ru
 4. **Commit.** Stage only the files the item changed (by name; never `git add -A` or
    `git add .`). Commit with the message `Phase 5 <ID>: <summary>`, ending with a blank
    line and `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Don't commit
-   `AGENTS.md`, `CLAUDE.md`, `PHASE5_TASKS.md`, `PHASE5_DECISIONS.md`, `.claude/`,
+   `AGENTS.md`, `CLAUDE.md`, `PHASE5_TASKS.md`, `PHASE5_DECISIONS.md`,
+   `PHASE5_REPORT.md`, `.claude/`,
    `scripts/test_gate.py`, `scripts/test_baseline.json`, `Lab2/` or the PDF.
 5. **Mark progress.** Change `[ ]` to `[x]` and add one line under the item: the commit
    SHA and what was verified.
@@ -53,9 +54,25 @@ Start a session in this folder, switch to auto mode or accept-edits mode, and ru
    `test_id`. Never change an existing endpoint's behavior beyond what the item says.
 9. **Never:** run `scripts/deploy-*.ps1` or `update-ec2-demo.ps1`, call AWS, read `.env`
    or secrets, add dependencies, or change files outside this repo.
-10. **Stop condition.** When no `[ ]` items remain, append a "Run summary" section to
-    the end of this file (items done, blocked, human-only, and the final gate result) and
-    end the loop.
+10. **Stop condition.** When no `[ ]` items remain, fill in the "Final summary" section of
+    `PHASE5_REPORT.md` (see rule 11) and end the loop.
+11. **Report for manual review.** At the end of every iteration, before stopping, append
+    one entry to the "Log" section of `PHASE5_REPORT.md`, using the entry format in
+    that file. Write it for a reviewer who wasn't watching:
+    - **Outcome:** done, blocked, human-only or failed, with the commit SHA if there is one.
+    - **Changes:** each file changed and what changed in it, in plain words. Include
+      any endpoint, status code, error code or database table added or changed.
+    - **Decisions and assumptions:** every judgment call the specification didn't
+      dictate, however small (naming, where code lives, what a test covers and what it
+      leaves out), and why. Link decision entries as `D<n>`.
+    - **Verification:** the tests added, the gate result line, and anything that was
+      **not** verified.
+    - **Review notes:** risks, shortcuts, behavior that differs from the specification,
+      and the exact places a reviewer should look first.
+
+    Append only: never edit or remove earlier entries. If something in an earlier entry
+    turns out to be wrong, add a correction in the new entry. An iteration that stops
+    because of an error still writes its entry.
 
 Test conventions: put new tests in `tests/test_phase5_<area>.py`, and build the app the
 way `tests/test_phase4_service.py` does (temporary database, `create_app(...)` with
