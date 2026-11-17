@@ -15,9 +15,14 @@ class Page(HTMLParser):
         super().__init__()
         self.label_for, self.fields, self.named, self.open, self.in_label = set(), [], [], [], 0
         self.css, self.in_style, self.regions = '', False, []
+        self.ids, self.tabindex, self.inline_handlers = {}, [], []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        self.ids[attrs.get('id')] = tag
+        if 'tabindex' in attrs:
+            self.tabindex.append(int(attrs['tabindex']))
+        self.inline_handlers += [(tag, name) for name in attrs if name.startswith('on')]
         if 'role' in attrs or 'aria-live' in attrs:
             self.regions.append(attrs)
         self.in_style = tag == 'style'
@@ -71,6 +76,20 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn(('error', 'alert', None), roles)
         script = PAGE.read_text(encoding='utf-8')
         self.assertIn("el('error').textContent=error?t:''", script)  # errors go to the alert region as text
+
+    def test_keyboard_order_and_native_activation(self):
+        script = PAGE.read_text(encoding='utf-8')
+        self.assertFalse([i for i in self.page.tabindex if i > 0])
+        self.assertFalse([h for h in self.page.inline_handlers if h[0] not in ('button', 'form')])
+        # Click handlers only on buttons (Enter and Space work natively); forms use onsubmit.
+        for target, event in re.findall(r"el\('([\w-]+)'\)\.on(\w+)=", script):
+            with self.subTest(target=target):
+                self.assertEqual(self.page.ids[target], 'form' if event == 'submit' else 'button')
+        for variable in re.findall(r'(\w+)\.onclick=', script):  # script-built controls
+            self.assertRegex(script, rf"const {variable}=text\('button'")
+        self.assertNotRegex(script, r'key(down|up|press)|addEventListener|focus\(\)')  # no custom key handling or focus moves
+        css = re.sub(r'\s+', '', self.page.css)
+        self.assertNotRegex(css, r'[;{](order|position):|flex-direction:\w+-reverse|grid-area|float:')  # visual order = DOM order
 
 
 if __name__ == '__main__':
