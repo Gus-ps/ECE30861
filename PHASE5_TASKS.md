@@ -17,7 +17,8 @@ Start a session in this folder, switch to auto mode or accept-edits mode, and ru
 1. **Branch.** Work only on `Jon-Gus_branch`. Never create, switch or delete branches,
    and never push, merge, rebase or reset.
 2. **Minimal code.** Load the `minimal-code` skill before writing code, and follow it.
-3. **One item per iteration.** Take the first `[ ]` item in order. Read its sources, write
+3. **One item per iteration.** Take the first `[~]` item (unfinished work, see rule 12)
+   if there is one, otherwise the first `[ ]` item in order. Read its sources, write
    the code and the tests that prove its "Done when" line, then run
    `python scripts/test_gate.py`. It must print `GATE PASSED`. Never edit
    `scripts/test_baseline.json` or run the gate with `--update`, and don't fix the
@@ -26,7 +27,7 @@ Start a session in this folder, switch to auto mode or accept-edits mode, and ru
    `git add .`). Commit with the message `Phase 5 <ID>: <summary>`, ending with a blank
    line and `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Don't commit
    `AGENTS.md`, `CLAUDE.md`, `PHASE5_TASKS.md`, `PHASE5_DECISIONS.md`,
-   `PHASE5_REPORT.md`, `.claude/`,
+   `PHASE5_REPORT.md`, `PHASE5_HANDOFF.md`, `.claude/`,
    `scripts/test_gate.py`, `scripts/test_baseline.json`, `Lab2/` or the PDF.
 5. **Mark progress.** Change `[ ]` to `[x]` and add one line under the item: the commit
    SHA and what was verified.
@@ -73,6 +74,22 @@ Start a session in this folder, switch to auto mode or accept-edits mode, and ru
     Append only: never edit or remove earlier entries. If something in an earlier entry
     turns out to be wrong, add a correction in the new entry. An iteration that stops
     because of an error still writes its entry.
+12. **Checkpoint as you go.** A session can end without warning at a usage or context
+    limit, so every step must leave the work resumable. Use `PHASE5_HANDOFF.md`, which
+    holds only the current state and is overwritten, never appended to like the report.
+    - **Start of item:** before the first code edit, mark the item `[~]` and write its
+      plan in the handoff file as small steps (one file or one test group each).
+    - **After every step:** tick the step, list the uncommitted files, and write the
+      exact next step and anything a successor must know (failing test names, half-made
+      decisions). Finish one file's edit before starting another. Never stop in the
+      middle of a multi-file change without noting it.
+    - **Resuming:** if the handoff file names an item or has auto-snapshots, first
+      compare it with `git status` and `git diff`, then continue from "Next step". Don't
+      redo finished steps, and never discard uncommitted changes. If the state doesn't
+      match the notes, write what you found in the handoff file and the report entry
+      before changing anything.
+    - **End of item:** after the commit, the `[x]`/`[B]` mark and the report entry,
+      reset the handoff file to `Item: none` and delete its auto-snapshots.
 
 Test conventions: put new tests in `tests/test_phase5_<area>.py`, and build the app the
 way `tests/test_phase4_service.py` does (temporary database, `create_app(...)` with

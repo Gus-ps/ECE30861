@@ -5,6 +5,8 @@
 - The task list is `PHASE5_TASKS.md`. Its Rules section governs every change on
   `Jon-Gus_branch`.
 - Choices the agent may not make alone go in `PHASE5_DECISIONS.md` as 1 to 5 options.
+- Unfinished work is checkpointed in `PHASE5_HANDOFF.md` after every step (rule 12).
+  Check it before starting anything.
 - Every iteration appends an entry to `PHASE5_REPORT.md` (changes, decisions and
   assumptions, verification, review notes) for manual review afterwards. Earlier entries
   are never edited.
