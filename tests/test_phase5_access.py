@@ -33,6 +33,7 @@ OPERATIONS = [
     ('7', 'POST', VERSION + '/remediations', {'remediation': True}),
     ('3', 'POST', '/api/v1/workbooks/{wb}/versions', {'files': {'file': ('next.xlsx', workbook())}}),
     ('6', 'POST', VERSION + '/audits', {'json': {}}),
+    ('14', 'DELETE', '/api/v1/workbooks/{wb}', {}),  # last: the owner's 204 removes everything
 ]
 
 
@@ -72,7 +73,8 @@ class AccessOrderTests(unittest.TestCase):
         store = self.app.state.store
         for op, method, path, kwargs in OPERATIONS:
             for caller, (headers, read, write, missing) in CALLERS.items():
-                for ids, expected in ((unknown, missing), (known, write if method == 'POST' else read)):
+                for ids, expected in ((unknown, missing), (known, read if method == 'GET' else write)):
+                    expected = 204 if op == '14' and expected == 202 else expected
                     with self.subTest(op=op, caller=caller, ids='known' if ids is known else 'unknown'):
                         args = {k: v for k, v in kwargs.items() if k != 'remediation'}
                         if 'remediation' in kwargs:

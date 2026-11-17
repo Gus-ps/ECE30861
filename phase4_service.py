@@ -273,6 +273,15 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             data = blob(db,version)
         return download(data,version['body']['fileName'],'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+    @app.delete('/api/v1/workbooks/{workbook_id}', status_code=204, response_class=Response)
+    def delete_workbook(request:Request, workbook_id:Identifier, identity=Depends(user)):
+        with store.connect(write=True) as db:
+            lookup(db,workbook_id,'workbook',request,identity,mutate=True)
+            db.execute("DELETE FROM p4_jobs WHERE version_id IN (SELECT id FROM p4_resources WHERE workbook_id=? AND kind='version')",(workbook_id,))
+            for table in ('p4_keys','p4_resources','audits','test_workbooks','versions'):
+                db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
+        return Response(status_code=204)
+
     @app.get('/api/v1/workbooks/{workbook_id}/history', response_model=HistoryResponse)
     def history(request:Request, workbook_id:Identifier, identity=Depends(user)):
         with store.connect() as db:
