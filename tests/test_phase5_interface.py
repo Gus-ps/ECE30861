@@ -14,10 +14,12 @@ class Page(HTMLParser):
     def __init__(self):
         super().__init__()
         self.label_for, self.fields, self.named, self.open, self.in_label = set(), [], [], [], 0
-        self.css, self.in_style = '', False
+        self.css, self.in_style, self.regions = '', False, []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if 'role' in attrs or 'aria-live' in attrs:
+            self.regions.append(attrs)
         self.in_style = tag == 'style'
         self.css += attrs.get('style') or ''
         if tag == 'label':
@@ -62,6 +64,13 @@ class InterfaceTests(unittest.TestCase):
         # A global :focus-visible rule covers every element, including script-built ones.
         self.assertRegex(css, r'(^|})(\*)?:focus-visible\{[^}]*outline:[2-9]px(solid|double)#[0-9a-f]{3,6}')
         self.assertNotRegex(css, r'outline(-style|-width)?:(none|0(?![\d.]))')
+
+    def test_status_and_error_live_regions_exist(self):
+        roles = {(r.get('id'), r.get('role'), r.get('aria-live')) for r in self.page.regions}
+        self.assertIn(('status', 'status', 'polite'), roles)
+        self.assertIn(('error', 'alert', None), roles)
+        script = PAGE.read_text(encoding='utf-8')
+        self.assertIn("el('error').textContent=error?t:''", script)  # errors go to the alert region as text
 
 
 if __name__ == '__main__':
