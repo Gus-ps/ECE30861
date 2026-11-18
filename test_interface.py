@@ -24,6 +24,7 @@ class FaultOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
     audit_failures: StrictInt | None = Field(None, ge=1, le=1)
     deletion_failures: StrictInt | None = Field(None, ge=1, le=1)
+    scheduled_audit_failures: StrictInt | None = Field(None, ge=1, le=1)
     notification_failures: StrictInt | None = Field(None, ge=1, le=1)
 
 
@@ -139,7 +140,7 @@ class SystemTests:
                            (body.session_id, body.setup.clock.currentTime))
             if 'audit_failures' in faults:
                 db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
-            for kind in ('deletion', 'notification'):
+            for kind in ('deletion', 'notification', 'scheduled_audit'):
                 if f'{kind}_failures' in faults:
                     db.execute('INSERT INTO p5_faults VALUES (?,?,1)', (body.session_id, kind))
             for session_id in cleanup:

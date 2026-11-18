@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -7,6 +8,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import create_app
 from test_phase4_service import workbook
+import test_phase5_dispatch as dispatch_tests
+import test_phase5_scheduler as scheduler_tests
 
 OWNER = {'Authorization': 'Bearer a'}
 ADMIN = {'Authorization': 'Bearer admin'}
@@ -85,6 +88,141 @@ class DeletionFaultTests(unittest.TestCase):
         self.assertEqual(self.client.delete(target, headers=reused).status_code, 500)
         self.assertEqual(self.setup_session('reused', {'faults': {'deletion_failures': 1}}).status_code, 409)
         self.assertEqual(self.client.delete(target, headers=reused).status_code, 204)
+
+
+class ScheduledAuditFaultTests(unittest.TestCase):
+    """P5-FAULT-SCHEDULED_AUDIT, P5-SCHEDULE-FAILED-NEXT and P5-FAULT-REJECT-*."""
+
+    setUp = dispatch_tests.DispatchTests.setUp
+    prepare = dispatch_tests.DispatchTests.prepare
+    upload = dispatch_tests.DispatchTests.upload
+    configure = dispatch_tests.DispatchTests.configure
+    schedule = dispatch_tests.DispatchTests.schedule
+    scheduled_workbook = dispatch_tests.DispatchTests.scheduled_workbook
+    advance = dispatch_tests.DispatchTests.advance
+    read_audit = dispatch_tests.DispatchTests.read_audit
+    assert_error = dispatch_tests.DispatchTests.assert_error
+    configured = scheduler_tests.SchedulerTests.configured
+    tick_at = scheduler_tests.SchedulerTests.tick_at
+
+    def counter(self):
+        with self.app.state.store.connect() as db:
+            return db.execute("""SELECT remaining FROM p5_faults
+                WHERE session_id='clock' AND kind='scheduled_audit'""").fetchone()[0]
+
+    def scheduled_acceptance(self, instant, session='clock'):
+        response = self.advance(instant, session)
+        self.assertEqual(response.status_code, 200, response.text)
+        aid, = response.json()['triggeredAudits']
+        return aid, response.headers['X-Request-ID']
+
+    def test_scheduled_fault_survives_restart_and_next_period_succeeds(self):
+        headers = self.prepare(faults={'scheduled_audit_failures': 1})
+        ids, path, version = self.scheduled_workbook(headers)
+        old_audit = self.read_audit(headers, version, ids['auditId'])
+        self.assertIsNone(old_audit['error'])
+        source_url = version + '/source'
+        original = self.client.get(source_url, headers=headers)
+        self.assertEqual(original.status_code, 200, original.text)
+
+        aid, request_id = self.scheduled_acceptance(dispatch_tests.DUE)
+        self.assertEqual(self.counter(), 0)
+        restarted = create_app(self.app.state.database.path, {'a': 'owner'}, enable_scheduler=False)
+        runner = restarted.state.runner
+        with patch.object(runner, 'checker') as checker:
+            runner.drain()
+        checker.assert_not_called()
+        failed = self.read_audit(headers, version, aid)
+        error = {
+            'code': 'TEST_SCHEDULED_AUDIT_FAILURE',
+            'message': 'Scheduled audit failure requested by the isolated test session.',
+            'requestId': request_id,
+            'details': {'stage': 'scheduled_audit', 'testOnly': True},
+        }
+        self.assertEqual((failed['status'], failed['findings'], failed['error']),
+                         ('PROCESSING_FAILED', [], error))
+        report = self.client.get(f'{version}/audits/{aid}/report', headers=headers)
+        self.assertEqual(report.status_code, 200, report.text)
+        self.assertEqual((report.json()['error'], report.json()['checksPerformed']), (error, []))
+        self.assertEqual(self.client.get(source_url, headers=headers).content, original.content)
+        self.assertEqual(self.read_audit(headers, version, ids['auditId']), old_audit)
+        history = self.client.get(path + '/history', headers=headers).json()
+        self.assertEqual([v['versionId'] for v in history['versions']], [ids['versionId']])
+        self.assertEqual([a['auditId'] for a in history['audits']], [ids['auditId'], aid])
+
+        same = self.advance(dispatch_tests.DUE)
+        self.assertEqual(same.status_code, 200, same.text)
+        self.assertEqual(same.json()['triggeredAudits'], [])
+        next_due = '2027-01-03T00:00:00Z'
+        self.assertEqual(self.schedule(headers, path)['nextAuditAt'], next_due)
+        next_audit, _ = self.scheduled_acceptance(next_due)
+        self.runner.drain()
+        completed = self.read_audit(headers, version, next_audit)
+        self.assertNotEqual(completed['status'], 'PROCESSING')
+        self.assertIsNone(completed['error'])
+        manual = self.client.post(version + '/audits', headers=headers, json={})
+        self.assertEqual(manual.status_code, 202, manual.text)
+        self.assertIsNone(self.read_audit(headers, version, manual.json()['auditId'])['error'])
+
+    def test_fault_stays_armed_after_manual_ordinary_and_other_session_audits(self):
+        headers = self.prepare(faults={'scheduled_audit_failures': 1})
+        _, _, version = self.scheduled_workbook(headers)
+        manual = self.client.post(version + '/audits', headers=headers, json={})
+        self.assertEqual(manual.status_code, 202, manual.text)
+        self.assertIsNone(self.read_audit(headers, version, manual.json()['auditId'])['error'])
+        other = self.prepare('other')
+        _, _, foreign_version = self.scheduled_workbook(other)
+        foreign_aid, _ = self.scheduled_acceptance(dispatch_tests.DUE, 'other')
+        ordinary, path = self.configured(deadline=None)
+        audits, _ = self.tick_at(dispatch_tests.DUE)
+        ordinary_aid, = audits
+        self.runner.drain()
+        self.assertIsNone(self.read_audit(other, foreign_version, foreign_aid)['error'])
+        ordinary_version = f"{path}/versions/{ordinary['versionId']}"
+        self.assertIsNone(self.read_audit(OWNER, ordinary_version, ordinary_aid)['error'])
+        self.assertEqual(self.counter(), 1)
+
+    def test_clock_rejections_and_failed_storage_do_not_consume_fault(self):
+        headers = self.prepare(faults={'scheduled_audit_failures': 1})
+        with patch.object(self.runner, 'drain'):
+            self.scheduled_workbook(headers)
+        denied = self.client.post(dispatch_tests.CLOCK, headers=headers,
+                                  json={'currentTime': dispatch_tests.DUE})
+        self.assert_error(denied, 403, 'FORBIDDEN')
+        self.assert_error(self.advance('invalid'), 400, 'INVALID_REQUEST')
+        self.assert_error(self.advance(dispatch_tests.DUE), 409, 'ACTIVE_OPERATION')
+        self.assertEqual(self.counter(), 1)
+        self.runner.drain()
+        with (patch.object(self.app.state.store, 'job', side_effect=sqlite3.OperationalError('job write')),
+              self.assertLogs(level='ERROR')):
+            self.assert_error(self.advance(dispatch_tests.DUE), 500, 'STORAGE_FAILED')
+        self.assertEqual(self.counter(), 1)
+        self.scheduled_acceptance(dispatch_tests.DUE)
+        self.assertEqual(self.counter(), 0)
+
+    def test_invalid_and_disabled_setup_leave_no_session_and_duplicate_cannot_rearm(self):
+        def setup(faults):
+            return self.client.post('/test/setup', headers=ADMIN, json={
+                'session_id': 'clock', 'setup': {'faults': faults},
+            })
+
+        for faults in ({}, {'scheduled_audit_failure': 1},
+                       *({'scheduled_audit_failures': value} for value in (True, 1.0, 0, 2, '1', None))):
+            with self.subTest(faults=faults):
+                response = setup(faults)
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(set(response.json()), {'message', 'source'})
+        with patch.dict(os.environ, {'ENABLE_TEST_FAULTS': 'false'}):
+            response = setup({'scheduled_audit_failures': 1})
+            self.assertEqual(response.status_code, 403, response.text)
+        with self.app.state.store.connect() as db:
+            self.assertIsNone(db.execute("SELECT 1 FROM test_sessions WHERE session_id='clock'").fetchone())
+            self.assertIsNone(db.execute("SELECT 1 FROM p5_faults WHERE session_id='clock'").fetchone())
+        headers = self.prepare(faults={'scheduled_audit_failures': 1})
+        self.scheduled_workbook(headers)
+        self.scheduled_acceptance(dispatch_tests.DUE)
+        self.assertEqual(setup({'scheduled_audit_failures': 1}).status_code, 409)
+        self.assertEqual(self.counter(), 0)
 
 
 if __name__ == '__main__':

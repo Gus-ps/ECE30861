@@ -38,6 +38,11 @@ def begin_audit(store, db, version, request_id, *, scheduled_at=None):
     payload = {'requestId': request_id}
     if scheduled_at is not None:
         payload['trigger'] = 'schedule'
+        if namespace is not None:
+            claimed = db.execute("""UPDATE p5_faults SET remaining=0
+                WHERE session_id=? AND kind='scheduled_audit' AND remaining=1""", (namespace,))
+            if claimed.rowcount == 1:
+                payload['scheduledFault'] = True
     elif namespace:
         claimed = db.execute('UPDATE p4_faults SET remaining=0 WHERE session_id=? AND remaining=1',
                              (namespace,))
@@ -187,6 +192,11 @@ class Runner:
             path = Path(directory) / 'source.xlsx'
             path.write_bytes(data)
             if job['kind'] == 'audit':
+                if args.get('trigger') == 'schedule' and args.get('scheduledFault'):
+                    self.fail(job, 'TEST_SCHEDULED_AUDIT_FAILURE',
+                              'Scheduled audit failure requested by the isolated test session.',
+                              {'stage': 'scheduled_audit', 'testOnly': True})
+                    return
                 if args.get('fault'):
                     self.fail(job, 'TEST_AUDIT_FAILURE', 'Audit failure requested by the isolated test session.',
                               {'stage': 'audit', 'testOnly': True})
