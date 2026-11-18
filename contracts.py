@@ -4,6 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+MAX_JSON_REQUEST_BYTES = 1_048_576
+
 Identifier = Annotated[str, StringConstraints(strict=True, pattern=r'^[A-Za-z0-9_-]{1,64}$')]
 Timestamp = Annotated[str, StringConstraints(strict=True, pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$')]
 SHA256 = Annotated[str, StringConstraints(strict=True, pattern=r'^[0-9a-f]{64}$')]

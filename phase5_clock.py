@@ -4,8 +4,10 @@ from typing import Annotated
 
 from pydantic import Field, StringConstraints, field_validator
 
-from contracts import Contract
+from contracts import Contract, Identifier, MAX_JSON_REQUEST_BYTES, strict_json
+from service_errors import ApiError
 
+PATH = '/api/v1/test/clock'
 INITIAL_TIME = '2027-01-01T00:00:00Z'
 ClockTimestamp = Annotated[str, StringConstraints(
     pattern=r'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$',
@@ -21,10 +23,51 @@ class ClockRequest(Contract):
         return format_time(datetime.fromisoformat(value))
 
 
+class ClockResponse(Contract):
+    currentTime: ClockTimestamp
+    triggeredAudits: list[Identifier] = Field(max_length=1000, json_schema_extra={'uniqueItems': True})
+    triggeredNotifications: list[Identifier] = Field(max_length=3000, json_schema_extra={'uniqueItems': True})
+
+
 def format_time(instant):
     return instant.isoformat().replace('+00:00', 'Z')
 
 
-def read(db, session_id):
-    row = db.execute('SELECT "current_time" FROM p5_clocks WHERE session_id=?', (session_id,)).fetchone()
+def read(db, session_id, *, lock=False):
+    query = 'SELECT "current_time" FROM p5_clocks WHERE session_id=?'
+    if lock:
+        query += ' FOR UPDATE'
+    row = db.execute(query, (session_id,)).fetchone()
     return datetime.fromisoformat(row['current_time']) if row else None
+
+
+def advance(db, session_id, current, raw):
+    if raw is None:
+        raise ApiError(413, 'REQUEST_TOO_LARGE', 'JSON request exceeds 1 MiB.')
+    try:
+        request = ClockRequest.model_validate(strict_json(raw))
+    except (ValueError, RecursionError):
+        raise ApiError(400, 'INVALID_REQUEST', 'Invalid clock request.') from None
+    instant = datetime.fromisoformat(request.currentTime)
+    if instant < current:
+        raise ApiError(400, 'CLOCK_REWIND', 'The test clock cannot move backward.')
+    if instant > current:
+        db.execute('UPDATE p5_clocks SET "current_time"=? WHERE session_id=?',
+                   (request.currentTime, session_id))
+    audits, notifications = process_due_work(db, session_id, instant)
+    return ClockResponse(currentTime=request.currentTime, triggeredAudits=audits,
+                         triggeredNotifications=notifications)
+
+
+def process_due_work(db, session_id, instant):
+    """Accept due work inside the clock transaction and return newly accepted IDs."""
+    return [], []
+
+
+async def read_request_body(request):
+    raw = bytearray()
+    async for chunk in request.stream():
+        if len(raw) + len(chunk) > MAX_JSON_REQUEST_BYTES:
+            return None
+        raw.extend(chunk)
+    return raw

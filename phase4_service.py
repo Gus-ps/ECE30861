@@ -20,13 +20,14 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.security import HTTPBearer
 from starlette.exceptions import HTTPException
 
-from contracts import Audit, Error, Health, Identifier, UploadResponse, WorkbookVersion
+from contracts import Audit, Error, Health, Identifier, MAX_JSON_REQUEST_BYTES, UploadResponse, WorkbookVersion
 from database import Database
 from phase4_contracts import (AuditReport, HistoryResponse, ReauditRequest, ReauditResponse,
                              RemediationAccepted, RemediationRequest, RemediationResponse, ReviewResponse)
 from phase4_jobs import Runner, child, identifier
 from phase4_store import Store, encode, now
 import phase5_schedule as schedules
+from phase5_clock import PATH as CLOCK_PATH
 from service_errors import ApiError
 from test_interface import SystemTests
 
@@ -78,7 +79,10 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     async def headers(request, call_next):
         request.state.request_id = identifier('request')
         try:
-            if request.headers.get('content-type','').startswith('application/json') and len(await request.body()) > 1_048_576:
+            # The clock route applies its body limit after checking access and session state.
+            is_clock = request.method == 'POST' and request.url.path == CLOCK_PATH
+            if (not is_clock and request.headers.get('content-type', '').startswith('application/json')
+                    and len(await request.body()) > MAX_JSON_REQUEST_BYTES):
                 raise ApiError(413, 'REQUEST_TOO_LARGE', 'JSON request exceeds 1 MiB.')
             response = await call_next(request)
         except ApiError as exc:
@@ -103,6 +107,8 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @app.exception_handler(HTTPException)
     async def http_error(request, exc):
+        if request.url.path == '/test/setup' and exc.status_code == 400:
+            return JSONResponse(status_code=400, content={'message':'Missing or malformed test request data.','source':'system'})
         return error(request, 'NOT_FOUND' if exc.status_code == 404 else 'INVALID_REQUEST', str(exc.detail), exc.status_code)
 
     def user(request: Request, auth=Depends(HTTPBearer(auto_error=False))):

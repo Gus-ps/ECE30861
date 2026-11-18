@@ -1,17 +1,23 @@
 """Authenticated, durable system test sessions; never reset ordinary user data."""
+import logging
 import os
 import re
 import secrets
+import sqlite3
 from typing import Annotated, Literal
 
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, StrictInt
-from contracts import strict_json
-from phase5_clock import ClockRequest, INITIAL_TIME
+from starlette.concurrency import run_in_threadpool
 
-SessionId = Annotated[str, StringConstraints(strict=True, pattern=r'^[A-Za-z0-9_-]{1,64}$')]
+from contracts import strict_json
+import phase5_clock as clocks
+from service_errors import ApiError
+
+SESSION_ID_PATTERN = r'^[A-Za-z0-9_-]{1,64}$'
+SessionId = Annotated[str, StringConstraints(strict=True, pattern=SESSION_ID_PATTERN)]
 
 
 class FaultOptions(BaseModel):
@@ -24,7 +30,7 @@ class SetupOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
     cleanup_session_ids: list[SessionId] = Field(default_factory=list, max_length=100)
     faults: FaultOptions | None = None
-    clock: ClockRequest = Field(default_factory=lambda: ClockRequest(currentTime=INITIAL_TIME))
+    clock: clocks.ClockRequest = Field(default_factory=lambda: clocks.ClockRequest(currentTime=clocks.INITIAL_TIME))
 
 
 class SystemSetup(BaseModel):
@@ -89,7 +95,7 @@ class SystemTests:
     def check(self, db, session_id, subject, lock=False):
         if session_id is None:
             return None
-        if not self.enabled or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', session_id):
+        if not self.enabled or not re.fullmatch(SESSION_ID_PATTERN, session_id):
             raise TestSessionError(400, 'Unknown or invalid test session.')
         row = self.session(db, session_id, lock)
         if row is None or row['state'] == 'CLEANED':
@@ -151,6 +157,35 @@ class SystemTests:
                 db.execute("UPDATE test_sessions SET state='CLEANED' WHERE session_id=?", (session_id,))
         return {'session_id': body.session_id}
 
+    def advance_clock(self, owner, session_id, raw):
+        if not re.fullmatch(SESSION_ID_PATTERN, session_id):
+            raise ApiError(400, 'INVALID_TEST_SESSION', 'Unknown or invalid test session.')
+        storage_errors = (sqlite3.Error,)
+        if self.database.postgres:
+            from psycopg import Error
+            storage_errors += (Error,)
+        try:
+            with self.database.connect(write=True) as db:
+                self.require_clock_session(db, owner, session_id)
+                current = clocks.read(db, session_id, lock=self.database.postgres)
+                if current is None:
+                    # Cleanup may have removed the clock while the row lock was pending.
+                    self.require_clock_session(db, owner, session_id)
+                    raise ApiError(409, 'LEGACY_SESSION_CLOCK', 'Prepare a new test session with a clock.')
+                return clocks.advance(db, session_id, current, raw)
+        except storage_errors:
+            logging.exception('Test clock transaction failed.')
+            raise ApiError(500, 'STORAGE_FAILED', 'The test clock could not be advanced.') from None
+
+    def require_clock_session(self, db, owner, session_id):
+        row = self.session(db, session_id)
+        if row is not None and row['owner'] != owner:
+            raise ApiError(403, 'FORBIDDEN', 'Test session belongs to another administrator.')
+        if row is None or row['state'] == 'CLEANED':
+            raise ApiError(400, 'INVALID_TEST_SESSION', 'Unknown or inactive test session.')
+        if row['state'] != 'READY':
+            raise ApiError(409, 'SESSION_NOT_READY', 'Test session is not ready.')
+
     def report(self, owner, session_id):
         with self.database.connect() as db:
             row = self.session(db, session_id)
@@ -178,20 +213,46 @@ class SystemTests:
                 'message': exc.message, 'requestId': request.state.request_id, 'details': {},
             })
 
-        if not self.enabled:
-            return
         security = HTTPBearer(auto_error=False, scheme_name='TestAdministrator')
 
-        def admin(request: Request, credentials=Depends(security)):
-            scheme, _, token = request.headers.get('authorization', '').partition(' ')
-            if scheme.lower() != 'bearer' or not token:
+        def authenticate_admin(credentials):
+            if not credentials:
                 raise TestSessionError(401, 'A test-administrator bearer token is required.')
+            token = credentials.credentials
             for expected, subject in self.admins.items():
                 if secrets.compare_digest(expected.encode(), token.encode()):
                     return subject
             if any(secrets.compare_digest(expected.encode(), token.encode()) for expected in ordinary_credentials):
                 raise TestSessionError(403, 'Test administrator access is required.')
             raise TestSessionError(401, 'Test administrator token is not recognized.')
+
+        def clock_admin(request: Request, credentials=Depends(security)):
+            if not self.clock_enabled or 'x-test-session' not in request.headers:
+                raise ApiError(404, 'TEST_CLOCK_DISABLED', 'The test clock requires an enabled test session.')
+            try:
+                return authenticate_admin(credentials)
+            except TestSessionError as exc:
+                code = 'UNAUTHORIZED' if exc.status == 401 else 'FORBIDDEN'
+                raise ApiError(exc.status, code, exc.message) from None
+
+        @app.post(clocks.PATH, response_model=clocks.ClockResponse, openapi_extra={
+            'parameters': [{'in': 'header', 'name': 'X-Test-Session', 'required': True,
+                            'schema': {'type': 'string', 'pattern': SESSION_ID_PATTERN}}],
+            'requestBody': {'required': True, 'content': {
+                'application/json': {'schema': clocks.ClockRequest.model_json_schema()},
+            }},
+        })
+        async def advance_clock(request: Request, owner=Depends(clock_admin)):
+            raw = await clocks.read_request_body(request)
+            return await run_in_threadpool(
+                self.advance_clock, owner, request.headers['x-test-session'], raw,
+            )
+
+        if not self.enabled:
+            return
+
+        def admin(credentials=Depends(security)):
+            return authenticate_admin(credentials)
 
         errors = {status: {'model': EndpointError} for status in (400, 401, 403, 404, 409, 500)}
 
