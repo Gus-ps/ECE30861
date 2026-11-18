@@ -1,9 +1,9 @@
 """REQ-12 / AC-12, AC-15: schedule configuration only; no WCAG checker."""
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from pydantic import Field
 from contracts import Contract, Identifier, Timestamp, strict_json
-import phase5_clock as clocks
+from phase5_clock import effective_now
 from service_errors import ApiError
 
 
@@ -28,14 +28,6 @@ class ScheduleResponse(Contract):
     versionId: Identifier
     nextAuditAt: Timestamp | None
     reminderDays: list[int] = Field(json_schema_extra={'const': [90, 30, 7]})
-
-
-def effective_now(db, namespace):
-    if namespace is not None:
-        simulated = clocks.read(db, namespace)
-        if simulated is not None:
-            return simulated
-    return datetime.now(timezone.utc)
 
 
 def initialize(store):

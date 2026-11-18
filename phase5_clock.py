@@ -1,5 +1,5 @@
 """Persistent effective time for isolated test sessions."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
 from pydantic import Field, StringConstraints, field_validator
@@ -39,6 +39,14 @@ def read(db, session_id, *, lock=False):
         query += ' FOR UPDATE'
     row = db.execute(query, (session_id,)).fetchone()
     return datetime.fromisoformat(row['current_time']) if row else None
+
+
+def effective_now(db, namespace):
+    if namespace is not None:
+        simulated = read(db, namespace)
+        if simulated is not None:
+            return simulated
+    return datetime.now(timezone.utc)
 
 
 def advance(db, session_id, current, raw):

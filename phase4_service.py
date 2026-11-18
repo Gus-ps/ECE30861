@@ -24,7 +24,7 @@ from contracts import Audit, Error, Health, Identifier, MAX_JSON_REQUEST_BYTES, 
 from database import Database
 from phase4_contracts import (AuditReport, HistoryResponse, ReauditRequest, ReauditResponse,
                              RemediationAccepted, RemediationRequest, RemediationResponse, ReviewResponse)
-from phase4_jobs import Runner, child, identifier
+from phase4_jobs import RULESET_VERSION, Runner, begin_audit, child, identifier
 from phase4_store import Store, encode, now
 import phase5_schedule as schedules
 from phase5_clock import PATH as CLOCK_PATH
@@ -33,7 +33,6 @@ from test_interface import SystemTests
 
 ROOT = Path(__file__).parent
 MAX_UPLOAD = 25_000_000
-RULESET_VERSION = '2.0.0'
 
 
 def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility_checker=None,
@@ -166,22 +165,6 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         if store.active(db, vid):
             raise ApiError(409, 'ACTIVE_OPERATION', 'An operation is already active for this version.')
 
-    def begin_audit(db, version, request_id):
-        aid = identifier('audit')
-        body = dict(auditId=aid, workbookId=version['workbook_id'], versionId=version['id'], rulesetVersion=RULESET_VERSION,
-                    status='PROCESSING', startedAt=now(), completedAt=None, findings=[], limitations=[], error=None)
-        store.insert(db, 'audit', aid, body, version['owner'], version['namespace'], version['workbook_id'], version['id'])
-        version['body'].update(latestAuditId=aid, status='PROCESSING')
-        store.update(db, version['id'], version['body'])
-        fault = False
-        if version['namespace']:
-            row = db.execute('SELECT remaining FROM p4_faults WHERE session_id=?', (version['namespace'],)).fetchone()
-            if row and row['remaining']:
-                claimed = db.execute('UPDATE p4_faults SET remaining=0 WHERE session_id=? AND remaining=1', (version['namespace'],))
-                fault = claimed.rowcount == 1
-        store.job(db, aid, 'audit', aid, version['id'], version['namespace'], {'requestId':request_id, 'fault':fault})
-        return aid
-
     async def validate_upload(request, file):
         form = await request.form()
         if len(form.multi_items()) != 1 or next(iter(form)) != 'file':
@@ -255,7 +238,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                             createdAt=now(), status='PROCESSING', latestAuditId=None, sourceVersionId=None)
                 store.insert(db, 'version', vid, body, identity, request.state.namespace, wb, vid, data)
                 version = store.get(db, vid)
-                aid = begin_audit(db, version, request.state.request_id)
+                aid = begin_audit(store, db, version, request.state.request_id)
         finally:
             with store.connect(write=True) as db:
                 db.execute('DELETE FROM p5_upload_reservations WHERE id=?', (vid,))
@@ -298,7 +281,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             version = lookup(db,version_id,'version',request,identity,wb=workbook_id,mutate=True)
             check_active(db,version_id)
             blob(db,version)
-            aid = begin_audit(db,version,request.state.request_id)
+            aid = begin_audit(store,db,version,request.state.request_id)
         background.add_task(runner.drain)
         return dict(auditId=aid,versionId=version_id,rulesetVersion=RULESET_VERSION,status='PROCESSING')
 

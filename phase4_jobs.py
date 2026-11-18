@@ -1,4 +1,5 @@
 """Transactional job claims and publication; serialize expensive workbook processing."""
+from datetime import datetime
 import hashlib
 import json
 import logging
@@ -9,8 +10,10 @@ import tempfile
 import threading
 from uuid import uuid4
 
+from accessibility_checker.finding_ids import RULESET_VERSION
 from contracts import Finding
 from phase4_store import encode, now
+from phase5_clock import effective_now, format_time
 
 RULES = ['ALT_TEXT', 'WORKSHEET_NAME', 'TABLE_HEADER', 'MERGED_CELLS', 'LINK_TEXT', 'COLOR_CONTRAST']
 ROOT = Path(__file__).parent
@@ -18,6 +21,29 @@ ROOT = Path(__file__).parent
 
 def identifier(kind):
     return kind + '-' + uuid4().hex
+
+
+def begin_audit(store, db, version, request_id, *, scheduled_at=None):
+    """Enqueue an audit within the caller's write transaction."""
+    namespace = version['namespace']
+    started = scheduled_at if scheduled_at is not None else effective_now(db, namespace)
+    aid = identifier('audit')
+    audit = dict(auditId=aid, workbookId=version['workbook_id'], versionId=version['id'],
+                 rulesetVersion=RULESET_VERSION, status='PROCESSING', startedAt=format_time(started),
+                 completedAt=None, findings=[], limitations=[], error=None)
+    store.insert(db, 'audit', aid, audit, version['owner'], namespace, version['workbook_id'], version['id'])
+    version['body'].update(latestAuditId=aid, status='PROCESSING')
+    store.update(db, version['id'], version['body'])
+
+    payload = {'requestId': request_id}
+    if scheduled_at is not None:
+        payload['trigger'] = 'schedule'
+    elif namespace:
+        claimed = db.execute('UPDATE p4_faults SET remaining=0 WHERE session_id=? AND remaining=1',
+                             (namespace,))
+        payload['fault'] = claimed.rowcount == 1
+    store.job(db, aid, 'audit', aid, version['id'], namespace, payload)
+    return aid
 
 
 def status(findings):
@@ -128,6 +154,8 @@ class Runner:
                     outputVersionId=provenance.get('outputVersionId'), outputId=provenance.get('outputId'), error=audit['error'])
 
     def persist_audit(self, db, version, audit, items=None, provenance=None):
+        completed = effective_now(db, version['namespace'])
+        audit['completedAt'] = format_time(max(completed, datetime.fromisoformat(audit['startedAt'])))
         self.store.update(db, audit['auditId'], audit)
         if items is not None:
             self.store.insert(db, 'review', identifier('context'), {'auditId': audit['auditId'], 'items': items},
@@ -170,7 +198,7 @@ class Runner:
                     result = child('audit', path)
                 audit = resource['body']
                 audit.update(findings=validated_findings(result['findings']), limitations=sorted(set(result['limitations'])),
-                             completedAt=now(), error=None)
+                             error=None)
                 audit['status'] = status(audit['findings'])
                 with self.store.connect(write=True) as db:
                     if not self.lease(db, job):
@@ -193,8 +221,8 @@ class Runner:
                 newbody = dict(workbookId=version['workbook_id'], versionId=vid, fileName=filename,
                                sha256=hashlib.sha256(output_data).hexdigest(), createdAt=now(),
                                status='REMEDIATED', latestAuditId=aid, sourceVersionId=version['id'])
-                audit = dict(auditId=aid, workbookId=version['workbook_id'], versionId=vid, rulesetVersion='2.0.0',
-                             status=status(findings), startedAt=now(), completedAt=now(), findings=findings,
+                audit = dict(auditId=aid, workbookId=version['workbook_id'], versionId=vid, rulesetVersion=RULESET_VERSION,
+                             status=status(findings), findings=findings,
                              limitations=sorted(set(result_audit['limitations'])), error=None)
                 response = resource['body']['response']
                 response.update(status='REMEDIATED', outputVersionId=vid, outputId=oid, auditId=aid, error=None)
@@ -205,6 +233,7 @@ class Runner:
                 with self.store.connect(write=True) as db:
                     if not self.lease(db, job):
                         return
+                    audit['startedAt'] = format_time(effective_now(db, version['namespace']))
                     self.store.insert(db, 'version', vid, newbody, version['owner'], version['namespace'], version['workbook_id'], vid, output_data)
                     self.store.insert(db, 'audit', aid, audit, version['owner'], version['namespace'], version['workbook_id'], vid)
                     newversion = self.store.get(db, vid)
@@ -223,7 +252,7 @@ class Runner:
             error = dict(code=code, message=message, requestId=json.loads(job['payload'])['requestId'], details=details or {})
             if job['kind'] == 'audit':
                 audit = resource['body']
-                audit.update(status='PROCESSING_FAILED', completedAt=now(), findings=[], limitations=[], error=error)
+                audit.update(status='PROCESSING_FAILED', findings=[], limitations=[], error=error)
                 version = self.store.get(db, job['version_id'])
                 self.persist_audit(db, version, audit, provenance=self.provenance(db, version))
             else:
