@@ -65,6 +65,8 @@ class SuiteCoverage(Strict):
     code: CoverageMeasure
     component: CoverageMeasure
     system: CoverageMeasure
+    ##  Phase 5 own-team runs only; a cross-team report has no model key at all (spec 3.0.0 §14).
+    model: CoverageMeasure | None = None
 
 
 class SuiteReport(Strict):
@@ -245,7 +247,9 @@ class ApprovedChange(ReportDecision):
 
 class AuditReport(Strict):
     reportVersion: Literal["2.0.0"]
-    specificationVersion: Literal["2.1.0"]
+    ##  2.1.0 for Phase 4 reports; Phase 5 snapshots say 3.0.0 (spec 3.0.0 §3). Which one a run
+    ##  expects comes from its manifest (checks._report_version_problems).
+    specificationVersion: Literal["2.1.0", "3.0.0"]
     workbookId: Identifier
     versionId: Identifier
     auditId: Identifier
@@ -390,6 +394,9 @@ class Timing(Strict):
     ##  Phase 4 only; null in a profile whose phase has no remediation or downloads.
     remediation_poll_seconds: float | None = Field(default=None, gt=0)
     download_seconds: float | None = Field(default=None, gt=0)
+    ##  Phase 5 only: schedule PUT and clock advance (spec 3.0.0 §12), and owner DELETE.
+    control_seconds: float | None = Field(default=None, gt=0)
+    delete_seconds: float | None = Field(default=None, gt=0)
 
 
 class ResponseLimits(Strict):
@@ -416,4 +423,92 @@ class PodProfile(Strict):
     coverage: CoverageCatalogs
     timing: Timing
     response_limits: ResponseLimits
+    ##  Outcome of an unexpected PROCESSING_FAILED audit that prevented evaluation: fail through
+    ##  Phase 4, error/source system from Phase 5 (spec 3.0.0 §14).
+    unexpected_processing_failure: Literal["fail", "error"] = "fail"
+    ##  Phase 5: own-team reports carry coverage.model from the team's design map; cross-team
+    ##  reports omit it (spec 3.0.0 §14). Earlier phases have no model measure.
+    model_coverage: bool = False
     cleanup: CleanupPolicy
+
+
+##  ---- Phase 5 project API (spec 3.0.0 §6, §8, §9; pack schemas of the same names) ----
+
+Phase5Time = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$")]
+CalendarDate = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+
+
+class ScheduleResponse(Strict):
+    workbookId: Identifier
+    enabled: bool
+    intervalDays: Annotated[int, Field(ge=1, le=90, strict=True)] | None
+    complianceDeadline: CalendarDate | None
+    versionId: Identifier
+    nextAuditAt: Phase5Time | None
+    reminderDays: list[int]
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if self.reminderDays != [90, 30, 7]:
+            raise ValueError("reminderDays must be [90, 30, 7]")
+        if self.enabled and (self.intervalDays is None or self.nextAuditAt is None):
+            raise ValueError("an enabled schedule needs intervalDays and nextAuditAt")
+        if not self.enabled and self.nextAuditAt is not None:
+            raise ValueError("a disabled schedule has a null nextAuditAt")
+        return self
+
+
+class ClockResponse(Strict):
+    currentTime: Phase5Time
+    triggeredAudits: list[Identifier] = Field(max_length=1000)
+    triggeredNotifications: list[Identifier] = Field(max_length=3000)
+
+    @model_validator(mode="after")
+    def unique(self):
+        for ids in (self.triggeredAudits, self.triggeredNotifications):
+            if len(ids) != len(set(ids)):
+                raise ValueError("triggered IDs must be unique")
+        return self
+
+
+class Notification(Strict):
+    notificationId: Identifier
+    type: Literal["COMPLIANCE_DEADLINE_REMINDER", "AUDIT_REMINDER"]
+    workbookId: Identifier
+    versionId: Identifier
+    scheduledFor: Phase5Time
+    status: Literal["PENDING", "DELIVERED", "FAILED"]
+    message: FindingText
+
+
+class NotificationResponse(Strict):
+    notifications: list[Notification]
+
+
+##  ---- Team design map (own-team model coverage, spec 3.0.0 §14; pack schema TeamDesignMap) ----
+
+class DesignRequirement(Strict):
+    requirementId: Identifier
+    description: NonBlank
+    testIds: list[Annotated[str, StringConstraints(min_length=1)]]
+    qualifyingAssertion: NonBlank
+
+    @model_validator(mode="after")
+    def unique_tests(self):
+        if len(self.testIds) != len(set(self.testIds)):
+            raise ValueError(f"{self.requirementId} lists a test ID twice")
+        return self
+
+
+class TeamDesignMap(Strict):
+    teamId: Identifier
+    designVersion: SemVer
+    mappingUrl: Annotated[str, StringConstraints(pattern=r"^https://\S+$")]
+    requirements: list[DesignRequirement] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_requirements(self):
+        ids = [r.requirementId for r in self.requirements]
+        if len(ids) != len(set(ids)):
+            raise ValueError("requirementId values must be unique")
+        return self

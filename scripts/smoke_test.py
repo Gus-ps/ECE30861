@@ -26,7 +26,8 @@ def main():
     parser.add_argument("--target-url", required=True, help="system base URL exactly as allowlisted")
     parser.add_argument("--setup-timeout", type=float, default=60)
     ##  Longer than the tester's own run ceiling (Phase 4 suite budget 1,800 s plus its 30 s guard).
-    parser.add_argument("--run-timeout", type=float, default=1900)
+    ##  Longer than the tester's longest run answer: Phase 5's 2,400 s suite plus its 30 s guard.
+    parser.add_argument("--run-timeout", type=float, default=2500)
     args = parser.parse_args()
     token = os.environ.get("TESTER_TOKEN")
     if not token:
@@ -61,7 +62,8 @@ def main():
         r = client.get("/test/report", params={"session_id": session}, timeout=30)
         run_body = r.content if r.status_code == 200 else b""
     try:
-        report = SuiteReport.model_validate_json(run_body).model_dump()
+        SuiteReport.model_validate_json(run_body)
+        report = json.loads(run_body)              # as sent: a cross-team report has no model key
         counts = {}
         for item in report["results"]:
             counts[item["outcome"]] = counts.get(item["outcome"], 0) + 1

@@ -15,9 +15,9 @@ from pydantic import ValidationError
 
 from ..models import (AuditReport, HistoryResponse, ProjectError, ReauditResponse, RemediationAccepted,
                       RemediationResponse, ReviewResponse, SystemReport, TestResult, UploadResponse, VersionResponse)
-from .checks import (FAULT_SETUP, FINDING_KEY, WORKBOOKS, _accepted, _audit_fixture, _audit_path, _fault_setup_call,
-                     _finished_audit, _fixture, _read_version, _schema_problem, _system_failure, _upload_fixture,
-                     _verdict, _version_path)
+from .checks import (FAULT_SETUP, FINDING_KEY, WORKBOOKS, _accepted, _audit_fixture, _audit_path, _drain_accepted,
+                     _fault_setup_call, _finished_audit, _fixture, _processing_failure, _read_version, _report_version_problems,
+                     _schema_problem, _system_failure, _upload_fixture, _verdict, _version_path)
 from .comparator import change_from_decision, compare
 from .identity import finding_id
 from .runner import CaseResult
@@ -32,10 +32,13 @@ def _skip_failed(what, test_id):
     return CaseResult("skip", f"Not executed: {what} this case needs could not be prepared (see {test_id}).")
 
 
-def _error_problems(response, status, code, what):
-    ##  Problems with an expected ProjectError rejection (empty when it conforms).
+def _error_problems(response, status, code, what, ctx=None, session=True, workbook_id=None):
+    ##  Problems with an expected ProjectError rejection (empty when it conforms). With ctx, a
+    ##  wrongly accepted request's job is drained before later cases (spec 3.0.0 §18).
     if response.status != status:
         accepted = ", accepting it" if response.status in (200, 201, 202) else ""
+        if ctx is not None:
+            _drain_accepted(ctx, response, session, workbook_id)
         return [f"{what}: expected {status}, received {response.status}{accepted}"]
     try:
         error = ProjectError.model_validate(response.json())
@@ -64,7 +67,7 @@ def _audited(ctx, key, tag="shared", session=True):
     upload = UploadResponse.model_validate(response.json()).model_dump()
     audit, result = _finished_audit(ctx, upload, f"The {key} audit", session=session, mark=False)
     if result is None and audit.status == "PROCESSING_FAILED":
-        result = CaseResult.failed(f"The {key} audit failed ({audit.error.code if audit.error else 'no error body'}).")
+        result = _processing_failure(ctx, f"The {key} audit", audit)
     if result:
         bucket[slot] = {"failed": ctx.case.test_id}
         return None, result
@@ -377,7 +380,7 @@ def review_reviewer(case, ctx):
     spec = _decision_spec(record["entry"], "mixed") if "decision_sets" in record["entry"] else []
     decisions, _ = _decisions(record, spec[:1])
     submitted = _submit(ctx, record, decisions, role="reviewer")
-    problems += _error_problems(submitted, 403, None, "the reviewer's decision request")
+    problems += _error_problems(submitted, 403, None, "the reviewer's decision request", ctx, record["session"])
     return _verdict("The reviewer's review", problems,
                     "The reviewer sees the owner's items and values with no actions, and a decision request is 403.")
 
@@ -523,7 +526,8 @@ def reaudit_invalid(case, ctx):
         if response.status >= 500:
             return _system_failure("The invalid re-audit", response)
         ctx.mark()
-        problems += _error_problems(response, 400, "INVALID_REQUEST", json.dumps(body))
+        problems += _error_problems(response, 400, "INVALID_REQUEST", json.dumps(body), ctx,
+                                    workbook_id=upload["workbookId"])
     history, problem = _history(ctx, upload["workbookId"])
     if problem:
         problems.append(problem)
@@ -676,6 +680,7 @@ def _aspect_report_complete(ctx, record):
     except ValidationError as problem:
         return [f"the output report does not match AuditReport ({_schema_problem(problem)})"]
     problems = [f"{p}" for p in download_problems(response, "report", f"audit-{out['auditId']}.json")]
+    problems += _report_version_problems(ctx, report)
     audit, source = record["output_audit"] or {}, record["source"]
     if report.findings and [f.model_dump() for f in report.findings] != audit.get("findings"):
         problems.append("report findings differ from the output audit")
@@ -825,7 +830,7 @@ def reject_decisions(case, ctx):
         if response.status >= 500:
             return _system_failure(f"The {label} request", response)
         ctx.mark()
-        problems += _error_problems(response, status, code, label)
+        problems += _error_problems(response, status, code, label, ctx)
     after, problem = _history(ctx, record["upload"]["workbookId"])
     if problem or after != before:
         problems.append("history changed after rejected decision requests")
@@ -852,7 +857,8 @@ def _reject_cross_audit_finding(case, ctx):
     body = {"auditId": record["audit"]["auditId"], "decisions": [{"findingId": foreign, "action": "DECLINE"}]}
     response, result = _single_reject(ctx, record, body, 404, "FINDING_NOT_FOUND", "The cross-audit decision")
     return result or _verdict("A finding from another version", _error_problems(response, 404, "FINDING_NOT_FOUND",
-                              "cross-audit finding"), "A finding from another version's audit was 404 FINDING_NOT_FOUND.")
+                              "cross-audit finding", ctx, record["session"]),
+                              "A finding from another version's audit was 404 FINDING_NOT_FOUND.")
 
 
 def _reject_stale_audit(case, ctx):
@@ -867,7 +873,8 @@ def _reject_stale_audit(case, ctx):
     decisions, _ = _decisions(record, _decision_spec(record["entry"], "mixed")[:1])
     body = {"auditId": record["audit"]["auditId"], "decisions": decisions}
     response, result = _single_reject(ctx, record, body, 409, "STALE_AUDIT", "The stale-audit decision")
-    return result or _verdict("Decisions on a superseded audit", _error_problems(response, 409, "STALE_AUDIT", "stale audit"),
+    return result or _verdict("Decisions on a superseded audit", _error_problems(response, 409, "STALE_AUDIT", "stale audit",
+                                                                                  ctx, record["session"]),
                               "Decisions referencing a superseded audit were 409 STALE_AUDIT.")
 
 
@@ -896,7 +903,7 @@ def _reject_audit_processing(case, ctx):
         if isinstance(state, dict) and state.get("status") != "PROCESSING":
             return CaseResult("skip", "Not executed: the audit finished before the decision request arrived, so the "
                                       "running-audit condition could not be produced.")
-    return _verdict("Decisions on a running audit", _error_problems(response, 409, "ACTIVE_OPERATION", "running audit"),
+    return _verdict("Decisions on a running audit", _error_problems(response, 409, "ACTIVE_OPERATION", "running audit", ctx),
                     "Decisions on a still-running audit were 409 ACTIVE_OPERATION.")
 
 
@@ -922,7 +929,8 @@ def _reject_audit_failed(case, ctx):
             "decisions": [{"findingId": ids[_decision_spec(entry, "mixed")[0]["target"]], "action": "DECLINE"}]}
     record = {"upload": upload, "session": session_id}
     response, result = _single_reject(ctx, record, body, 409, "AUDIT_NOT_READY", "The decision on a failed audit")
-    return result or _verdict("Decisions on a failed audit", _error_problems(response, 409, "AUDIT_NOT_READY", "failed audit"),
+    return result or _verdict("Decisions on a failed audit", _error_problems(response, 409, "AUDIT_NOT_READY", "failed audit",
+                                                                              ctx, session_id),
                               "Decisions on a failed latest audit were 409 AUDIT_NOT_READY.")
 
 
@@ -940,7 +948,8 @@ def batch_atomic(case, ctx):
     if response.status >= 500:
         return _system_failure("The mixed valid and invalid batch", response)
     ctx.mark()
-    problems = _error_problems(response, 422, "INVALID_CORRECTION", "a batch with one invalid decision")
+    problems = _error_problems(response, 422, "INVALID_CORRECTION", "a batch with one invalid decision", ctx,
+                               record["session"])
     after, _ = _history(ctx, record["upload"]["workbookId"])
     if after != before:
         problems.append("history changed, so part of the rejected batch was applied")
@@ -985,7 +994,8 @@ def idempotency(case, ctx):
         return _verdict("Idempotent replays", problems,
                         "Replays while pending and after completion returned the original 202; exactly one output exists.")
     changed = _submit(ctx, record, decisions[:-1], key=key)
-    problems += _error_problems(changed, 409, "IDEMPOTENCY_CONFLICT", "a changed body under the same key")
+    problems += _error_problems(changed, 409, "IDEMPOTENCY_CONFLICT", "a changed body under the same key", ctx,
+                                record["session"])
     status = ctx.call("GET", f"{REMEDIATIONS}/{accepted['remediationId']}", role="userA").json()
     if not isinstance(status, dict) or status.get("remediationId") != accepted["remediationId"]:
         problems.append("the first remediation is no longer readable")
@@ -1068,7 +1078,7 @@ def access(case, ctx):
             if owner.body != response.body:
                 problems.append(f"{what}: the reviewer received different bytes from the owner")
     else:
-        problems = _error_problems(response, status, code, what)
+        problems = _error_problems(response, status, code, what, ctx, session, record["upload"]["workbookId"])
     if before is not None:
         after, _ = _history(ctx, record["upload"]["workbookId"])
         if after != before:

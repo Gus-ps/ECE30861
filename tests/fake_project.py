@@ -8,6 +8,8 @@ stand-in system. It is not a reference implementation.
   findings. Phase 4 self-tests therefore prove the tester's plumbing, not rule agreement.
 - A session armed with one audit failure (system setup `faults`) fails the first accepted
   audit in it (shared specification §14.1). Resources are scoped to their session.
+- Phase 5 (spec 3.0.0, opt-in with `phase5 = True`): per-session clocks, schedules,
+  notifications, the test clock, owner deletion and all seven setup faults, in fake_phase5.py.
 """
 
 import hashlib
@@ -25,9 +27,13 @@ from tester.suite.identity import finding_id
 from tester.suite.pod_rules import evaluate
 
 from .fake_phase4 import Phase4Routes
+from .fake_phase5 import Phase5Routes, injected, show
 
-USERS = {"tok-a": "userA", "tok-b": "userB", "tok-r": "reviewer"}
+##  tok-r2 is a reviewer with no grant (Phase 5 ungranted-reviewer cases); tok-admin-2 a second
+##  test-admin that did not create the session (foreign-admin clock cases).
+USERS = {"tok-a": "userA", "tok-b": "userB", "tok-r": "reviewer", "tok-r2": "reviewer2"}
 ADMIN = "tok-admin"
+ADMINS = {"tok-admin": "admin-1", "tok-admin-2": "admin-2"}
 MAX_BYTES, MAX_WORKSHEETS, MAX_CELLS = 25_000_000, 50, 250_000
 WORKSHEET_REL = "/relationships/worksheet"
 NONEMPTY_CELL = re.compile(rb"<c\b[^>]*>\s*<(?:f|v|is)\b")
@@ -45,6 +51,10 @@ ROUTES = [
     ("GET", re.compile(r"^/api/v1/workbooks/([^/]+)/history$"), "history"),
     ("GET", re.compile(r"^/api/v1/remediations/([^/]+)$"), "remediation_status"),
     ("GET", re.compile(r"^/api/v1/outputs/([^/]+)/workbook$"), "output"),
+    ("PUT", re.compile(r"^/api/v1/workbooks/([^/]+)/schedule$"), "schedule_put"),
+    ("GET", re.compile(r"^/api/v1/workbooks/([^/]+)/schedule$"), "schedule_get"),
+    ("GET", re.compile(r"^/api/v1/workbooks/([^/]+)/notifications$"), "notifications_get"),
+    ("DELETE", re.compile(r"^/api/v1/workbooks/([^/]+)$"), "delete_workbook"),
 ]
 REVIEWER_GRANTS = {"reviewer": {"userA"}}      # explicit read grants; the reviewer role alone reads nothing
 RULESET = "1.0.0"
@@ -56,9 +66,13 @@ INJECTED = {"code": "TEST_AUDIT_FAILURE", "message": "Audit failure requested by
 
 
 def phase4_answer_key():
-    ##  {sha256: expectations entry} for every accepted fixture in the Phase 4 pack.
-    pack = json.loads((FIXTURES / "phase4" / "expectations.json").read_text(encoding="utf-8"))
-    return {e["sha256"]: e for e in pack["fixtures"].values() if e["kind"] == "accepted"}
+    ##  {sha256: expectations entry} for every accepted fixture in the Phase 4 pack and the Phase 5
+    ##  pack (the Phase 4 entries plus performance_250000_cells).
+    entries = {}
+    for path in (FIXTURES / "phase4" / "expectations.json", FIXTURES / "expectations_phase5.json"):
+        pack = json.loads(path.read_text(encoding="utf-8"))
+        entries.update({e["sha256"]: e for e in pack["fixtures"].values() if e["kind"] == "accepted"})
+    return entries
 
 
 def can_read(subject, owner):
@@ -94,13 +108,15 @@ def status_of(findings, ruleset):
         else "REVIEW_REQUIRED"
 
 
-class FakeProject(Phase4Routes):
+class FakeProject(Phase4Routes, Phase5Routes):
     def __init__(self, sessions):
+        self._phase5_state()
         self.sessions = sessions          # live set of prepared session IDs
         self.armed = set()                # sessions whose next accepted audit fails (one-shot)
         self.versions = {}                # versionId -> stored version, with its audit IDs in order
         self.audits = {}                  # auditId -> stored audit record
         self.processing_polls = 0         # audit reads answered PROCESSING before the result
+        self.specification = "2.1.0"      # report specificationVersion; 3.0.0 for a Phase 5 target
         self.ruleset = RULESET
         self.answer_key = phase4_answer_key()
         self.derived = {}                 # output sha256 -> (findings, limitations) for generated versions
@@ -111,7 +127,9 @@ class FakeProject(Phase4Routes):
         if path == "/api/v1/health" and method == "GET":
             return 200, {"status": "AVAILABLE", "apiVersion": "1.0", "rulesetVersion": self.ruleset}
         token = headers.get("authorization", "").removeprefix("Bearer ")
-        if token == ADMIN:
+        if path == "/api/v1/test/clock" and method == "POST":
+            return self.clock(token, headers, body)      # the one project path test-admin may use
+        if token in ADMINS:
             return error(403, "FORBIDDEN", "A test-admin token cannot call business routes.")
         if token not in USERS:
             return error(401, "UNAUTHENTICATED", "A valid bearer token is required.")
@@ -131,6 +149,7 @@ class FakeProject(Phase4Routes):
         ##  Caller-owned cleanup of inactive sessions: their sessions and resources disappear.
         for session_id in session_ids:
             self.sessions.discard(session_id)
+            self._cleanup_phase5(session_id)
             for version_id in [v for v, record in self.versions.items() if record["session"] == session_id]:
                 for audit_id in self.versions.pop(version_id)["audits"]:
                     self.audits.pop(audit_id, None)
@@ -197,11 +216,11 @@ class FakeProject(Phase4Routes):
         failed = result["status"] == "PROCESSING_FAILED"
         remediation = self.remediations.get(version.get("remediationId")) if version["sourceVersionId"] else None
         decisions = remediation["report_decisions"] if remediation and audit_id == remediation["auditId"] else []
-        body = {"reportVersion": "2.0.0", "specificationVersion": "2.1.0", "workbookId": workbook_id,
+        body = {"reportVersion": "2.0.0", "specificationVersion": self.specification, "workbookId": workbook_id,
                 "versionId": version_id, "auditId": audit_id, "fileName": version["fileName"],
                 "sha256": version["sha256"], "sourceVersionId": version["sourceVersionId"],
                 "auditDate": record["startedAt"], "rulesetVersion": self.ruleset, "status": result["status"],
-                "checksPerformed": [] if failed else SIX_CHECKS, "findings": result["findings"],
+                "checksPerformed": record.get("checks", [] if failed else SIX_CHECKS), "findings": result["findings"],
                 "decisions": decisions, "approvedChanges": [d for d in decisions if d["action"] == "APPLY"],
                 "unresolvedFindings": [f for f in result["findings"] if f["classification"] != "MANUAL_REVIEW"],
                 "manualReviewItems": [f for f in result["findings"] if f["classification"] == "MANUAL_REVIEW"],
@@ -245,18 +264,30 @@ class FakeProject(Phase4Routes):
         return 202, {"auditId": audit_id, "versionId": version_id, "rulesetVersion": self.ruleset,
                      "status": "PROCESSING"}
 
-    def _new_audit(self, version, session):
-        ##  The first accepted audit in an armed session consumes the fault and fails as injected.
-        audit_id = f"audit-{uuid.uuid4().hex[:10]}"
-        if session in self.armed:
+    def _new_audit(self, version, session, kind="ordinary"):
+        ##  Ordinary audits (upload, new version, manual re-audit) consume audit_failures (inherited
+        ##  §14.1) or report_failures; scheduled ones consume scheduled_audit_failures (spec 3.0.0 §11).
+        ##  A report failure runs all six checks, then fails finalization.
+        audit_id, checks = f"audit-{uuid.uuid4().hex[:10]}", SIX_CHECKS
+        failure = None
+        if kind == "ordinary" and session in self.armed:
             self.armed.discard(session)
-            result = {"status": "PROCESSING_FAILED", "completedAt": now(), "findings": [], "limitations": [],
-                      "error": {**INJECTED, "requestId": f"job-{uuid.uuid4().hex[:12]}"}}
+            failure, checks = {**INJECTED, "requestId": f"job-{uuid.uuid4().hex[:12]}"}, []
+        elif kind == "ordinary" and self._take_fault(session, "report_failures"):
+            failure = injected("report")
+        elif kind == "scheduled" and self._take_fault(session, "scheduled_audit_failures"):
+            failure, checks = injected("scheduled_audit"), []
+        stamp = show(self.clocks[session]) if session in self.clocks else now()
+        if failure:
+            result = {"status": "PROCESSING_FAILED", "completedAt": stamp, "findings": [], "limitations": [],
+                      "error": failure}
         else:
-            result = self._audit_result(version["content"])
+            result = {**self._audit_result(version["content"])}
+            if session in self.clocks and result["completedAt"]:
+                result["completedAt"] = stamp
         self.audits[audit_id] = {"auditId": audit_id, "workbookId": version["workbookId"],
-                                 "versionId": version["versionId"], "startedAt": now(), "sequence": len(self.audits),
-                                 "polls_left": self.processing_polls, "result": result}
+                                 "versionId": version["versionId"], "startedAt": stamp, "sequence": len(self.audits),
+                                 "polls_left": self.processing_polls, "result": result, "checks": checks}
         version["audits"].append(audit_id)
         return audit_id
 
@@ -322,16 +353,29 @@ class FakeProject(Phase4Routes):
         return name, content
 
     def _store_version(self, workbook_id, owner, session, name, content, source_version=None):
+        self.sequence += 1                # durable creation order: the newest version is the highest
         version = {"workbookId": workbook_id, "versionId": f"ver-{uuid.uuid4().hex[:10]}", "owner": owner,
                    "session": session, "fileName": name, "sha256": hashlib.sha256(content).hexdigest(),
-                   "content": content, "createdAt": now(), "audits": [], "sourceVersionId": source_version}
+                   "content": content, "createdAt": show(self.clocks[session]) if session in self.clocks else now(),
+                   "audits": [], "sourceVersionId": source_version, "sequence": self.sequence}
         self.versions[version["versionId"]] = version
         return version
+
+    def _storage_fault(self, session):
+        ##  storage_failures: the next otherwise-valid upload fails before acceptance (spec 3.0.0 §11).
+        if self._take_fault(session, "storage_failures"):
+            reply = error(500, "TEST_STORAGE_FAILURE", "Storage failure requested by the isolated test session.")
+            reply[1]["details"] = {"stage": "storage", "testOnly": True}
+            return reply
+        return None
 
     def upload(self, content_type, body, owner="userA", session=None):
         intake = self._intake(content_type, body)
         if isinstance(intake[0], int):
             return intake
+        failed = self._storage_fault(session)
+        if failed:
+            return failed
         name, content = intake
         version = self._store_version(f"wb-{uuid.uuid4().hex[:10]}", owner, session, name, content)
         audit_id = self._new_audit(version, session)

@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from ..models import (AuditReport, AuditResponse, HealthResponse, HistoryResponse, ProjectError, ReauditResponse,
                       SetupResponse, SystemReport, TestEndpointError, UploadResponse, VersionResponse)
+from ..target import CommunicationError, ResponseTooLarge
 from .identity import finding_id
 from .runner import CaseResult
 from .transfer import XLSX
@@ -25,6 +26,7 @@ from .workbooks import CSV, LEGACY_XLS, workbook
 
 HEALTH = "/api/v1/health"
 WORKBOOKS = "/api/v1/workbooks"
+REMEDIATIONS = "/api/v1/remediations"
 TOO_LARGE = 413
 INVALID_WORKBOOK = 422
 
@@ -39,6 +41,35 @@ def _system_failure(name, response):
     return CaseResult.error("system", f"{name} returned an unexpected {response.status} internal failure.")
 
 
+def _drain_accepted(ctx, response, session=True, workbook_id=None):
+    ##  A negative request the target wrongly accepted keeps its failure, but its job must not hold
+    ##  the target's worker while later cases queue (spec 3.0.0 §18). Only the job the response names
+    ##  is drained, by bounded owner GETs: no replay, no replacement, no coverage. Transport trouble
+    ##  while draining is ignored so it cannot replace the case's own outcome; the suite budget is not.
+    if response.status not in (200, 201, 202):
+        return
+    try:
+        body = response.json()
+    except ValueError:
+        return
+    if not isinstance(body, dict):
+        return
+    ids = {key: body.get(key) for key in ("workbookId", "versionId", "auditId")}
+    ids["workbookId"] = ids["workbookId"] or workbook_id
+    try:
+        if all(isinstance(value, str) for value in ids.values()):
+            ctx.poll(lambda: ctx.call("GET", _audit_path(ids), role="userA", session=session),
+                     lambda r: not _processing(r))
+        elif isinstance(body.get("remediationId"), str):
+            timing = ctx.profile.timing
+            ctx.poll(lambda: ctx.call("GET", f"{REMEDIATIONS}/{body['remediationId']}", role="userA", session=session),
+                     lambda r: not (r.status == 200 and isinstance(r.json(), dict)
+                                    and r.json().get("status") == "REMEDIATING"),
+                     budget=timing.remediation_poll_seconds or timing.audit_poll_seconds)
+    except (CommunicationError, ResponseTooLarge, ValueError):
+        pass
+
+
 def _rejected(ctx, response, what, expected, code=None):
     ##  An expected project-API rejection: the status, a strict ProjectError body (so no
     ##  accepted identifiers), and the exact code only where the contract fixes one.
@@ -47,6 +78,7 @@ def _rejected(ctx, response, what, expected, code=None):
     ctx.mark()
     if response.status != expected:
         accepted = ", accepting the upload" if response.status == 202 else ""
+        _drain_accepted(ctx, response)
         return CaseResult.failed(f"Expected {expected} for {what}; received {response.status}{accepted}.")
     try:
         error = ProjectError.model_validate(response.json())
@@ -169,9 +201,18 @@ def _accepted_boundary(ctx, response, what):
     if problem:
         return CaseResult(problem.outcome, f"{what} was accepted (202), but: {problem.message}", problem.source)
     if audit.status == "PROCESSING_FAILED":
-        code = audit.error.code if audit.error else "no error body"
-        return CaseResult.failed(f"{what} was accepted (202), but its audit ended PROCESSING_FAILED ({code}).")
+        return _processing_failure(ctx, f"{what} was accepted (202), but its audit", audit)
     return CaseResult.passed(f"{result.message[:-1]}; its audit finished as {audit.status} before the next case.")
+
+
+def _processing_failure(ctx, what, audit):
+    ##  An audit expected to succeed ended PROCESSING_FAILED, so the case cannot be evaluated. Phase 4
+    ##  reported that as fail; Phase 5 as error/source system (spec 3.0.0 §14), chosen by the profile.
+    code = audit.error.code if audit.error else "no error body"
+    message = f"{what} ended PROCESSING_FAILED ({code}), so it could not be evaluated."
+    if ctx.profile.unexpected_processing_failure == "error":
+        return CaseResult.error("system", message)
+    return CaseResult.failed(message)
 
 
 def upload_over_limit(case, ctx):
@@ -348,6 +389,9 @@ def _audit_fixture(ctx, key):
     if audit.status != "PROCESSING_FAILED":
         ctx.provide()
     problems = _audit_problems(audit, upload, entry, ctx.manifest.ruleset_version)
+    if audit.status == "PROCESSING_FAILED" and len(problems) == 1:
+        ##  Correctly identified, but failed instead of auditing: nothing could be evaluated.
+        return _processing_failure(ctx, what, audit)
     if problems:
         more = f"; and {len(problems) - 4} more" if len(problems) > 4 else ""
         return CaseResult.failed(f"{what}: " + "; ".join(problems[:4]) + more + ".")
@@ -672,9 +716,20 @@ def _report(ctx, upload, session):
     if response.status != 200:
         return None, None, [f"the audit report download returned {response.status}"]
     try:
-        return AuditReport.model_validate(response.json()), response.body, []
+        report = AuditReport.model_validate(response.json())
     except ValidationError as problem:
         return None, response.body, [f"the audit report does not match AuditReport ({_schema_problem(problem)})"]
+    return report, response.body, _report_version_problems(ctx, report)
+
+
+def _report_version_problems(ctx, report):
+    ##  Every audit a run creates is new, so its report names the run's specification: 2.1.0 under
+    ##  the Phase 4 manifest, 3.0.0 under Phase 5 (spec 3.0.0 §3; retained old reports keep theirs).
+    expected = ctx.manifest.specification_version or "2.1.0"
+    if report.specificationVersion != expected:
+        return [f"the report's specificationVersion is {report.specificationVersion}, expected {expected} for an "
+                f"audit made in this run"]
+    return []
 
 
 def _failed_report_problems(report, upload, audit):
@@ -963,7 +1018,9 @@ CHECKS = {
     "system_setup_duplicate": system_setup_duplicate,
 }
 
-##  Phase 4 checks live in checks_phase4.py, which builds on the helpers above.
+##  Phase 4 and Phase 5 checks live in checks_phase4.py and checks_phase5.py, built on the helpers above.
 from .checks_phase4 import PHASE4_CHECKS  # noqa: E402
+from .checks_phase5 import PHASE5_CHECKS  # noqa: E402
 
 CHECKS.update(PHASE4_CHECKS)
+CHECKS.update(PHASE5_CHECKS)

@@ -9,7 +9,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from ..models import FixturePack, Manifest, PodProfile
+from pydantic import ValidationError
+
+from ..models import FixturePack, Manifest, PodProfile, TeamDesignMap
 
 
 class PlanError(ValueError):
@@ -72,6 +74,45 @@ def fixture_bytes(plan, key):
     if hashlib.sha256(data).hexdigest() != fixtures["entries"][key]["sha256"]:
         raise PlanError(f"fixture {key} changed after setup; its bytes no longer match the frozen SHA256")
     return data
+
+
+def load_design_map(path, manifest):
+    ##  A team design map (pack schema TeamDesignMap), frozen with its SHA256 (spec 3.0.0 §14).
+    ##  Every test ID must be a case of this session's manifest: a map naming tests the suite
+    ##  cannot run would credit nothing and hide the mistake.
+    if path is None:
+        raise PlanError("an own-team run needs a team design map, but DESIGN_MAP_PATH is not set")
+    try:
+        raw = Path(path).read_bytes()
+    except OSError:
+        raise PlanError(f"the team design map {Path(path).name} could not be read") from None
+    try:
+        design = TeamDesignMap.model_validate(json.loads(raw))
+    except (ValueError, ValidationError) as problem:
+        first = problem.errors()[0]["msg"] if isinstance(problem, ValidationError) else str(problem)
+        raise PlanError(f"the team design map {Path(path).name} is invalid: {first}") from None
+    planned = {case.test_id for case in manifest.tests}
+    unknown = sorted({t for r in design.requirements for t in r.testIds} - planned)
+    if unknown:
+        raise PlanError(f"the team design map names tests this suite does not plan: {', '.join(unknown[:5])}")
+    return {"map": design.model_dump(mode="json"), "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def model_coverage(run_profile, marked):
+    ##  coverage.model for an own-team run: each design requirement counts once when any of its
+    ##  mapped tests executed its qualifying assertion (pass or fail); untested ones stay in the
+    ##  total. None for a cross-team run, which must omit the key entirely.
+    if (run_profile or {}).get("kind") != "own":
+        return None
+    design, digest = run_profile["design"]["map"], run_profile["design"]["sha256"]
+    executed = set(marked or [])
+    covered = sum(1 for r in design["requirements"] if executed & set(r["testIds"]))
+    total = len(design["requirements"])
+    return {"covered": covered, "total": total,
+            "basis": f"Team {design['teamId']} design {design['designVersion']}: {total} requirements; "
+                     f"requirements-to-tests map {design['mappingUrl']} (SHA256 {digest}). A requirement counts once "
+                     f"when one of its mapped tests executed its qualifying assertion in this run, pass or fail; "
+                     f"setup, skips and untested requirements earn nothing."}
 
 
 def manifest_of(plan):

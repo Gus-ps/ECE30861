@@ -9,6 +9,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TARGET_ROLES = ("userA", "userB", "reviewer", "test-admin")
+##  Phase 5 access cases also use a reviewer with no grant and a second test-admin that did not
+##  create the session (spec 3.0.0 §4, §9). Optional: a case needing an absent one skips.
+OPTIONAL_ROLES = ("reviewer-ungranted", "test-admin-2")
 
 
 class Settings(BaseSettings):
@@ -20,7 +23,8 @@ class Settings(BaseSettings):
     tester_operator_token_hashes_json: dict[str, str] = {}
     ##  exact approved system base URLs
     allowed_target_urls: list[str] = []
-    ##  exact base URL -> {userA, userB, reviewer, test-admin} raw tokens
+    ##  exact base URL -> {userA, userB, reviewer, test-admin} raw tokens, plus optionally
+    ##  reviewer-ungranted and test-admin-2 for the Phase 5 access cases
     target_auth_map_json: dict[str, dict[str, SecretStr]] = {}
     manifest_path: Path = FIXTURES / "manifest.json"
     pod_profile_path: Path = FIXTURES / "pod_profile.json"
@@ -30,6 +34,12 @@ class Settings(BaseSettings):
     tester_revision: str | None = None
     ##  exact base URL -> the target's deployed revision
     target_revisions_json: dict[str, str] = {}
+    ##  Phase 5 own/cross-team classification (spec 3.0.0 §14): this tester's team, and the team of
+    ##  each approved base URL (exact strings). A target of the tester's own team is an own-team run.
+    tester_team_id: str | None = None
+    target_teams_json: dict[str, str] = {}
+    ##  this team's design map (pack schema TeamDesignMap); required for own-team Phase 5 runs
+    design_map_path: Path | None = None
 
     @field_validator("tester_operator_token_hashes_json")
     @classmethod
@@ -48,6 +58,17 @@ class Settings(BaseSettings):
             roles = self.target_auth_map_json.get(url)
             if roles is None or any(role not in roles for role in TARGET_ROLES):
                 raise ValueError(f"TARGET_AUTH_MAP_JSON must give {', '.join(TARGET_ROLES)} tokens for {url!r}")
+            unknown = sorted(set(roles) - set(TARGET_ROLES) - set(OPTIONAL_ROLES))
+            if unknown:
+                raise ValueError(f"TARGET_AUTH_MAP_JSON names unknown roles {unknown} for {url!r}; optional roles are "
+                                 f"{', '.join(OPTIONAL_ROLES)}")
+        ##  Classification is configured whole or not at all: never guessed for an unmapped target.
+        if self.target_teams_json and not self.tester_team_id:
+            raise ValueError("TARGET_TEAMS_JSON needs TESTER_TEAM_ID")
+        if self.tester_team_id:
+            unmapped = [url for url in self.allowed_target_urls if url not in self.target_teams_json]
+            if unmapped:
+                raise ValueError(f"TARGET_TEAMS_JSON must name the team of every approved target; missing {unmapped}")
         return self
 
 

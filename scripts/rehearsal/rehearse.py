@@ -1,7 +1,7 @@
-"""Local rehearsal of the Team 12 tester over real HTTP.
+﻿"""Local rehearsal of the Team 12 tester over real HTTP.
 
 Starts the stand-in system and the tester as separate uvicorn processes, then drives the
-instructor interface with httpx. Needs free loopback ports 8100-8102; nothing may listen on 8199.
+instructor interface with httpx. Needs free loopback ports 8100-8103; nothing may listen on 8199.
 
 Usage (from the repo root):  uv run python scripts/rehearsal/rehearse.py
 Exits 0 when every check passes. Server logs and the happy-path report go to scripts/rehearsal/work/.
@@ -24,7 +24,7 @@ PYTHON = sys.executable
 WORK = HERE / "work"
 WORK.mkdir(exist_ok=True)
 
-SYSTEM_PORT, TESTER_PORT, PREFIXED_PORT = 8100, 8101, 8102
+SYSTEM_PORT, TESTER_PORT, PREFIXED_PORT, PHASE5_PORT = 8100, 8101, 8102, 8103
 SYSTEM = f"http://127.0.0.1:{SYSTEM_PORT}"
 TARGET = f"{SYSTEM}/system"
 DEAD_TARGET = "http://127.0.0.1:8199/system"       # nothing listens here
@@ -63,6 +63,22 @@ PHASE4_ENV = {"MANIFEST_PATH": str(FIXTURES / "manifest_phase4.json"),
 ##  Phase 4 cases whose fixtures await an outside contract and skip; none since Team 9's pod
 ##  contract 1.1 fixtures joined the pack (2026-11-01).
 PHASE4_BLOCKED = 0
+##  Phase 5: Team 12's tester against its own (stand-in) system, so an own-team report with model coverage.
+##  The Phase 5 tester also gets the two optional access identities (an ungranted reviewer and a
+##  second test-admin), which the stand-in knows as tok-r2 and tok-admin-2.
+PHASE5_TOKENS = {**TOKENS, "reviewer-ungranted": "tok-r2", "test-admin-2": "tok-admin-2"}
+PHASE5_ENV = {"MANIFEST_PATH": str(FIXTURES / "manifest_phase5.json"),
+              "POD_PROFILE_PATH": str(FIXTURES / "pod_profile_phase5.json"),
+              "EXPECTATIONS_PATH": str(FIXTURES / "expectations_phase5.json"),
+              "TARGET_AUTH_MAP_JSON": json.dumps({TARGET: PHASE5_TOKENS, DEAD_TARGET: TOKENS}),
+              ##  Every approved target needs a team; the unreachable one stands for Team 9's system.
+              "TESTER_TEAM_ID": "team12", "TARGET_TEAMS_JSON": json.dumps({TARGET: "team12", DEAD_TARGET: "team9"}),
+              "DESIGN_MAP_PATH": str(FIXTURES / "design_map_team12.json")}
+##  Phase 5 cases that skip against the stand-in: the 6 tester self-checks (not built), 3 never
+##  producible over HTTP (P5-CLOCK-NOT-READY, P5-DELETE-RETAIN-TESTER, P5-FAULT-REJECT-DISABLED on
+##  a deployment with faults enabled) and 4 timing-dependent busy cases (the stand-in finishes
+##  work before a clock call or DELETE can see it).
+PHASE5_PENDING = 13
 
 
 def tester_env(db, overrides=None):
@@ -136,7 +152,8 @@ def main():
         elapsed = time.monotonic() - started
         check("run -> 200", r.status_code == 200, f"{r.status_code} in {elapsed:.1f}s")
         run_bytes = r.content
-        report = SuiteReport.model_validate_json(run_bytes).model_dump()
+        SuiteReport.model_validate_json(run_bytes)
+        report = json.loads(run_bytes)             # as sent: no model key outside own-team Phase 5 runs
         check("report validates as SuiteReport with 53 results", len(report["results"]) == 53)
         counts = {}
         for item in report["results"]:
@@ -249,7 +266,8 @@ def main():
         ok = r.status_code == 200
         detail = r.text[:200]
         if ok:
-            aborted = SuiteReport.model_validate_json(r.content).model_dump()
+            SuiteReport.model_validate_json(r.content)
+            aborted = json.loads(r.content)
             by_id = outcomes(aborted)
             interrupted = [t for t, v in by_id.items() if v["outcome"] == "error"]
             ok = interrupted and by_id[interrupted[0]].get("source") == "tester" and "restarted" in \
@@ -273,7 +291,7 @@ def main():
         session = r.json().get("session_id") if r.status_code == 201 else None
         r = phase4_client.post("/test/run", json={"session_id": session}, headers=AUTH) if session else r
         elapsed = time.monotonic() - started
-        report4 = SuiteReport.model_validate_json(r.content).model_dump() if r.status_code == 200 else None
+        report4 = (SuiteReport.model_validate_json(r.content) and json.loads(r.content)) if r.status_code == 200 else None
         counts4 = {}
         for item in (report4 or {}).get("results", []):
             counts4[item["outcome"]] = counts4.get(item["outcome"], 0) + 1
@@ -290,7 +308,33 @@ def main():
             "cleanup_session_ids", [])
         check("the next Phase 4 setup queues the run's 5 extra sessions for cleanup",
               r.status_code == 201 and len(cleanup_ids) >= 5, json.dumps(cleanup_ids))
-        control(ruleset="1.0.0", processing_polls=0)
+
+        print("\n== G. Phase 5 draft manifest, own-team run, over real HTTP ==")
+        control(ruleset="2.0.0", processing_polls=1, phase5=True, specification="3.0.0")
+        phase5 = start_tester(PHASE5_PORT, WORK / "phase5.db", env=PHASE5_ENV)
+        procs.append(phase5)
+        phase5_client = httpx.Client(base_url=f"http://127.0.0.1:{PHASE5_PORT}", timeout=2500, trust_env=False)
+        started = time.monotonic()
+        r = phase5_client.post("/test/setup", json={"target_url": TARGET}, headers=AUTH)
+        session = r.json().get("session_id") if r.status_code == 201 else None
+        r = phase5_client.post("/test/run", json={"session_id": session}, headers=AUTH) if session else r
+        elapsed = time.monotonic() - started
+        report5 = (SuiteReport.model_validate_json(r.content) and json.loads(r.content)) if r.status_code == 200 else None
+        counts5 = {}
+        for item in (report5 or {}).get("results", []):
+            counts5[item["outcome"]] = counts5.get(item["outcome"], 0) + 1
+        check(f"357 Phase 5 results: {357 - PHASE5_PENDING} pass, {PHASE5_PENDING} skip (unbuilt or unproducible here)",
+              counts5 == {"pass": 357 - PHASE5_PENDING, "skip": PHASE5_PENDING}, f"{json.dumps(counts5)} in {elapsed:.0f}s")
+        failing = [f"{x['test_id']}: {x['message']}" for x in (report5 or {}).get("results", []) if x["outcome"] in ("fail", "error")]
+        if failing:
+            print("   " + "\n   ".join(failing[:10]))
+        model = ((report5 or {}).get("coverage") or {}).get("model") or {}
+        check("the own-team report carries coverage.model over the 38-requirement design map",
+              model.get("total") == 38 and 0 < (model.get("covered") or 0) <= 38,
+              json.dumps({k: (v["covered"], v["total"]) for k, v in ((report5 or {}).get("coverage") or {}).items()}))
+        if report5:
+            (WORK / "phase5_report.json").write_bytes(r.content)
+        control(ruleset="1.0.0", processing_polls=0, phase5=False, specification="2.1.0")
     finally:
         for proc in procs:
             if proc.poll() is None:

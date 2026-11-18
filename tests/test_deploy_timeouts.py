@@ -18,7 +18,7 @@ RUN_GUARD = 30          # TesterService.run waits suite_seconds + 30
 
 def ceiling():
     budgets = [json.loads((FIXTURES / name).read_text(encoding="utf-8"))["timing"]["suite_seconds"]
-               for name in ("pod_profile.json", "pod_profile_phase4.json")]
+               for name in ("pod_profile.json", "pod_profile_phase4.json", "pod_profile_phase5.json")]
     return max(budgets) + RUN_GUARD
 
 
@@ -36,4 +36,5 @@ def test_the_run_guard_is_what_the_service_uses():
 ])
 def test_deploy_timeouts_exceed_the_run_ceiling(path, pattern):
     found = [int(value) for value in re.findall(pattern, (ROOT / path).read_text(encoding="utf-8"))]
-    assert found and min(found) > ceiling() == 1830, (path, found)
+    ##  Phase 5's 2,400 s budget sets the ceiling, which is also spec 3.0.0 §12's 2,430 s minimum.
+    assert found and min(found) > ceiling() == 2430, (path, found)

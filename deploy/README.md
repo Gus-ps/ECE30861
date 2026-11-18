@@ -20,8 +20,11 @@ Fixed requirements, whichever option you pick:
 - **Strip the prefix.** The proxy removes `/tester` before forwarding, and uvicorn runs with
   `--root-path /tester`. An unstripped `/tester/test/setup` returns 404 (checked by the rehearsal).
 - **Long read timeout.** A run waits for the whole suite before answering: the profile's suite
-  budget plus a 30 s guard, so up to 1,830 s with the Phase 4 profile (1,800 s budget) and 630 s
-  with the Phase 3 profile. The proxy files allow 1,860 s; never set less than 1,830 s.
+  budget plus a 30 s guard, so up to 2,430 s with the Phase 5 profile (2,400 s budget), 1,830 s
+  with Phase 4 and 630 s with Phase 3. Spec 3.0.0 §12 requires a proxy upstream read timeout of
+  at least 2,430 s; the proxy files allow 2,460 s. Never set less than 2,430 s. Anything else
+  between the grader and the tester (a load balancer, a tunnel, the caller's own client) needs
+  the same allowance.
 - **Persistent, private database.** Reports live only in the SQLite file; losing it loses them.
 - **Loopback only.** The tester listens on 127.0.0.1:8001; only the proxy is public.
 
@@ -38,7 +41,8 @@ Fixed requirements, whichever option you pick:
    - `TESTER_OPERATOR_TOKEN_HASHES_JSON`: the hash entry from step 1.
    - `ALLOWED_TARGET_URLS`: each system base URL exactly as the operator will send it.
    - `TARGET_AUTH_MAP_JSON`: the userA, userB, reviewer and test-admin tokens each system team
-     provided privately.
+     provided privately. For Phase 5, also `reviewer-ungranted` and `test-admin-2` when the system
+     team provides them (see Phase 5 below).
 3. Keep the file private (`chmod 600`), and never commit it. `deploy/*.env` is gitignored
    and excluded from the Docker build context.
 
@@ -109,7 +113,7 @@ Fill in Team 12's row in the instructor endpoint registry:
 | Field | Value |
 | --- | --- |
 | Tester base URL | `https://<host>/tester` (no `/test` suffix) |
-| Access / run notes | How to request an operator token (never the token itself); time limits: tester setup 45 s, tester run up to 1,830 s (Phase 4; 630 s with the Phase 3 profile), system setup 30 s |
+| Access / run notes | How to request an operator token (never the token itself); time limits: tester setup 45 s, tester run up to 2,430 s (Phase 5; callers and proxies need a read timeout of at least 2,430 s), system setup 30 s |
 
 ## Operating notes
 
@@ -122,6 +126,22 @@ Fill in Team 12's row in the instructor endpoint registry:
   up to five extra system sessions (fault, failed-audit, wrong-namespace and two cleanup-case
   sessions); they are listed in the run record as `fault_session_ids` and sent as
   `cleanup_session_ids` on the next setup.
+- **Phase 5:** set `MANIFEST_PATH=tester/fixtures/manifest_phase5.json`,
+  `POD_PROFILE_PATH=tester/fixtures/pod_profile_phase5.json`,
+  `EXPECTATIONS_PATH=tester/fixtures/expectations_phase5.json`, `TESTER_TEAM_ID=team12`,
+  `TARGET_TEAMS_JSON` (the team of every URL in `ALLOWED_TARGET_URLS`, same exact strings) and
+  `DESIGN_MAP_PATH=tester/fixtures/design_map_team12.json`. Before the first Phase 5 run:
+  - raise every proxy, tunnel and caller read timeout to at least 2,430 s (above);
+  - check the deployment protection for the target system covers a 2,400 s run plus setup and
+    coverage retrieval (spec §12: Team 9 uses a renewable 1,900 s lease; an expiring lease must
+    never delete a session or interrupt a protected run);
+  - add `reviewer-ungranted` and `test-admin-2` tokens for each target once its team provides
+    them;
+  - expect many extra system sessions: every Phase 5 case that moves the clock or arms a fault
+    prepares its own namespace (79 per run against the conforming stand-in, measured 2026-11-17).
+    They are queued for cleanup once the run is stored, and each later setup sends at most 100 of
+    them as `cleanup_session_ids` (Team 12's system refuses more), so a backlog drains over a few
+    setups.
 - **Pod profile or manifest changes:** each setup reads `tester/fixtures/pod_profile.json` and
   the manifest fresh, so new sessions pick up edits without affecting existing ones. With
   Docker, the files are baked into the image, so rebuild it (or mount overrides via

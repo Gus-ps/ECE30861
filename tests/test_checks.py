@@ -88,6 +88,77 @@ def test_a_target_that_accepts_everything_fails_every_rejection(make_client, fak
     assert at_limit["outcome"] == "fail" and "was accepted (202), but: Expected 200" in at_limit["message"]
 
 
+##  ---- A wrongly accepted negative request is drained, not replayed (spec 3.0.0 §18) ----
+
+def test_a_wrongly_accepted_rejection_keeps_its_failure_and_its_job_is_drained(make_client, fake, tmp_path):
+    accepted = {"workbookId": "wb-csv", "versionId": "ver-csv", "auditId": "audit-csv", "status": "PROCESSING"}
+    polls = []
+
+    def reply(request):
+        if request.method == "POST" and b'filename="totals.csv"' in request.content:
+            return 202, accepted
+        if request.method == "GET" and request.url.path.endswith("/audits/audit-csv"):
+            polls.append(1)
+            return 200, {**accepted, "status": "PROCESSING" if len(polls) < 3 else "AUDIT_COMPLETE"}
+        return None
+    fake.project_reply = reply
+    by_id, _ = results(make_client(checks=only("upload_csv", "upload_xls"), settings=make_settings(tmp_path, FAST_POLL)))
+    assert by_id["P3-INPUT-CSV"]["outcome"] == "fail" and "accepting the upload" in by_id["P3-INPUT-CSV"]["message"]
+    assert by_id["P3-INPUT-XLS"]["outcome"] == "pass"
+    sequence = [(m, p) for m, p, *_ in fake.requests if "/api/v1/" in p]
+    csv_post = next(i for i, (m, p) in enumerate(sequence) if m == "POST")
+    next_post = next(i for i, (m, p) in enumerate(sequence) if m == "POST" and i > csv_post)
+    assert [p.rsplit("/", 1)[-1] for m, p in sequence[csv_post + 1:next_post]] == ["audit-csv"] * 3
+    assert len(uploads(fake)) == 2                  # the rejected upload is never re-sent
+
+
+class DrainContext:
+    ##  The slice of CaseContext the drain uses, recording its GETs.
+    def __init__(self, replies):
+        self.replies, self.paths = list(replies), []
+        self.profile = type("P", (), {"timing": type("T", (), {"remediation_poll_seconds": 1, "audit_poll_seconds": 1})})
+
+    def call(self, method, path, **kwargs):
+        assert method == "GET" and kwargs["role"] == "userA"
+        self.paths.append(path)
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    def poll(self, fetch, finished, budget=None):
+        while True:
+            value = fetch()
+            if finished(value):
+                return value, True
+
+
+class Reply:
+    def __init__(self, status, body):
+        self.status, self.body = status, body
+
+    def json(self):
+        return self.body
+
+
+def test_drain_follows_reaudits_and_remediations_and_ignores_rejections_and_transport_errors():
+    from tester.suite.checks import _drain_accepted
+    from tester.target import CommunicationError
+    reaudit = Reply(202, {"auditId": "a2", "versionId": "v1", "rulesetVersion": "2.0.0", "status": "PROCESSING"})
+    ctx = DrainContext([Reply(200, {"status": "PROCESSING"}), Reply(200, {"status": "AUDIT_COMPLETE"})])
+    _drain_accepted(ctx, reaudit, workbook_id="w1")            # a ReauditResponse names no workbook
+    assert ctx.paths == ["/api/v1/workbooks/w1/versions/v1/audits/a2"] * 2
+    ctx = DrainContext([Reply(200, {"status": "REMEDIATING"}), Reply(200, {"status": "REMEDIATED"})])
+    _drain_accepted(ctx, Reply(202, {"remediationId": "r1", "status": "REMEDIATING"}))
+    assert ctx.paths == ["/api/v1/remediations/r1"] * 2
+    ctx = DrainContext([])
+    _drain_accepted(ctx, Reply(403, {"code": "FORBIDDEN"}))    # a rejection names no job to drain
+    assert ctx.paths == []
+    ctx = DrainContext([CommunicationError("GET timed out")])
+    _drain_accepted(ctx, Reply(202, {"remediationId": "r1"}))  # swallowed: the case keeps its own outcome
+    assert ctx.paths == ["/api/v1/remediations/r1"]
+
+
 ##  ---- Boundary uploads wait for their audits (Team 9 feedback, 2026-11-01) ----
 
 BOUNDARY = ["at-limit.xlsx", "worksheets-at.xlsx", "cells-at.xlsx"]
@@ -120,14 +191,21 @@ def test_a_boundary_audit_still_processing_at_the_deadline_fails_the_case(make_c
     assert len(uploads(fake)) == 1          # never re-uploaded
 
 
-def test_a_failed_boundary_audit_fails_the_case_without_a_retry(make_client, fake, tmp_path):
+@pytest.mark.parametrize("rule, outcome", [("fail", "fail"), ("error", "error")])
+def test_a_failed_boundary_audit_is_reported_by_the_profile_rule_without_a_retry(make_client, fake, tmp_path, rule,
+                                                                                  outcome):
+    ##  Through Phase 4 an unexpected PROCESSING_FAILED is fail; from Phase 5 error/source system.
     mutate_audits(fake, lambda b: b.update(status="PROCESSING_FAILED", findings=[], error={
         "code": "AUDIT_FAILED", "message": "No.", "requestId": "r1", "details": {}}))
-    settings = make_settings(tmp_path, FAST_POLL)
+    profile = json.loads((FIXTURES / "pod_profile.json").read_text(encoding="utf-8"))
+    profile["timing"]["poll_interval_seconds"] = 0.01
+    profile["unexpected_processing_failure"] = rule
+    (tmp_path / "profile.json").write_text(json.dumps(profile), encoding="utf-8")
+    settings = make_settings(tmp_path, pod_profile_path=tmp_path / "profile.json")
     result = results(make_client(checks=only("upload_worksheets_at"), settings=settings))[0]["P3-INPUT-SHEETS-AT"]
-    assert result == {"test_id": "P3-INPUT-SHEETS-AT", "outcome": "fail", "message":
-                      "A workbook with 50 worksheets was accepted (202), but its audit ended PROCESSING_FAILED "
-                      "(AUDIT_FAILED)."}
+    assert result["outcome"] == outcome and result.get("source") == ("system" if rule == "error" else None)
+    assert result["message"] == ("A workbook with 50 worksheets was accepted (202), but its audit ended "
+                                 "PROCESSING_FAILED (AUDIT_FAILED), so it could not be evaluated.")
     assert len(uploads(fake)) == 1 and len(audit_reads(fake)) == 1
 
 
@@ -351,7 +429,7 @@ def test_audit_still_processing_at_the_poll_budget_fails_without_coverage(make_c
     (lambda b: b.update(limitations=["Something was skipped."]), "expected no limitations; received 1"),
     (lambda b: b.update(status="PROCESSING_FAILED", findings=[],
                         error={"code": "AUDIT_FAILED", "message": "No.", "requestId": "r1", "details": {}}),
-     "processing failed (AUDIT_FAILED), expected REVIEW_REQUIRED"),
+     "ended PROCESSING_FAILED (AUDIT_FAILED), so it could not be evaluated"),
     (lambda b: b.update(trace="x"), "does not match AuditResponse (trace: Extra inputs"),
     (lambda b: b["findings"][0].update(message=""), "does not match AuditResponse (findings.0.message"),
     (lambda b: b["findings"][0].update(category="ALT_TEXT"), "does not match AuditResponse (findings.0.category"),

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from ..models import CoverageMeasure, SuiteReport
 from ..target import CommunicationError, Deadline, DeadlineExceeded, ResponseTooLarge
-from .plan import PlanError, fixture_bytes, manifest_of, profile_of
+from .plan import PlanError, fixture_bytes, manifest_of, model_coverage, profile_of
 from .transfer import upload_files
 
 NOT_RETRIEVED = {"covered": None, "total": None,
@@ -51,6 +51,8 @@ class CaseContext:
         self.manifest = run.manifest
         self.profile = run.profile
         self.state = run.state
+        self.target_url = run.target_url
+        self.provenance = run.plan.get("provenance") or {}     # tester/target revisions, for disclosures
         self.provided = False
 
     def mark(self, components=None, acceptance=None):
@@ -64,6 +66,8 @@ class CaseContext:
             raise ValueError(f"{self.case.test_id} does not declare {', '.join(sorted(undeclared))}")
         self._run.components.update(components)
         self._run.acceptance.update(acceptance)
+        if self.case.test_id not in self._run.marked:
+            self._run.marked.append(self.case.test_id)
         for catalog, ids in (("components", components), ("acceptance", acceptance)):
             for item in ids:
                 cases = self._run.evidence[catalog].setdefault(item, [])
@@ -97,7 +101,13 @@ class CaseContext:
         ##  session=False omits the header; a string sends that session ID instead of this one.
         timing = self.profile.timing
         if budget is None:
-            budget = timing.upload_seconds if method == "POST" else timing.get_seconds
+            ##  Phase 5 bounds (spec 3.0.0 §12): schedule PUT and clock advance, and owner DELETE.
+            if method == "PUT" or path == "/api/v1/test/clock":
+                budget = timing.control_seconds or timing.get_seconds
+            elif method == "DELETE":
+                budget = timing.delete_seconds or timing.get_seconds
+            else:
+                budget = timing.upload_seconds if method == "POST" else timing.get_seconds
         send_session = session and (path != "/api/v1/health" or self.profile.session_transport.send_on_health)
         session_id = (session if isinstance(session, str) else self.session_id) if send_session else None
         return self.target.request(method, path, budget=budget, deadline=self.deadline, role=role,
@@ -155,6 +165,8 @@ class SuiteRun:
         self.acceptance = set()
         ##  catalog item -> test IDs whose qualifying assertion earned it, in run order
         self.evidence = {"components": {}, "acceptance": {}}
+        ##  test IDs whose qualifying assertion executed (pass or fail), in run order: model coverage
+        self.marked = []
         self.code = None
         self.fault_sessions = []
         self.abort_reason = None
@@ -162,7 +174,7 @@ class SuiteRun:
     def progress(self):
         return {"results": self.results, "components": sorted(self.components),
                 "acceptance": sorted(self.acceptance), "evidence": self.evidence, "code": self.code,
-                "fault_sessions": self.fault_sessions}
+                "fault_sessions": self.fault_sessions, "marked": self.marked}
 
     def execute(self):
         provided = set()
@@ -244,6 +256,9 @@ def build_report(session_id, target_url, plan, progress, interrupted_reason=None
                        "basis": catalogs.system_basis},
         },
     }
+    model = model_coverage(plan.get("run_profile"), (progress or {}).get("marked"))
+    if model is not None:
+        report["coverage"]["model"] = model
     SuiteReport.model_validate(report)
     if [r["test_id"] for r in results] != [case.test_id for case in manifest.tests]:
         raise ValueError("report results do not cover every planned test exactly once, in order")

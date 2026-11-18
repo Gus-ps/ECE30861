@@ -11,10 +11,10 @@
         }
         reverse_proxy 127.0.0.1:8001 {
             transport http {
-                # A run waits for the whole suite: up to 1,800 s (Phase 4 budget) plus the
-                # tester's 30 s guard, so 1,830 s; 30 s more of headroom.
-                read_timeout 1860s
-                write_timeout 1860s
+                # A run waits for the whole suite: up to 2,400 s (Phase 5 budget) plus the
+                # tester's 30 s guard, so 2,430 s (spec 3.0.0 §12 minimum); 30 s more of headroom.
+                read_timeout 2460s
+                write_timeout 2460s
             }
         }
     }

@@ -97,6 +97,9 @@ class Phase4Routes:
         intake = self._intake(headers.get("content-type", ""), body)
         if isinstance(intake[0], int):
             return intake
+        failed = self._storage_fault(session)
+        if failed:
+            return failed
         version = self._store_version(workbook_id, subject, session, *intake)
         audit_id = self._new_audit(version, session)
         return 202, {"workbookId": workbook_id, "versionId": version["versionId"], "auditId": audit_id,
@@ -145,6 +148,10 @@ class Phase4Routes:
             return _error(404, "NOT_FOUND", "No such remediation.")
         if not self._readable(subject, record["owner"]):
             return _error(403, "FORBIDDEN", "This remediation belongs to another user.")
+        if record.get("polls_left", 0) > 0:          # held running for remediation_polls reads
+            record["polls_left"] -= 1
+            return 200, {**record["response"], "status": "REMEDIATING", "outputVersionId": None, "outputId": None,
+                         "auditId": None, "error": None}
         return 200, record["response"]
 
     def output(self, subject, output_id, session=None, **_):
@@ -283,6 +290,17 @@ class Phase4Routes:
 
     def _accept(self, subject, version, request, session):
         from .fake_project import now
+        from .fake_phase5 import injected
+        if self._take_fault(session, "remediation_failures"):
+            ##  Spec 3.0.0 §11: fails after source verification, before editing; nothing is published.
+            remediation_id = f"rem-{uuid.uuid4().hex[:10]}"
+            self.remediations[remediation_id] = {
+                "remediationId": remediation_id, "owner": version["owner"], "session": session, "outputId": None,
+                "auditId": None, "report_decisions": [], "created": now(),
+                "response": {"remediationId": remediation_id, "status": "PROCESSING_FAILED",
+                             "sourceVersionId": version["versionId"], "outputVersionId": None, "outputId": None,
+                             "auditId": None, "error": injected("remediation")}}
+            return {"remediationId": remediation_id, "sourceVersionId": version["versionId"], "status": "REMEDIATING"}
         audit = self.audits[request["auditId"]]
         findings = {f["findingId"]: f for f in audit["result"]["findings"]}
         decisions = request["decisions"]
@@ -314,6 +332,7 @@ class Phase4Routes:
         self.remediations[remediation_id] = {
             "remediationId": remediation_id, "owner": version["owner"], "session": session, "outputId": output_id,
             "auditId": out_audit, "report_decisions": report_decisions, "created": now(),
+            "polls_left": self.remediation_polls,
             "response": {"remediationId": remediation_id, "status": "REMEDIATED", "sourceVersionId": version["versionId"],
                          "outputVersionId": out_version["versionId"], "outputId": output_id, "auditId": out_audit,
                          "error": None}}

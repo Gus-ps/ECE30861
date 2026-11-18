@@ -1,0 +1,5 @@
+# Workbooks are raw bytes: their SHA256 is part of every fixture expectation, so git must never
+# convert line endings in them (core.autocrlf would alter text-like files such as corrupt.xlsx).
+*.xlsx binary
+*.xlsm binary
+*.xls binary

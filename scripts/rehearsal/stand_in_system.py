@@ -16,7 +16,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tests.fake_project import USERS, FakeProject  # noqa: E402
+from tests.fake_phase5 import validate_setup  # noqa: E402
+from tests.fake_project import ADMINS, USERS, FakeProject  # noqa: E402
 
 ADMIN_TOKEN = "tok-admin"
 state = {"sessions": set(), "log": [], "setup_delay": 0, "duplicate_delay": 0, "report_delay": 0,
@@ -29,9 +30,10 @@ system = FastAPI()
 
 @control.post("/control")
 async def set_control(request: Request):
-    ##  Also accepts "ruleset" ("2.0.0" for the Phase 4 rehearsal) and "processing_polls".
+    ##  Also accepts "ruleset" ("2.0.0" for Phases 4 and 5), "processing_polls", "phase5" (session
+    ##  clocks and the Phase 5 routes) and "specification" (report specificationVersion).
     body = await request.json()
-    for key in ("ruleset", "processing_polls"):
+    for key in ("ruleset", "processing_polls", "phase5", "specification"):
         if key in body:
             setattr(project, key, body.pop(key))
     state.update(body)
@@ -58,7 +60,7 @@ def record(request, body):
 
 
 def unauthorized(request):
-    return request.headers.get("authorization") != f"Bearer {ADMIN_TOKEN}"
+    return (request.headers.get("authorization") or "").removeprefix("Bearer ") not in ADMINS
 
 
 @system.post("/test/setup")
@@ -76,22 +78,16 @@ async def setup(request: Request):
         status, reply = state["setup_reply"]
         return JSONResponse(reply, status)
     setup_body = body.get("setup", {})
-    if set(setup_body) - {"cleanup_session_ids", "faults"}:
-        return refuse(400, "Unknown setup keys.")
-    faults = setup_body.get("faults")
-    if "faults" in setup_body:
-        count = faults.get("audit_failures") if isinstance(faults, dict) else None
-        if set(faults or {}) != {"audit_failures"} or type(count) is not int or count != 1:
-            return refuse(400, 'faults must be exactly {"audit_failures": 1}.')
+    refused = validate_setup(setup_body, clock_switch=project.phase5)
+    if refused:
+        return refuse(*refused)
     session_id = body.get("session_id")
     if session_id in state["sessions"]:
         await asyncio.sleep(state["duplicate_delay"])
         return refuse(409, "Session already exists.")
     await asyncio.sleep(state["setup_delay"])
-    project.cleanup(setup_body.get("cleanup_session_ids", []))
-    state["sessions"].add(session_id)
-    if faults:
-        project.armed.add(session_id)
+    admin = ADMINS[(request.headers.get("authorization") or "").removeprefix("Bearer ")]
+    project.prepare(session_id, setup_body, admin)
     return JSONResponse({"session_id": session_id}, 201)
 
 
@@ -107,7 +103,7 @@ async def report(request: Request, session_id: str):
             "coverage": {"code": {"covered": 40, "total": 50, "basis": "Stand-in system: fixed test constant"}}}
 
 
-@system.api_route("/api/v1/{rest:path}", methods=["GET", "POST"])
+@system.api_route("/api/v1/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def project_api(request: Request, rest: str):
     record(request, None)
     status, reply, *headers = project.handle(request.method, f"/api/v1/{rest}", dict(request.headers),

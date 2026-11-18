@@ -22,6 +22,7 @@ and runs Team 9's 53-case Phase 3 manifest against an approved target system.
 | `tester/fixtures/manifest.json` | Copy of Team 9 suite manifest 1.4.0 |
 | `tester/fixtures/pod_profile.json` | Pod-pending defaults (Team 9 values, not pod-approved) |
 | `tester/fixtures/pod_profile_phase4.json` | Phase 4 bounds and coverage catalogs from spec 2.1.0; needs a Phase 4 manifest (`POD_PROFILE_PATH`) |
+| `tester/fixtures/pod_profile_phase5.json` | Phase 5 bounds (2,400 s suite) and C1-C12 / AC-01 to AC-18 catalogs from spec 3.0.0; needs a Phase 5 manifest |
 | `tester/wcag/` | WCAG 2.1 workbook checker, kept for Phase 4 remediation checks |
 | `ref/` | Instructor spec and Team 9 contract documents |
 | `deploy/` | Host-agnostic deployment files and runbook (`deploy/README.md`) |
@@ -47,8 +48,8 @@ uvicorn processes on 127.0.0.1, and `rehearse.py` drives the instructor interfac
 uv run python scripts/rehearsal/rehearse.py
 ```
 
-It needs free ports 8100–8102 (nothing may listen on 8199), takes about two minutes, prints
-one PASS/FAIL line per check and exits 0 when all 32 pass. Logs and the happy-path report
+It needs free ports 8100–8103 (nothing may listen on 8199), takes about three minutes, prints
+one PASS/FAIL line per check and exits 0 when all 34 pass. Logs and the happy-path report
 are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
 
 | Scenario | Checks |
@@ -59,6 +60,7 @@ are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
 | D. Base path | `--root-path /tester` works when the proxy strips `/tester`; an unstripped path is 404 |
 | E. Crash | tester killed mid-run; after restart the report is aborted with the interrupted case as error/tester |
 | F. Phase 4 | a second tester runs the draft Phase 4 manifest (215 cases) against the stand-in at ruleset 2.0.0: all 215 pass, and the next setup queues the run's 5 extra sessions for cleanup |
+| G. Phase 5 | a third tester, configured as Team 12 against its own (stand-in) system with the Phase 5 pack and both optional access tokens, runs the draft Phase 5 manifest (357 cases) with Phase 5 switched on in the stand-in: 344 pass and 13 skip (the 6 unbuilt tester self-checks, 3 cases no HTTP request can produce, and 4 busy cases the stand-in finishes too fast for), and the report carries `coverage.model` over the 38-requirement design map |
 
 Deployment note from scenario D: the reverse proxy must strip `/tester` before
 forwarding (nginx: `location /tester/ { proxy_pass http://127.0.0.1:8001/; }`) and
@@ -131,6 +133,56 @@ does that. No Phase 4 fixture has been reviewed by Team 9. Every accepted Phase 
 repairs as expected, and Team 9's `form_controls`, which Excel repairs because of a namespace
 defect in Team 9's file (reported to them; see the pack README). Correction outputs have not
 been opened yet.
+
+### Phase 5 (in progress)
+
+The Phase 5 context pack 3.0.0 is in `ref/Phase5_Agent_Context_Pack/` (byte-for-byte; its own
+`validate_pack.py` fails only its last check on Windows, a path-separator bug in the script).
+`scripts/build_phase5_manifest.py` generates `tester/fixtures/manifest_phase5.json`
+(`3.0.0-team12-draft`): all 357 hosted cases in plan order. The 215 inherited cases keep the
+Phase 4 draft's checks. 136 of the 142 new ones are built in `tester/suite/checks_phase5.py`:
+clock (10), schedule (29), reminders (24), deletion (9), faults (16), access (42) and
+performance (6). Each case that moves time or arms a fault prepares its own fresh namespace;
+expected times come from the tester's own UTC arithmetic and the plan's frozen vectors; access
+cases take their expected status from the plan's inputs. The 6 hosted tester self-checks map to
+`phase5_pending` and skip until Team 9 says how a hosted case should judge the run's own report.
+
+Cases that skip with a stated reason:
+- `P5-CLOCK-NOT-READY`: no request can hold a namespace not ready.
+- `P5-DELETE-RETAIN-TESTER`: tester reports are not on the target.
+- `P5-FAULT-REJECT-DISABLED`: needs a deployment with faults switched off.
+- The four busy cases, when the target finishes its work before the clock call or DELETE.
+- The five access cases needing `reviewer-ungranted` or `test-admin-2`, when that token is not
+  configured.
+
+A setup sends at most 100 queued cleanup IDs; the rest wait. Run it with
+`MANIFEST_PATH=tester/fixtures/manifest_phase5.json POD_PROFILE_PATH=tester/fixtures/pod_profile_phase5.json
+EXPECTATIONS_PATH=tester/fixtures/expectations_phase5.json`. Against the conforming fake, every
+built case passes except those skips, and 14 deliberately broken fakes each fail exactly the
+case for their rule (`tests/test_phase5_suite.py`).
+
+The Phase 5 pack, `tester/fixtures/expectations_phase5.json`, is built by
+`scripts/build_phase5_fixtures.py`. It holds the Phase 4 pack's entries unchanged (files under
+`phase4/`) plus `phase5/performance_250000_cells.xlsx`: exactly 250,000 nonempty cells in one
+table, with expected status AUDIT_COMPLETE and no findings. That expectation is hand-authored and
+not yet reviewed or opened in Excel. `scripts/build_phase5_review_bundle.py` writes Team 9's
+add-on review bundle. The 57 local and 21 manual plan entries are mapped to owners and evidence in
+`docs/phase5-local-and-manual.md`. Team 12's draft adoption values and open shared decisions are
+in `docs/phase5-adoption-team12.md`. Phase 5 rules already applied: a new report must say
+`specificationVersion` 3.0.0 (the run's manifest decides), an unexpected PROCESSING_FAILED is
+error/source system under the Phase 5 profile (fail under earlier ones), and any wrongly
+accepted negative request's job is drained by bounded GETs (all phases). The remaining work
+plan is in the shared doc's "Phase 5 tester plan".
+
+Report profiles (spec 3.0.0 §14): under the Phase 5 profile each setup classifies the target as
+own- or cross-team from `TESTER_TEAM_ID` and `TARGET_TEAMS_JSON` (exact base URLs; never from the
+request) and freezes that with the session. An own-team run also freezes Team 12's design map
+(`DESIGN_MAP_PATH`, draft `tester/fixtures/design_map_team12.json`: REQ-01 to REQ-15 plus the 23
+state-machine transitions of the Phase 2 specification) and reports `coverage.model`: a requirement
+counts once when one of its mapped tests executed its qualifying assertion. A cross-team report has
+no `model` key; Phase 3 and 4 reports never do. A missing or invalid map, or an unconfigured team,
+fails setup with 500/tester. The run record keeps the profile, map version and hash, and which
+executed tests earned each requirement.
 
 Team 12's fixture pack in `tester/fixtures/shared/` covers every fixture the Phase 3
 manifest names and loads with `EXPECTATIONS_PATH=tester/fixtures/shared/expectations.json`.

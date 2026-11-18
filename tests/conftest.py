@@ -10,12 +10,15 @@ from fastapi.testclient import TestClient
 from tester.config import FIXTURES, Settings
 from tester.main import create_app
 
-from .fake_project import FakeProject
+from .fake_phase5 import validate_setup
+from .fake_project import ADMINS, FakeProject
 
 TARGET = "https://team12.example.edu/system"
 OPERATOR = "operator-token"
 OTHER_OPERATOR = "other-operator-token"
 TOKENS = {"userA": "tok-a", "userB": "tok-b", "reviewer": "tok-r", "test-admin": "tok-admin"}
+##  The optional Phase 5 access roles: a reviewer without a grant and a non-creating test-admin.
+PHASE5_TOKENS = {**TOKENS, "reviewer-ungranted": "tok-r2", "test-admin-2": "tok-admin-2"}
 
 
 def sha(token):
@@ -68,30 +71,22 @@ class FakeSystem:
         return httpx.Response(404, json={"code": "NOT_FOUND", "message": "No route.", "requestId": "r1", "details": {}})
 
     def system_setup(self, authorization, body):
-        ##  Credentials, then the setup shape (§14: cleanup_session_ids and faults only), then the session.
+        ##  Credentials, then the setup shape (cleanup_session_ids, faults, and the Phase 5 clock),
+        ##  then the session. Validation and preparation are shared with the rehearsal stand-in.
         def refuse(status, message):
             return httpx.Response(status, json={"message": message, "source": "system"})
         token = authorization.removeprefix("Bearer ")
-        if token != TOKENS["test-admin"]:
+        if token not in ADMINS:
             return refuse(403, "Only test-admin may prepare sessions.") if token in TOKENS.values() \
                 else refuse(401, "A valid test-admin token is required.")
         setup = body.get("setup", {})
-        if set(setup) - {"cleanup_session_ids", "faults"}:
-            return refuse(400, "Unknown setup keys.")
-        faults = setup.get("faults")
-        if "faults" in setup:
-            count = faults.get("audit_failures") if isinstance(faults, dict) else None
-            if set(faults or {}) != {"audit_failures"} or type(count) is not int or count != 1:
-                return refuse(400, "faults must be exactly {\"audit_failures\": 1}.")
-            if not self.fault_switch:
-                return refuse(403, "The test fault switch is disabled on this deployment.")
+        refused = validate_setup(setup, fault_switch=self.fault_switch, clock_switch=self.project.phase5)
+        if refused:
+            return refuse(*refused)
         session_id = body["session_id"]
         if session_id in self.sessions:
             return refuse(409, "Session exists.")
-        self.project.cleanup(setup.get("cleanup_session_ids", []))
-        self.sessions.add(session_id)
-        if faults:
-            self.project.armed.add(session_id)
+        self.project.prepare(session_id, setup, ADMINS[token])
         return httpx.Response(201, json={"session_id": "other-id" if self.echo_other_id else session_id})
 
     def setups(self):

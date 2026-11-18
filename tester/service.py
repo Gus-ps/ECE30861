@@ -11,13 +11,14 @@ from .errors import TesterError
 from .models import SetupResponse, TestEndpointError
 from .store import ENDED, Store, now
 from .suite.checks import CHECKS
-from .suite.plan import PlanError, load_plan, profile_of
+from .suite.plan import PlanError, load_design_map, load_plan, manifest_of, profile_of
 from .suite.record import build_record
 from .suite.runner import SuiteRun, build_report
 from .target import CommunicationError, Deadline, DeadlineExceeded, ResponseTooLarge, TargetClient
 
 log = logging.getLogger("tester")
 RESTART_REASON = "the tester restarted while the suite was running"
+MAX_CLEANUP_IDS = 100
 
 
 class TesterService:
@@ -32,6 +33,20 @@ class TesterService:
 
     def _load_plan(self):
         return load_plan(self.settings.manifest_path, self.settings.pod_profile_path, self.settings.expectations_path)
+
+    def _run_profile(self, target_url, profile, manifest):
+        ##  Own- or cross-team report profile, from trusted exact configuration only (spec 3.0.0 §14),
+        ##  frozen with the session. An own-team run also freezes the team design map.
+        if not profile.model_coverage:
+            return {"kind": None}
+        tester_team = self.settings.tester_team_id
+        if not tester_team:
+            raise PlanError("this suite reports own- or cross-team coverage, but TESTER_TEAM_ID is not set")
+        target_team = self.settings.target_teams_json[target_url]
+        if target_team != tester_team:
+            return {"kind": "cross", "tester_team": tester_team, "target_team": target_team}
+        return {"kind": "own", "tester_team": tester_team, "target_team": target_team,
+                "design": load_design_map(self.settings.design_map_path, manifest)}
 
     def _client(self, target_url, plan):
         return TargetClient(target_url, self.settings.target_auth_map_json[target_url],
@@ -83,10 +98,17 @@ class TesterService:
         plan["provenance"] = {"tester_revision": self.settings.tester_revision,
                               "target_revision": self.settings.target_revisions_json.get(target_url)}
         profile = profile_of(plan)
+        try:
+            plan["run_profile"] = self._run_profile(target_url, profile, manifest_of(plan))
+        except PlanError as error:
+            raise TesterError(500, f"The tester cannot prepare this run: {error}.")
         session_id = str(uuid.uuid4())
         self.store.create(session_id, subject, target_url, plan)
 
-        cleanup_ids = self.store.pending_cleanup(target_url) if profile.cleanup.send_failed_setup_ids else []
+        ##  At most MAX_CLEANUP_IDS per setup (Team 12's system refuses more than 100); the rest stay
+        ##  queued and go with later setups. Only the IDs actually sent are cleared on success.
+        cleanup_ids = (self.store.pending_cleanup(target_url)[:MAX_CLEANUP_IDS]
+                       if profile.cleanup.send_failed_setup_ids else [])
         setup_body = {"cleanup_session_ids": cleanup_ids} if cleanup_ids else {}
         client = self._client(target_url, plan)
         try:

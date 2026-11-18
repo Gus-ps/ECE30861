@@ -1,0 +1,235 @@
+{
+  "teamId": "team12",
+  "designVersion": "1.0.0",
+  "mappingUrl": "https://github.com/Gus-ps/ECE30861/blob/Logan-tester-phase5/tester/fixtures/design_map_team12.json",
+  "requirements": [
+    {
+      "requirementId": "REQ-01",
+      "description": "Supported workbook intake: an authenticated upload of a valid .xlsx within 25,000,000 bytes, 50 worksheets and 250,000 nonempty cells is accepted and gets an audit record.",
+      "testIds": ["P3-UPLOAD-CLEAN", "P3-INPUT-BYTES-AT", "P3-INPUT-SHEETS-AT", "P3-INPUT-SHEETS-CHARTSHEET", "P3-INPUT-CELLS-AT", "P4-CLEAN-ALL-SIX"],
+      "qualifyingAssertion": "A valid workbook at or below each limit returns 202 with a strict UploadResponse naming its workbook, version and audit."
+    },
+    {
+      "requirementId": "REQ-02",
+      "description": "Invalid or unsupported input (.xls, .xlsm, CSV, missing extension, protected, encrypted, corrupted, over-limit or unsafe packages) is rejected without starting an audit, with the reason explained.",
+      "testIds": ["P3-INPUT-CSV", "P3-INPUT-XLS", "P3-INPUT-XLSM", "P3-INPUT-MISSING-EXTENSION", "P3-INPUT-CORRUPT", "P3-INPUT-PROTECTED", "P3-INPUT-BYTES-OVER", "P3-INPUT-SHEETS-OVER", "P3-INPUT-CELLS-OVER", "P3-INPUT-ENCRYPTED-ZIP", "P3-INPUT-PROTECTED-SHEET", "P3-INPUT-PROTECTED-STRUCTURE", "P3-INPUT-ZIP-TRAVERSAL", "P3-INPUT-ZIP-DUPLICATE", "P3-INPUT-XML-DTD", "P3-INPUT-MACRO-PARTS"],
+      "qualifyingAssertion": "Each unsupported input returns its exact rejection status with a ProjectError body and no accepted identifiers."
+    },
+    {
+      "requirementId": "REQ-03",
+      "description": "Original workbook protection: the uploaded source is read-only and never modified, overwritten or published.",
+      "testIds": ["P3-SOURCE-HASH", "P4-SOURCE-BEFORE", "P4-SOURCE-AFTER"],
+      "qualifyingAssertion": "The source download is byte-identical (same SHA256) before and after auditing and remediation."
+    },
+    {
+      "requirementId": "REQ-04",
+      "description": "Accessibility evaluation: every accepted workbook gets the six common checks (alternative text, table headers, merged cells, worksheet names, hyperlink text, color and contrast).",
+      "testIds": ["P3-AUDIT-CLEAN", "P3-AUDIT-SEEDED", "P4-AUDIT-ALL-SIX", "P4-CLEAN-ALL-SIX"],
+      "qualifyingAssertion": "A finished audit reports exactly the independently expected findings for all six rules, and none for the clean fixture."
+    },
+    {
+      "requirementId": "REQ-05",
+      "description": "Actionable findings: each finding names its worksheet and target, explains the barrier, recommends a response and is classified.",
+      "testIds": ["P3-AUDIT-SEEDED", "P4-AUDIT-ALL-SIX", "P4-REVIEW-CONTEXT"],
+      "qualifyingAssertion": "Each finding validates against the Finding schema with its worksheet, canonical target, classification, nonblank message and recommendation."
+    },
+    {
+      "requirementId": "REQ-06",
+      "description": "Human judgment: meaning-dependent issues request user input or manual review; the system never generates the missing meaning.",
+      "testIds": ["P4-MANUAL-ONLY-STATUS", "P4-REVIEW-CONTEXT", "P4-REJECT-MANUAL-APPLY"],
+      "qualifyingAssertion": "Meaning-dependent findings are REQUIRES_USER_INPUT or MANUAL_REVIEW, and an APPLY to a manual-only finding is refused with 422 UNSUPPORTED_CORRECTION."
+    },
+    {
+      "requirementId": "REQ-07",
+      "description": "User-authorized remediation: supported corrections (alternative text, worksheet name, hyperlink text, confirmed header row) are applied only after the user approves them.",
+      "testIds": ["P4-APPLY-ALT", "P4-APPLY-RENAME", "P4-APPLY-LINK", "P4-APPLY-HEADER-RANGE", "P4-APPLY-HEADER-TABLE", "P4-DECISIONS-MIXED"],
+      "qualifyingAssertion": "Each approved correction appears in the output exactly as approved, and declined or omitted findings are left unchanged."
+    },
+    {
+      "requirementId": "REQ-08",
+      "description": "Separate remediated output: a successful remediation produces a new downloadable .xlsx version while the source stays a separate, unchanged version.",
+      "testIds": ["P4-OUTPUT-HASH", "P4-SOURCE-AFTER", "P4-HISTORY"],
+      "qualifyingAssertion": "The output downloads with its declared SHA256 as a new version whose source version is unchanged."
+    },
+    {
+      "requirementId": "REQ-09",
+      "description": "Workbook preservation: everything not selected for remediation is preserved, and the output opens in Excel without a repair warning.",
+      "testIds": ["P4-PRESERVATION", "P4-APPLY-COMBINED"],
+      "qualifyingAssertion": "The independent comparator finds no difference between source and output beyond the approved changes. The Excel no-repair check is manual evidence outside the hosted run."
+    },
+    {
+      "requirementId": "REQ-10",
+      "description": "Audit report: each audit or remediation provides a report with version, date, ruleset, checks performed, findings, approved changes, unresolved and manual items, and limitations.",
+      "testIds": ["P4-REPORT-COMPLETE", "P4-REPORT-STABLE", "P4-REPORT-FORMAT"],
+      "qualifyingAssertion": "The downloaded report validates as AuditReport with the run's specification version and matches its audit, and repeated downloads are identical."
+    },
+    {
+      "requirementId": "REQ-11",
+      "description": "Version and status tracking: each upload, remediation and re-audit creates a uniquely identified version or audit, keeps earlier audit records and carries a defined status.",
+      "testIds": ["P3-VERSION-VALID", "P4-VERSION-NEW", "P4-REAUDIT", "P4-HISTORY", "P4-REMEDIATED-STATUS"],
+      "qualifyingAssertion": "Version and history reads show distinct identifiers, defined statuses and unchanged earlier audits."
+    },
+    {
+      "requirementId": "REQ-12",
+      "description": "Periodic audits (1 to 90 day interval) and deadline reminders 90, 30 and 7 days before a set deadline for workbooks with unresolved findings or no completed audit.",
+      "testIds": ["P5-SCHEDULE-MIN", "P5-SCHEDULE-MAX", "P5-SCHEDULE-EXACT-DUE", "P5-SCHEDULE-COALESCE", "P5-REMINDER-90", "P5-REMINDER-30", "P5-REMINDER-7", "P5-REMINDER-CLEAN"],
+      "qualifyingAssertion": "Advancing the isolated clock produces exactly the scheduled audits and reminder records the frozen calendar vectors predict, and none for a clean workbook."
+    },
+    {
+      "requirementId": "REQ-13",
+      "description": "Controlled failure handling: failed uploads, audits, remediations, reports and scheduled audits preserve the source, record the failure, explain it and present nothing partial as complete.",
+      "testIds": ["P3-AUDIT-FAILURE-ENVELOPE", "P4-FAULT-RECOVERY", "P5-FAULT-AUDIT", "P5-FAULT-REMEDIATION", "P5-FAULT-REPORT", "P5-FAULT-STORAGE", "P5-FAULT-SCHEDULED_AUDIT"],
+      "qualifyingAssertion": "Each injected failure yields its exact controlled error, an unchanged source and no successful partial output or report."
+    },
+    {
+      "requirementId": "REQ-14",
+      "description": "Access control and data protection: authentication required, no access to others' workbooks or reports, HTTPS, no plaintext passwords, and owner deletion of stored files and outputs.",
+      "testIds": ["P3-AUTH-UPLOAD", "P3-VERSION-FOREIGN", "P3-AUDIT-FOREIGN", "P4-ACCESS-OUTPUT-FOREIGN", "P4-ACCESS-REPORT-FOREIGN", "P5-ACCESS-DELETE-FOREIGN-OWNER", "P5-ACCESS-SCHEDULE-READ-UNGRANTED-REVIEWER", "P5-DELETE-COMPLETE"],
+      "qualifyingAssertion": "Unauthenticated, foreign and ungranted requests are refused with no side effect, and an owner deletion removes every stored artifact. HTTPS and password storage are deployment evidence outside the hosted run."
+    },
+    {
+      "requirementId": "REQ-15",
+      "description": "Accessibility, performance and repeatability: an accessible interface, an audit of a boundary workbook within 60 seconds or a controlled failure, and identical findings on repeated audits.",
+      "testIds": ["P5-PERFORMANCE-RUN-1", "P5-PERFORMANCE-RUN-2", "P5-PERFORMANCE-RUN-3", "P5-PERFORMANCE-RUN-4", "P5-PERFORMANCE-RUN-5", "P5-PERFORMANCE-COMPARE", "P3-DETERMINISM", "P4-REAUDIT-DETERMINISM"],
+      "qualifyingAssertion": "Each timed boundary audit finishes within 60 seconds or fails in a controlled way, and successful repeated audits have identical findings. The interface accessibility part is browser and manual evidence outside the hosted run."
+    },
+    {
+      "requirementId": "M1-T1",
+      "description": "Intake and audit model: Awaiting Upload to Processing on an authenticated upload.",
+      "testIds": ["P3-UPLOAD-CLEAN", "P3-AUTH-UPLOAD", "P3-AUTH-UPLOAD-INVALID"],
+      "qualifyingAssertion": "An authenticated upload is accepted as PROCESSING, and uploads without valid authentication are refused with 401."
+    },
+    {
+      "requirementId": "M1-T2",
+      "description": "Intake and audit model: Processing to Auditing for a valid .xlsx.",
+      "testIds": ["P3-AUDIT-CLEAN", "P3-AUDIT-SEEDED"],
+      "qualifyingAssertion": "A valid workbook's audit leaves PROCESSING and reaches a terminal audit status."
+    },
+    {
+      "requirementId": "M1-T3",
+      "description": "Intake and audit model: Processing to Rejected for invalid or unsupported input, creating no workbook or audit record.",
+      "testIds": ["P3-INPUT-CORRUPT", "P3-INPUT-CSV", "P3-INPUT-XLSM"],
+      "qualifyingAssertion": "The rejection carries no accepted identifiers, so no workbook or audit exists."
+    },
+    {
+      "requirementId": "M1-T4",
+      "description": "Intake and audit model: Auditing to Audit Complete when there are no findings.",
+      "testIds": ["P3-AUDIT-CLEAN", "P4-CLEAN-ALL-SIX"],
+      "qualifyingAssertion": "The clean fixture's audit ends AUDIT_COMPLETE with no findings."
+    },
+    {
+      "requirementId": "M1-T5",
+      "description": "Intake and audit model: Auditing to Review Required when human judgment is needed.",
+      "testIds": ["P4-MANUAL-ONLY-STATUS"],
+      "qualifyingAssertion": "A workbook with only manual-review findings ends REVIEW_REQUIRED."
+    },
+    {
+      "requirementId": "M1-T6",
+      "description": "Intake and audit model: Auditing to Remediation Available when a supported correction is found.",
+      "testIds": ["P4-AUDIT-ALL-SIX"],
+      "qualifyingAssertion": "A workbook with supported corrections ends REMEDIATION_AVAILABLE with REQUIRES_USER_INPUT findings."
+    },
+    {
+      "requirementId": "M1-T7",
+      "description": "Intake and audit model: Auditing to Processing Failed on a timeout or error, preserving the uploaded source.",
+      "testIds": ["P3-AUDIT-FAILURE-ENVELOPE", "P5-FAULT-AUDIT"],
+      "qualifyingAssertion": "An injected audit failure ends PROCESSING_FAILED with the controlled error and the source unchanged."
+    },
+    {
+      "requirementId": "M2-T1",
+      "description": "Review and remediation model: Review Required to Remediation Available when the user supplies meaning.",
+      "testIds": ["P4-APPLY-ALT", "P4-DECISIONS-MIXED"],
+      "qualifyingAssertion": "A decision supplying the user's value for a REQUIRES_USER_INPUT finding is accepted for remediation."
+    },
+    {
+      "requirementId": "M2-T2",
+      "description": "Review and remediation model: Remediation Available back to Review Required when a correction is declined.",
+      "testIds": ["P4-DECISIONS-MIXED", "P4-APPLY-NO-EDITS"],
+      "qualifyingAssertion": "Declined findings remain unresolved in the result and its report, and no edit is made for them."
+    },
+    {
+      "requirementId": "M2-T3",
+      "description": "Review and remediation model: Review Required stays in review when input is not supplied.",
+      "testIds": ["P4-REJECT-VALUE-MISSING", "P4-REJECT-EMPTY"],
+      "qualifyingAssertion": "A decision without the required value is refused and the workbook state and history are unchanged."
+    },
+    {
+      "requirementId": "M2-T4",
+      "description": "Review and remediation model: Remediation Available to Remediating when the user approves changes.",
+      "testIds": ["P4-APPLY-COMBINED", "P4-IDEMPOTENCY-REPLAY"],
+      "qualifyingAssertion": "Approved decisions are accepted with 202 RemediationAccepted and the remediation reads REMEDIATING until it finishes."
+    },
+    {
+      "requirementId": "M2-T5",
+      "description": "Review and remediation model: Remediating to Remediated when checks pass.",
+      "testIds": ["P4-REMEDIATED-STATUS", "P4-OUTPUT-AUDIT", "P4-PRESERVATION"],
+      "qualifyingAssertion": "The remediation ends REMEDIATED with a published, preserved output whose re-audit no longer reports the corrected findings."
+    },
+    {
+      "requirementId": "M2-T6",
+      "description": "Review and remediation model: Remediating to Processing Failed when generation or preservation fails; no partial output is downloadable.",
+      "testIds": ["P5-FAULT-REMEDIATION"],
+      "qualifyingAssertion": "An injected remediation failure publishes no output version, audit or report, and the source is unchanged."
+    },
+    {
+      "requirementId": "M3-T1",
+      "description": "Version, schedule and reminder model: Stored Version to Audit Scheduled when a 1 to 90 day schedule is enabled.",
+      "testIds": ["P5-SCHEDULE-MIN", "P5-SCHEDULE-MAX", "P5-SCHEDULE-REJECT-ZERO", "P5-SCHEDULE-REJECT-OVER"],
+      "qualifyingAssertion": "Intervals 1 and 90 are accepted with the exact next due time; 0 and 91 are refused with 400 and change nothing."
+    },
+    {
+      "requirementId": "M3-T2",
+      "description": "Version, schedule and reminder model: Audit Scheduled to Scheduled Audit Processing when the scheduled date arrives.",
+      "testIds": ["P5-SCHEDULE-EXACT-DUE", "P5-SCHEDULE-COALESCE"],
+      "qualifyingAssertion": "Advancing the clock to the due time accepts exactly one scheduled audit of the stored version."
+    },
+    {
+      "requirementId": "M3-T3",
+      "description": "Version, schedule and reminder model: a successful scheduled audit saves a new audit record and returns to Audit Scheduled.",
+      "testIds": ["P5-SCHEDULE-EXACT-DUE", "P5-SCHEDULE-SAME-TIME"],
+      "qualifyingAssertion": "The scheduled audit completes as a new audit record, the next due time stays on the original grid, and replaying the clock adds nothing."
+    },
+    {
+      "requirementId": "M3-T4",
+      "description": "Version, schedule and reminder model: a failed scheduled audit is logged and the schedule is retained.",
+      "testIds": ["P5-SCHEDULE-FAILED-NEXT", "P5-FAULT-SCHEDULED_AUDIT"],
+      "qualifyingAssertion": "An injected scheduled-audit failure is recorded as PROCESSING_FAILED with the source unchanged, and the next interval runs normally."
+    },
+    {
+      "requirementId": "M3-T5",
+      "description": "Version, schedule and reminder model: Audit Scheduled stays scheduled while not due.",
+      "testIds": ["P5-SCHEDULE-BEFORE-DUE"],
+      "qualifyingAssertion": "Advancing to just before the due time accepts no scheduled audit."
+    },
+    {
+      "requirementId": "M3-T6",
+      "description": "Version, schedule and reminder model: Audit Scheduled to Notification Pending when a reminder date arrives.",
+      "testIds": ["P5-REMINDER-90", "P5-REMINDER-30", "P5-REMINDER-7"],
+      "qualifyingAssertion": "Each threshold crossing creates exactly one reminder record for an eligible workbook."
+    },
+    {
+      "requirementId": "M3-T7",
+      "description": "Version, schedule and reminder model: Notification Pending back to Audit Scheduled once the delivery result is recorded; delivery failures do not change audit status.",
+      "testIds": ["P5-REMINDER-90", "P5-REMINDER-FAILED-RECORD", "P5-FAULT-NOTIFICATION"],
+      "qualifyingAssertion": "The reminder records its delivery result (DELIVERED or FAILED) and the workbook's audit status is unchanged."
+    },
+    {
+      "requirementId": "M3-T8",
+      "description": "Version, schedule and reminder model: Audit Scheduled to New Version Processing when a changed workbook is uploaded.",
+      "testIds": ["P4-VERSION-NEW", "P5-SCHEDULE-LATEST-UPLOAD"],
+      "qualifyingAssertion": "Uploading a changed workbook creates a new version, and the schedule then follows it without postponing the due time."
+    },
+    {
+      "requirementId": "M3-T9",
+      "description": "Version, schedule and reminder model: New Version Processing creates a new version that continues in the intake and audit model.",
+      "testIds": ["P4-VERSION-NEW", "P4-HISTORY"],
+      "qualifyingAssertion": "The new version gets its own audit through the intake flow and appears in history after the earlier versions."
+    },
+    {
+      "requirementId": "M3-T10",
+      "description": "Version, schedule and reminder model: an authorized delete from any stored state reaches Deleted.",
+      "testIds": ["P5-DELETE-COMPLETE", "P5-DELETE-OLD-URLS", "P5-DELETE-CANCEL-FUTURE"],
+      "qualifyingAssertion": "Owner deletion returns 204, every old URL returns 404, and no later audit or reminder runs for the workbook."
+    }
+  ]
+}

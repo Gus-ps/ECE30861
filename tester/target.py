@@ -66,11 +66,19 @@ class TargetClient:
     def close(self):
         self._client.close()
 
+    def has_role(self, role):
+        return role in self._tokens
+
     def request(self, method, path, *, budget, deadline, role=None, session_id=None, bearer=None,
-                json_body=None, params=None, files=None, data=None, binary=False, idempotency_key=None):
+                json_body=None, params=None, files=None, data=None, binary=False, idempotency_key=None,
+                raw_json=None):
         ##  binary=True marks a workbook or report download, capped separately from JSON.
         ##  bearer sends that literal token instead of a role's (negative authentication cases).
+        ##  raw_json sends exact JSON bytes (e.g. 7.0 or a duplicate key) that json_body would normalize.
         headers = {}
+        if raw_json is not None:
+            headers["Content-Type"] = "application/json"
+            data = raw_json
         if bearer is not None:
             headers["Authorization"] = f"Bearer {bearer}"
         elif role is not None:
@@ -131,8 +139,10 @@ class TargetClient:
         return outcome["response"]
 
     def _send(self, method, path, timeout, limit, headers, json_body, params, files, data):
+        raw = data if isinstance(data, bytes) else None       # exact bytes go as content, not form data
         with self._client.stream(method, self.base_url + path, headers=headers, timeout=timeout,
-                                 json=json_body, params=params, files=files, data=data) as response:
+                                 json=json_body, params=params, files=files, data=None if raw is not None else data,
+                                 content=raw) as response:
             body = bytearray()
             for chunk in response.iter_bytes():
                 body += chunk
