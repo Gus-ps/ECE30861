@@ -147,7 +147,7 @@ class Runner:
     def report(self, version, audit, provenance=None):
         provenance = provenance or {}
         body = version['body']
-        return dict(reportVersion='2.0.0', specificationVersion='2.1.0',
+        return dict(reportVersion='2.0.0', specificationVersion='3.0.0',
                     workbookId=body['workbookId'], versionId=body['versionId'], auditId=audit['auditId'],
                     fileName=body['fileName'], sha256=body['sha256'], sourceVersionId=body['sourceVersionId'],
                     auditDate=audit['completedAt'], rulesetVersion=audit['rulesetVersion'], status=audit['status'],

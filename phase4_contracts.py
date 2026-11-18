@@ -87,7 +87,7 @@ class ReportDecision(Contract):
 
 class AuditReport(Contract):
     reportVersion: Literal['2.0.0']
-    specificationVersion: Literal['2.1.0']
+    specificationVersion: Literal['2.1.0', '3.0.0']
     workbookId: Identifier
     versionId: Identifier
     auditId: Identifier

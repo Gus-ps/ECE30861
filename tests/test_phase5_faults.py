@@ -1,3 +1,5 @@
+"""Phase 5 report compatibility and REQ-13 / AC-14 fault coverage."""
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -7,6 +9,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app import create_app
+from phase4_store import encode
 from test_phase4_service import workbook
 import test_phase5_dispatch as dispatch_tests
 import test_phase5_scheduler as scheduler_tests
@@ -223,6 +226,46 @@ class ScheduledAuditFaultTests(unittest.TestCase):
         self.scheduled_acceptance(dispatch_tests.DUE)
         self.assertEqual(setup({'scheduled_audit_failures': 1}).status_code, 409)
         self.assertEqual(self.counter(), 0)
+
+
+class ReportVersionTests(unittest.TestCase):
+    setUp = dispatch_tests.DispatchTests.setUp
+    upload = dispatch_tests.DispatchTests.upload
+
+    def test_new_report_snapshot_matches_phase5_wire_shape(self):
+        ids, version = self.upload(OWNER)
+        url = f"{version}/audits/{ids['auditId']}/report"
+        response = self.client.get(url, headers=OWNER)
+        self.assertEqual(response.status_code, 200, response.text)
+        report = response.json()
+        self.assertEqual(set(report), {
+            'reportVersion', 'specificationVersion', 'workbookId', 'versionId', 'auditId',
+            'fileName', 'sha256', 'sourceVersionId', 'auditDate', 'rulesetVersion', 'status',
+            'checksPerformed', 'findings', 'decisions', 'approvedChanges', 'unresolvedFindings',
+            'manualReviewItems', 'limitations', 'remediationId', 'outputVersionId', 'outputId', 'error',
+        })
+        self.assertEqual((report['reportVersion'], report['specificationVersion']), ('2.0.0', '3.0.0'))
+        self.assertEqual(report['checksPerformed'],
+                         ['ALT_TEXT', 'WORKSHEET_NAME', 'TABLE_HEADER', 'MERGED_CELLS', 'LINK_TEXT', 'COLOR_CONTRAST'])
+        self.assertEqual(self.client.get(url, headers=OWNER).content, response.content)
+
+    def test_report_download_keeps_the_saved_phase4_snapshot_bytes(self):
+        ids, version = self.upload(OWNER)
+        store = self.app.state.store
+        with store.connect(write=True) as db:
+            row = db.execute("SELECT id,payload FROM p4_resources WHERE kind='report' AND version_id=?",
+                             (ids['versionId'],)).fetchone()
+            payload = json.loads(row['payload'])
+            payload['snapshot']['specificationVersion'] = '2.1.0'
+            original = encode(payload['snapshot']).encode('utf-8')
+            store.update(db, row['id'], payload)
+        url = f"{version}/audits/{ids['auditId']}/report"
+        for _ in range(2):
+            response = self.client.get(url, headers=OWNER)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.content, original)
+        with store.connect() as db:
+            self.assertEqual(store.get(db, row['id'])['body'], payload)
 
 
 if __name__ == '__main__':
