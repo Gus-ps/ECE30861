@@ -48,17 +48,14 @@ def test_inherited_cases_keep_the_phase4_mapping_and_new_ones_are_pending():
     assert len(inherited) == 215 and len(new) == 142
     assert all({k: c[k] for k in keys} == {k: phase4[c["test_id"]][k] for k in keys} for c in inherited)
     assert all(c["test_id"].startswith("P5-") for c in new)
-    ##  Built families map to their check with the rest of the ID as the case plus the plan's own
-    ##  inputs; only the tester self-checks are still pending.
+    ##  Every family is built: each maps to its check with the rest of the ID as the case plus the
+    ##  plan's own inputs.
     plan = {c["test_id"]: c for c in json.loads(PLAN.read_text(encoding="utf-8"))["tests"]}
     for case in new:
         group = case["test_id"].split("-")[1]
-        if group == "TESTER":
-            assert case["check"] == "phase5_pending" and case["parameters"]["family"] == group
-        else:
-            assert case["check"] == f"phase5_{group.lower()}"
-            assert case["parameters"] == {"case": case["test_id"].removeprefix(f"P5-{group}-"),
-                                          **plan[case["test_id"]]["inputs"]}
+        assert case["check"] == f"phase5_{group.lower()}"
+        assert case["parameters"] == {"case": case["test_id"].removeprefix(f"P5-{group}-"),
+                                      **plan[case["test_id"]]["inputs"]}
 
 
 def test_the_draft_design_map_lists_every_requirement_and_only_real_hosted_cases():
@@ -122,27 +119,29 @@ def full_run(client):
     return {r["test_id"]: r for r in body["results"]}, body
 
 
-##  Built cases that skip against the default stand-in. Never producible over HTTP: a namespace
-##  held not ready, a finalized tester report on the target, and a disabled fault switch on a
-##  deployment that enables faults. Timing-dependent: the default stand-in finishes audits and
-##  remediations before a clock call or DELETE can see them (held running, they pass; see below).
-NEVER_PRODUCIBLE = {"P5-CLOCK-NOT-READY", "P5-DELETE-RETAIN-TESTER", "P5-FAULT-REJECT-DISABLED"}
+##  Built cases that skip against the default stand-in. Never producible over HTTP (local
+##  evidence, agreed with Team 9): a namespace held not ready, and a disabled fault switch on a
+##  deployment that enables faults. RETAIN-TESTER needs an earlier finalized report in this
+##  tester's store, so it skips on a fresh store's first run. Timing-dependent: the default
+##  stand-in finishes audits and remediations before a clock call or DELETE can see them (held
+##  running, they pass; see below). An own-team run skips CROSS-OMIT.
+NEVER_PRODUCIBLE = {"P5-CLOCK-NOT-READY", "P5-FAULT-REJECT-DISABLED"}
+FIRST_RUN = {"P5-DELETE-RETAIN-TESTER"}
 BUSY = {"P5-SCHEDULE-BUSY-AUDIT", "P5-SCHEDULE-BUSY-REMEDIATION", "P5-DELETE-ACTIVE-AUDIT",
         "P5-DELETE-ACTIVE-REMEDIATION"}
-EXPECTED_SKIPS = NEVER_PRODUCIBLE | BUSY
+OWN_TEAM = {"P5-TESTER-CROSS-OMIT"}
+EXPECTED_SKIPS = NEVER_PRODUCIBLE | FIRST_RUN | BUSY | OWN_TEAM
 
 
 def test_inherited_and_built_cases_pass_and_pending_ones_skip_against_a_conforming_target(phase5_client):
     by_id, body = full_run(phase5_client)
     pending = {c["test_id"] for c in manifest()["tests"] if c["check"] == "phase5_pending"}
-    assert len(by_id) == 357
+    assert len(by_id) == 357 and pending == set()
     failing = {t: r["message"] for t, r in by_id.items()
-               if t not in pending | EXPECTED_SKIPS and r["outcome"] != "pass"}
+               if t not in EXPECTED_SKIPS and r["outcome"] != "pass"}
     assert failing == {}, json.dumps(failing, indent=1)[:4000]
-    assert {by_id[t]["outcome"] for t in pending | EXPECTED_SKIPS} == {"skip"}
-    assert by_id["P5-TESTER-SELF-MODEL"]["message"] == \
-        "Not executed: the tester self-check checks for Phase 5 are not built in this tester yet."
-    assert len(pending) == 6
+    assert {by_id[t]["outcome"] for t in EXPECTED_SKIPS} == {"skip"}
+    assert "no earlier finalized report" in by_id["P5-DELETE-RETAIN-TESTER"]["message"]
     coverage = body["coverage"]
     assert (coverage["component"]["total"], coverage["system"]["total"]) == (12, 18)
     ##  Skips earn nothing: exactly the components and criteria declared by executed cases count.
@@ -202,6 +201,12 @@ def test_a_cross_team_report_omits_the_model_key_entirely(tmp_path, conforming, 
     assert b'"model"' not in raw and "model" not in json.loads(raw)["coverage"]
     record = client.app.state.service.store.get(session_id).record
     assert record["report_profile"]["kind"] == "cross" and "design_map" not in record
+    ##  The hosted self-checks swap: CROSS-OMIT runs, SELF-MODEL skips.
+    results = {r["test_id"]: r for r in json.loads(raw)["results"]}
+    assert results["P5-TESTER-CROSS-OMIT"]["outcome"] == "pass"
+    assert results["P5-TESTER-SELF-MODEL"]["outcome"] == "skip"
+    for test_id in ("P5-TESTER-SYSTEM-18", "P5-TESTER-COMPONENT-12", "P5-TESTER-CODE-COPY", "P5-TESTER-STORED-BYTES"):
+        assert results[test_id]["outcome"] == "pass", results[test_id]
 
 
 def test_earlier_profiles_never_report_model_coverage(tmp_path, conforming, make_client):
@@ -265,7 +270,7 @@ def test_busy_work_is_refused_when_held_running(tmp_path, conforming, make_clien
     by_id = built_run(make_client, tmp_path)
     for test_id in BUSY:
         assert by_id[test_id]["outcome"] == "pass", by_id[test_id]
-    assert {t for t, r in by_id.items() if r["outcome"] != "pass"} == NEVER_PRODUCIBLE
+    assert {t for t, r in by_id.items() if r["outcome"] != "pass"} == NEVER_PRODUCIBLE | FIRST_RUN
 
 
 def test_a_disabled_fault_switch_passes_the_disabled_case(tmp_path, conforming, make_client):
@@ -284,6 +289,60 @@ def test_access_cases_needing_an_unconfigured_role_skip_and_say_which(tmp_path, 
         assert by_id[test_id]["outcome"] == "skip" and "TARGET_AUTH_MAP_JSON" in by_id[test_id]["message"]
     others = {t for t, r in by_id.items() if t.startswith("P5-ACCESS") and t not in needing}
     assert {by_id[t]["outcome"] for t in others} == {"pass"}
+
+
+def test_access_rejections_must_carry_the_section_12_code(tmp_path, conforming, make_client):
+    ##  Status alone is not enough (as Team 9's tester checks): a 403 labelled NOT_FOUND fails.
+    original = conforming.project.schedule_get
+
+    def mislabelled(*args, **kwargs):
+        status, body = original(*args, **kwargs)
+        return status, ({**body, "code": "NOT_FOUND"} if status == 403 else body)
+    conforming.project.schedule_get = mislabelled
+    result = built_run(make_client, tmp_path)["P5-ACCESS-SCHEDULE-READ-FOREIGN-OWNER"]
+    assert result["outcome"] == "fail" and "code NOT_FOUND, expected FORBIDDEN" in result["message"], result
+
+
+def test_retain_tester_compares_earlier_finalized_reports_across_a_deletion(tmp_path, conforming, make_client):
+    from tester.suite.checks import CHECKS
+    checks = {name: check for name, check in CHECKS.items() if name == "phase5_delete"}
+    client = make_client(checks=checks, settings=phase5_settings(tmp_path))
+    first, _ = full_run(client)
+    assert first["P5-DELETE-RETAIN-TESTER"]["outcome"] == "skip"
+    second, _ = full_run(client)
+    assert second["P5-DELETE-RETAIN-TESTER"]["outcome"] == "pass", second["P5-DELETE-RETAIN-TESTER"]
+    assert "All 1 earlier finalized tester reports" in second["P5-DELETE-RETAIN-TESTER"]["message"]
+    ##  A deletion that reaches into the tester's own store is caught.
+    store = client.app.state.service.store
+    original = conforming.project._forget_workbook
+
+    def reaching(workbook_id):
+        original(workbook_id)
+        store._write("UPDATE sessions SET report = ? WHERE state = 'COMPLETE'", (workbook_id.encode(),))
+    conforming.project._forget_workbook = reaching
+    third, _ = full_run(client)
+    assert third["P5-DELETE-RETAIN-TESTER"]["outcome"] == "fail"
+    assert "earlier finalized report(s) changed" in third["P5-DELETE-RETAIN-TESTER"]["message"]
+
+
+def test_the_self_checks_judge_a_provisional_report_from_the_same_builder(tmp_path, conforming, make_client):
+    ##  Breaking the builder's coverage (a C9 credit, a dropped code copy) fails exactly those cases.
+    from tester.suite import runner
+    original = runner.build_report
+
+    def generous(session_id, target_url, plan, progress, interrupted_reason=None):
+        progress = {**(progress or {}), "components": sorted(set((progress or {}).get("components", [])) | {"C9"}),
+                    "code": None}
+        return original(session_id, target_url, plan, progress, interrupted_reason)
+    runner.build_report = generous
+    try:
+        by_id, _ = full_run(make_client(settings=phase5_settings(tmp_path)))
+    finally:
+        runner.build_report = original
+    assert by_id["P5-TESTER-COMPONENT-12"]["outcome"] == "fail"
+    assert "component covered" in by_id["P5-TESTER-COMPONENT-12"]["message"]
+    assert by_id["P5-TESTER-CODE-COPY"]["outcome"] == "fail" and "differs" in by_id["P5-TESTER-CODE-COPY"]["message"]
+    assert by_id["P5-TESTER-SELF-MODEL"]["outcome"] == "pass"
 
 
 def test_unknown_role_names_are_refused_at_startup(tmp_path):

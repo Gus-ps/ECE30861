@@ -193,7 +193,8 @@ class TesterService:
         client = self._client(row.target_url, row.plan)
         suite = SuiteRun(row.session_id, row.target_url, row.plan, client, self.checks,
                          Deadline(profile.timing.suite_seconds),
-                         lambda progress: self.store.save_progress(row.session_id, progress))
+                         lambda progress: self.store.save_progress(row.session_id, progress),
+                         self.store.finalized_report_hashes)
         try:
             aborted = suite.execute()
             reason = suite.abort_reason

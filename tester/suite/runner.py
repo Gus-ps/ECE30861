@@ -96,6 +96,28 @@ class CaseContext:
     def record_code_coverage(self, measure):
         self._run.code = CoverageMeasure.model_validate(measure).model_dump()
 
+    @property
+    def run_profile(self):
+        return self._run.plan.get("run_profile") or {}
+
+    def provisional_report(self):
+        ##  The report bytes the run would finalize with now, built by the same build_report:
+        ##  recorded results, then this case and every later one as provisional skips. The
+        ##  self-checks judge the report's profile and coverage from it (agreed with Team 9).
+        run = self._run
+        pending = [{"test_id": case.test_id, "outcome": "skip",
+                    "message": "Provisional: not yet executed when this report was built."}
+                   for case in run.manifest.tests[len(run.results):]]
+        progress = {**run.progress(), "results": run.results + pending}
+        return build_report(run.session_id, run.target_url, run.plan, progress)
+
+    def acceptance_evidence(self):
+        return {"components": set(self._run.components), "acceptance": set(self._run.acceptance)}
+
+    def finalized_reports(self):
+        ##  {session_id: SHA256 of its stored report} for every finalized run in this tester's store.
+        return dict(self._run.finalized_reports())
+
     def call(self, method, path, *, role, budget=None, session=True, **kwargs):
         ##  A project API call: user role token plus the session header (per pod profile).
         ##  session=False omits the header; a string sends that session ID instead of this one.
@@ -149,8 +171,9 @@ class CaseContext:
 
 
 class SuiteRun:
-    def __init__(self, session_id, target_url, plan, target, checks, deadline, on_progress):
+    def __init__(self, session_id, target_url, plan, target, checks, deadline, on_progress, finalized_reports=None):
         self.session_id = session_id
+        self.finalized_reports = finalized_reports or dict
         self.target_url = target_url
         self.plan = plan
         self.manifest = manifest_of(plan)

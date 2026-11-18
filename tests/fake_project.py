@@ -132,7 +132,7 @@ class FakeProject(Phase4Routes, Phase5Routes):
         if token in ADMINS:
             return error(403, "FORBIDDEN", "A test-admin token cannot call business routes.")
         if token not in USERS:
-            return error(401, "UNAUTHENTICATED", "A valid bearer token is required.")
+            return error(401, "UNAUTHORIZED", "A valid bearer token is required.")
         session = headers.get("x-test-session")
         if session not in self.sessions:
             return error(400, "UNKNOWN_TEST_SESSION", "Unknown test session.")

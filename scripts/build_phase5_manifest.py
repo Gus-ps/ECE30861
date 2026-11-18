@@ -36,7 +36,7 @@ def family(test_id):
 
 BUILT = {"CLOCK": "phase5_clock", "SCHEDULE": "phase5_schedule", "REMINDER": "phase5_reminder",
          "DELETE": "phase5_delete", "FAULT": "phase5_fault", "ACCESS": "phase5_access",
-         "PERFORMANCE": "phase5_performance"}
+         "PERFORMANCE": "phase5_performance", "TESTER": "phase5_tester"}
 
 
 def p5(case):
@@ -80,7 +80,7 @@ def build():
     return {"manifest_version": VERSION, "ruleset_version": plan["ruleset_version"],
             "specification_version": plan["specification_version"],
             "note": "Team 12 draft generated from the shared Phase 5 test plan (pack 3.0.0). Inherited cases keep "
-                    "the Phase 4 draft's checks; new cases map to phase5_pending until built. Local and manual "
+                    "the Phase 4 draft's checks; every new family maps to its Phase 5 check. Local and manual "
                     "cases are evidence tasks outside this manifest.",
             "components": plan["components"], "acceptance": acceptance(plan, baseline), "tests": tests}
 

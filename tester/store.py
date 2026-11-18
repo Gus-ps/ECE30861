@@ -4,6 +4,7 @@ States: PREPARING -> READY -> RUNNING -> COMPLETE | ABORTED, or PREPARING -> SET
 One tester process owns a store file.
 """
 
+import hashlib
 import json
 import sqlite3
 import threading
@@ -112,6 +113,11 @@ class Store:
 
     def sessions_in(self, state):
         return [self._session(row) for row in self._rows(f"SELECT {COLUMNS} FROM sessions WHERE state = ?", (state,))]
+
+    def finalized_report_hashes(self):
+        ##  {session_id: SHA256 of the stored report bytes} for every finalized run.
+        rows = self._rows("SELECT session_id, report FROM sessions WHERE state IN (?, ?) AND report IS NOT NULL", ENDED)
+        return {session_id: hashlib.sha256(report).hexdigest() for session_id, report in rows}
 
     def mark_ready(self, session_id):
         return self._write("UPDATE sessions SET state = 'READY' WHERE session_id = ? AND state = 'PREPARING'",

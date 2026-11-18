@@ -140,20 +140,26 @@ The Phase 5 context pack 3.0.0 is in `ref/Phase5_Agent_Context_Pack/` (byte-for-
 `validate_pack.py` fails only its last check on Windows, a path-separator bug in the script).
 `scripts/build_phase5_manifest.py` generates `tester/fixtures/manifest_phase5.json`
 (`3.0.0-team12-draft`): all 357 hosted cases in plan order. The 215 inherited cases keep the
-Phase 4 draft's checks. 136 of the 142 new ones are built in `tester/suite/checks_phase5.py`:
-clock (10), schedule (29), reminders (24), deletion (9), faults (16), access (42) and
-performance (6). Each case that moves time or arms a fault prepares its own fresh namespace;
-expected times come from the tester's own UTC arithmetic and the plan's frozen vectors; access
-cases take their expected status from the plan's inputs. The 6 hosted tester self-checks map to
-`phase5_pending` and skip until Team 9 says how a hosted case should judge the run's own report.
+Phase 4 draft's checks. All 142 new ones are built in `tester/suite/checks_phase5.py`:
+clock (10), schedule (29), reminders (24), deletion (9), faults (16), access (42), performance
+(6) and the hosted tester self-checks (6). Each case that moves time or arms a fault prepares its
+own fresh namespace; expected times come from the tester's own UTC arithmetic and the plan's
+frozen vectors; access cases take their expected status from the plan's inputs and also require
+the §12 code (401 UNAUTHORIZED, 403 FORBIDDEN, 404 NOT_FOUND). As agreed with Team 9, the
+self-checks judge a provisional report built by the same `build_report` the run finalizes with;
+CODE-COPY reads the target's session report during the run and the report copies it exactly.
+The final-versus-stored byte comparison is checked outside the suite (the tests and rehearsal G).
 
 Cases that skip with a stated reason:
-- `P5-CLOCK-NOT-READY`: no request can hold a namespace not ready.
-- `P5-DELETE-RETAIN-TESTER`: tester reports are not on the target.
-- `P5-FAULT-REJECT-DISABLED`: needs a deployment with faults switched off.
+- `P5-CLOCK-NOT-READY` and `P5-FAULT-REJECT-DISABLED`: not producible over HTTP (no request can
+  hold a namespace not ready; faults are on for every other case). Agreed with Team 9 as local
+  evidence (P4-LOCAL-FAULT-DISABLED for the switch).
+- `P5-DELETE-RETAIN-TESTER`, when this tester's store holds no earlier finalized report. With one,
+  it hashes every finalized report before and after deleting a target workbook.
+- `P5-TESTER-SELF-MODEL` on a cross-team run and `P5-TESTER-CROSS-OMIT` on an own-team run.
 - The four busy cases, when the target finishes its work before the clock call or DELETE.
-- The five access cases needing `reviewer-ungranted` or `test-admin-2`, when that token is not
-  configured.
+- The five access cases needing `reviewer-ungranted` or `test-admin-2`, when the target team has not
+  provided that identity (Team 9 has asked that these skip, naming the missing identity).
 
 A setup sends at most 100 queued cleanup IDs; the rest wait. Run it with
 `MANIFEST_PATH=tester/fixtures/manifest_phase5.json POD_PROFILE_PATH=tester/fixtures/pod_profile_phase5.json
@@ -164,8 +170,9 @@ case for their rule (`tests/test_phase5_suite.py`).
 The Phase 5 pack, `tester/fixtures/expectations_phase5.json`, is built by
 `scripts/build_phase5_fixtures.py`. It holds the Phase 4 pack's entries unchanged (files under
 `phase4/`) plus `phase5/performance_250000_cells.xlsx`: exactly 250,000 nonempty cells in one
-table, with expected status AUDIT_COMPLETE and no findings. That expectation is hand-authored and
-not yet reviewed; it opened in Excel without a repair prompt on 2026-11-17. `scripts/build_phase5_review_bundle.py` writes Team 9's
+table, with expected status AUDIT_COMPLETE and no findings. That expectation is hand-authored; it
+opened in Excel without a repair prompt on 2026-11-17, and one Team 9 reviewer agreed with it on
+2026-11-17 (the two-reviewer form is still pending). `scripts/build_phase5_review_bundle.py` writes Team 9's
 add-on review bundle. The 57 local and 21 manual plan entries are mapped to owners and evidence in
 `docs/phase5-local-and-manual.md`. Team 12's draft adoption values and open shared decisions are
 in `docs/phase5-adoption-team12.md`. Phase 5 rules already applied: a new report must say

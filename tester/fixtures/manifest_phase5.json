@@ -2,7 +2,7 @@
   "manifest_version": "3.0.0-team12-draft",
   "ruleset_version": "2.0.0",
   "specification_version": "3.0.0",
-  "note": "Team 12 draft generated from the shared Phase 5 test plan (pack 3.0.0). Inherited cases keep the Phase 4 draft's checks; new cases map to phase5_pending until built. Local and manual cases are evidence tasks outside this manifest.",
+  "note": "Team 12 draft generated from the shared Phase 5 test plan (pack 3.0.0). Inherited cases keep the Phase 4 draft's checks; every new family maps to its Phase 5 check. Local and manual cases are evidence tasks outside this manifest.",
   "components": {
     "C1": "Authentication and access",
     "C2": "Intake and validation",
@@ -6786,7 +6786,7 @@
     },
     {
       "test_id": "P5-TESTER-SELF-MODEL",
-      "check": "phase5_pending",
+      "check": "phase5_tester",
       "description": "Own-team report requires model with real team design total and frozen design/mapping version.",
       "components": [
         "C6"
@@ -6795,12 +6795,12 @@
       "operations": [],
       "prerequisites": [],
       "parameters": {
-        "family": "TESTER"
+        "case": "SELF-MODEL"
       }
     },
     {
       "test_id": "P5-TESTER-CROSS-OMIT",
-      "check": "phase5_pending",
+      "check": "phase5_tester",
       "description": "Cross-team report contains no model key.",
       "components": [
         "C6"
@@ -6809,12 +6809,12 @@
       "operations": [],
       "prerequisites": [],
       "parameters": {
-        "family": "TESTER"
+        "case": "CROSS-OMIT"
       }
     },
     {
       "test_id": "P5-TESTER-SYSTEM-18",
-      "check": "phase5_pending",
+      "check": "phase5_tester",
       "description": "System denominator is18 shared ACs; each evaluated criterion counted once.",
       "components": [
         "C6"
@@ -6823,12 +6823,12 @@
       "operations": [],
       "prerequisites": [],
       "parameters": {
-        "family": "TESTER"
+        "case": "SYSTEM-18"
       }
     },
     {
       "test_id": "P5-TESTER-COMPONENT-12",
-      "check": "phase5_pending",
+      "check": "phase5_tester",
       "description": "Component denominator is12; HTTP-only run excludesC9.",
       "components": [
         "C6"
@@ -6837,12 +6837,12 @@
       "operations": [],
       "prerequisites": [],
       "parameters": {
-        "family": "TESTER"
+        "case": "COMPONENT-12"
       }
     },
     {
       "test_id": "P5-TESTER-CODE-COPY",
-      "check": "phase5_pending",
+      "check": "phase5_tester",
       "description": "Suite code measurement exactly copies target session report and declares scope.",
       "components": [
         "C6"
@@ -6851,12 +6851,12 @@
       "operations": [],
       "prerequisites": [],
       "parameters": {
-        "family": "TESTER"
+        "case": "CODE-COPY"
       }
     },
     {
       "test_id": "P5-TESTER-STORED-BYTES",
-      "check": "phase5_pending",
+      "check": "phase5_tester",
       "description": "GET report returns identical final bytes with conditional model profile retained.",
       "components": [
         "C6"
@@ -6865,7 +6865,7 @@
       "operations": [],
       "prerequisites": [],
       "parameters": {
-        "family": "TESTER"
+        "case": "STORED-BYTES"
       }
     },
     {

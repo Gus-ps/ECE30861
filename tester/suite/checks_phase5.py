@@ -1,6 +1,7 @@
 """Phase 5 check functions (shared specification 3.0.0), keyed by the manifest's `check` name.
 
-Built so far: the test clock (P5-CLOCK-*, §9) and schedules (P5-SCHEDULE-*, §6-§7). Each case
+Every family is built: clock, schedules, reminders, deletion, faults, access, performance and the
+hosted tester self-checks (judged on a provisional report, as agreed with Team 9). Each case
 that moves time prepares its own fresh namespace through ordinary system setup (§13), so one
 case's clock never shifts another's. Expected times come from the tester's own UTC arithmetic,
 never from the target; instants are compared parsed, since a timestamp may carry up to six
@@ -8,12 +9,14 @@ fractional digits. Cases whose family is not built yet map to phase5_pending and
 reason: spec §18 treats an unbuilt check as an explicit skip and an outstanding task.
 """
 
+import json
 import time
 from datetime import date, datetime, timedelta, timezone
 
 from pydantic import ValidationError
 
-from ..models import ClockResponse, NotificationResponse, ProjectError, ScheduleResponse, UploadResponse
+from ..models import (ClockResponse, NotificationResponse, ProjectError, ScheduleResponse, SuiteReport, SystemReport,
+                      UploadResponse)
 from .checks import (WORKBOOKS, _audit_path, _audit_problems, _fault_setup_call, _finished_audit,
                      _processing_failure, _refused_setup_problems, _schema_problem, _source_problems, _system_failure,
                      _verdict, _version_path)
@@ -1274,9 +1277,23 @@ def _delete_other_data(case, ctx):
 
 
 def _delete_retain_tester(case, ctx):
-    return CaseResult("skip", "Not executed: finalized tester reports live in this tester's own store, which no "
-                              "target request can reach, so a hosted check has nothing on the target to observe. "
-                              "Asked Team 9 how this case is meant to run.")
+    ##  As Team 9 runs it: hash every earlier finalized report in this tester's own store, delete a
+    ##  target workbook, and hash them again. With no earlier report there is nothing to verify.
+    before = ctx.finalized_reports()
+    if not before:
+        return CaseResult("skip", "Not executed: this tester's store holds no earlier finalized report, so a "
+                                  "workbook deletion has nothing tester-side to preserve.")
+    session = _namespace(ctx)
+    upload = _workbook(ctx, session, "preservation_rich")["upload"]
+    _workbook(ctx, session, "seeded_all_six")
+    problems = _deleted(ctx, upload, session)
+    ctx.mark()
+    after = ctx.finalized_reports()
+    changed = sorted(s for s, digest in before.items() if after.get(s) != digest)
+    if changed:
+        problems.append(f"{len(changed)} earlier finalized report(s) changed or vanished: {', '.join(changed[:3])}")
+    return _verdict("Tester reports retained", problems, f"All {len(before)} earlier finalized tester reports kept "
+                                                         f"identical bytes (SHA256) across the workbook deletion.")
 
 
 def _delete_active(ctx, kind, start, still_running, finish, key):
@@ -1636,14 +1653,17 @@ CLOCK_IDENTITIES = {"NO-TOKEN": {"role": None}, "INVALID-TOKEN": {"role": None, 
                     "OWNER-USER": {"role": "userA"}, "REVIEWER": {"role": "reviewer"},
                     "FOREIGN-ADMIN": {"role": "test-admin-2"}, "CREATING-ADMIN": {"role": "test-admin"}}
 ACCESS_BASELINE = {"enabled": False, "complianceDeadline": DEADLINE}
+##  Spec 3.0.0 §12: the new routes' ProjectError codes for each access rejection.
+ACCESS_CODES = {401: "UNAUTHORIZED", 403: "FORBIDDEN", 404: "NOT_FOUND"}
 
 
 def _identity(ctx, spec):
     ##  ctx.call keyword arguments for an identity, or a skip when its optional token is absent.
     role = spec["role"]
     if role is not None and not ctx.target.has_role(role):
-        raise Stop(CaseResult("skip", f"Not executed: no {role} token is configured for this target "
-                                      f"(TARGET_AUTH_MAP_JSON), so this identity cannot be presented."))
+        raise Stop(CaseResult("skip", f"Not executed: missing identity. The target team has not provided a "
+                                      f"{role} token, so none is configured for this target (TARGET_AUTH_MAP_JSON) "
+                                      f"and this identity cannot be presented."))
     kwargs = {"role": role}
     if spec.get("bearer"):
         kwargs["bearer"] = f"tester-invalid-{ctx.new_idempotency_key()[7:]}"
@@ -1691,7 +1711,7 @@ def _access_workbook(case, ctx, operation, identity, expected):
     if response.status != expected:
         problems = [f"{label} returned {response.status}, expected {expected}"]
     elif expected >= 400:
-        problems = _rejection(response, expected, None, label)
+        problems = _rejection(response, expected, ACCESS_CODES.get(expected), label)
     else:
         problems = _access_success(ctx, operation, response, shared, upload)
     if expected >= 400 or operation != "DELETE":
@@ -1729,7 +1749,7 @@ def _access_clock(case, ctx, identity, expected):
     ctx.mark()
     label = f"the clock as {identity.lower()}"
     if expected >= 400:
-        problems = _rejection(response, expected, None, label)
+        problems = _rejection(response, expected, ACCESS_CODES.get(expected), label)
     elif response.status != expected:
         problems = [f"{label} returned {response.status}, expected {expected}"]
     else:
@@ -1819,6 +1839,151 @@ def phase5_performance(case, ctx):
     return _performance_run(case, ctx, int(name.removeprefix("RUN-")))
 
 
+##  ---- P5-TESTER-* hosted self-checks (spec §14-§15) ----
+##  A case cannot see the final report, which exists only after every case has run. As agreed
+##  with Team 9, each judges a provisional report built now by the same build_report the run
+##  finalizes with; the final-versus-stored comparison is an acceptance check outside the suite
+##  (tests/test_phase5_suite.py and the rehearsal).
+
+SYSTEM_TOTAL, COMPONENT_TOTAL, HTTP_EXCLUDED = 18, 12, "C9"
+
+
+def _provisional(ctx):
+    raw = ctx.provisional_report()
+    return raw, json.loads(raw)
+
+
+def _tester_self_model(case, ctx):
+    profile = ctx.run_profile
+    if profile.get("kind") != "own":
+        return CaseResult("skip", f"Not executed: this is a {profile.get('kind') or 'profile-less'} run, and the "
+                                  f"model requirement applies only to an own-team report.")
+    _raw, report = _provisional(ctx)
+    ctx.mark()
+    design, digest = profile["design"]["map"], profile["design"]["sha256"]
+    model, problems = report["coverage"].get("model"), []
+    if model is None:
+        return CaseResult.failed("The own-team report has no coverage.model.")
+    if model["total"] != len(design["requirements"]) or not model["total"]:
+        problems.append(f"model total {model['total']}, but the frozen design has {len(design['requirements'])} "
+                        f"requirements")
+    if model["covered"] is None or not 0 <= model["covered"] <= model["total"]:
+        problems.append(f"model covered {model['covered']} is not within 0..{model['total']}")
+    for label, value in (("design version", design["designVersion"]), ("mapping URL", design["mappingUrl"]),
+                         ("map SHA256", digest)):
+        if value not in model["basis"]:
+            problems.append(f"the model basis does not name the frozen {label} {value}")
+    return _verdict("Own-team model", problems, f"The own-team report carries model coverage "
+                                                f"{model['covered']}/{model['total']} over Team {design['teamId']} "
+                                                f"design {design['designVersion']}, naming its frozen map and hash.")
+
+
+def _tester_cross_omit(case, ctx):
+    kind = ctx.run_profile.get("kind")
+    if kind != "cross":
+        return CaseResult("skip", f"Not executed: this is a{'n' if kind == 'own' else ''} {kind or 'profile-less'} "
+                                  f"run, and the omission applies only to a cross-team report.")
+    _raw, report = _provisional(ctx)
+    ctx.mark()
+    if "model" in report["coverage"]:
+        return CaseResult.failed("The cross-team report contains a coverage.model key.")
+    return CaseResult.passed("The cross-team report has no coverage.model key.")
+
+
+def _tester_system_18(case, ctx):
+    _raw, report = _provisional(ctx)
+    ctx.mark()
+    system, earned = report["coverage"]["system"], ctx.acceptance_evidence()["acceptance"]
+    problems = []
+    if system["total"] != SYSTEM_TOTAL or len(ctx.manifest.acceptance) != SYSTEM_TOTAL:
+        problems.append(f"system total {system['total']} over {len(ctx.manifest.acceptance)} planned criteria, "
+                        f"expected {SYSTEM_TOTAL}")
+    if system["covered"] != len(earned):
+        problems.append(f"system covered {system['covered']}, but {len(earned)} distinct criteria were evaluated")
+    if earned - set(ctx.manifest.acceptance):
+        problems.append(f"evaluated criteria outside the plan: {', '.join(sorted(earned - set(ctx.manifest.acceptance)))}")
+    return _verdict("System denominator", problems, f"System coverage is {system['covered']}/{SYSTEM_TOTAL}, each "
+                                                    f"evaluated shared criterion counted once.")
+
+
+def _tester_component_12(case, ctx):
+    _raw, report = _provisional(ctx)
+    ctx.mark()
+    component, earned = report["coverage"]["component"], ctx.acceptance_evidence()["components"]
+    problems = []
+    if component["total"] != COMPONENT_TOTAL or len(ctx.manifest.components) != COMPONENT_TOTAL:
+        problems.append(f"component total {component['total']} over {len(ctx.manifest.components)} planned "
+                        f"components, expected {COMPONENT_TOTAL}")
+    if component["covered"] != len(earned):
+        problems.append(f"component covered {component['covered']}, but {len(earned)} distinct components were "
+                        f"evaluated")
+    if HTTP_EXCLUDED in earned:
+        problems.append(f"the HTTP-only run credited {HTTP_EXCLUDED} (review user interface)")
+    return _verdict("Component denominator", problems, f"Component coverage is {component['covered']}/"
+                                                       f"{COMPONENT_TOTAL}, and the HTTP-only run credits no "
+                                                       f"{HTTP_EXCLUDED}.")
+
+
+def _tester_code_copy(case, ctx):
+    ##  Reads the target's session report now and records it as the run's code measurement; the
+    ##  report must carry it unchanged, basis (scope) included. Retrieval itself changes nothing.
+    response = ctx.target.system_report(ctx.session_id, ctx.deadline)
+    if response.status >= 500:
+        return _system_failure("The system report", response)
+    if response.status != 200:
+        return CaseResult("skip", f"Not executed: the system report returned {response.status}, so there is no "
+                                  f"measurement to copy (P3-CODE-REPORT judges that response).")
+    try:
+        measure = SystemReport.model_validate(response.json()).coverage["code"].model_dump()
+    except (ValidationError, ValueError, KeyError):
+        return CaseResult("skip", "Not executed: the system report has no valid code measurement to copy "
+                                  "(P3-CODE-REPORT judges that response).")
+    ctx.record_code_coverage(measure)
+    _raw, report = _provisional(ctx)
+    ctx.mark()
+    copied, problems = report["coverage"]["code"], []
+    if copied != measure:
+        problems.append(f"the report's code measurement {copied} differs from the target's {measure}")
+    if not (copied.get("basis") or "").strip():
+        problems.append("the code measurement declares no scope (empty basis)")
+    if (copied["covered"] is None) != (copied["total"] is None):
+        problems.append("the code measurement pairs a null with a number")
+    shown = "unavailable (both null)" if copied["covered"] is None else f"{copied['covered']}/{copied['total']}"
+    return _verdict("Code copy", problems, f"The report copies the target's session code measurement exactly "
+                                           f"({shown}) with its declared scope.")
+
+
+def _tester_stored_bytes(case, ctx):
+    ##  The suite-side half: the bytes the run stores and GET /test/report returns are a canonical
+    ##  serialization that round-trips exactly and keeps the conditional model profile.
+    raw, report = _provisional(ctx)
+    ctx.mark()
+    problems = []
+    again = json.dumps(report, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if again != raw:
+        problems.append("the report bytes do not survive a parse and re-serialization unchanged")
+    try:
+        SuiteReport.model_validate(report)
+    except ValidationError as problem:
+        problems.append(f"the report does not match SuiteReport ({_schema_problem(problem)})")
+    kind = ctx.run_profile.get("kind")
+    if kind and ("model" in report["coverage"]) != (kind == "own"):
+        problems.append(f"the {kind}-team report {'lacks' if kind == 'own' else 'carries'} coverage.model")
+    return _verdict("Stored bytes", problems, f"The {len(raw):,}-byte report round-trips byte-for-byte with its "
+                                              f"{kind or 'unprofiled'}-team model profile; the final stored bytes "
+                                              f"are compared with the run response outside the suite.")
+
+
+TESTER_CASES = {"SELF-MODEL": _tester_self_model, "CROSS-OMIT": _tester_cross_omit, "SYSTEM-18": _tester_system_18,
+                "COMPONENT-12": _tester_component_12, "CODE-COPY": _tester_code_copy,
+                "STORED-BYTES": _tester_stored_bytes}
+
+
+def phase5_tester(case, ctx):
+    return _run(case, ctx, TESTER_CASES)
+
+
 PHASE5_CHECKS = {"phase5_pending": phase5_pending, "phase5_clock": phase5_clock, "phase5_schedule": phase5_schedule,
                  "phase5_reminder": phase5_reminder, "phase5_delete": phase5_delete, "phase5_fault": phase5_fault,
-                 "phase5_access": phase5_access, "phase5_performance": phase5_performance}
+                 "phase5_access": phase5_access, "phase5_performance": phase5_performance,
+                 "phase5_tester": phase5_tester}

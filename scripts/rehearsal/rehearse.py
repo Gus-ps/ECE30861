@@ -74,11 +74,12 @@ PHASE5_ENV = {"MANIFEST_PATH": str(FIXTURES / "manifest_phase5.json"),
               ##  Every approved target needs a team; the unreachable one stands for Team 9's system.
               "TESTER_TEAM_ID": "team12", "TARGET_TEAMS_JSON": json.dumps({TARGET: "team12", DEAD_TARGET: "team9"}),
               "DESIGN_MAP_PATH": str(FIXTURES / "design_map_team12.json")}
-##  Phase 5 cases that skip against the stand-in: the 6 tester self-checks (not built), 3 never
-##  producible over HTTP (P5-CLOCK-NOT-READY, P5-DELETE-RETAIN-TESTER, P5-FAULT-REJECT-DISABLED on
-##  a deployment with faults enabled) and 4 timing-dependent busy cases (the stand-in finishes
-##  work before a clock call or DELETE can see it).
-PHASE5_PENDING = 13
+##  Phase 5 cases that skip against the stand-in: 2 never producible over HTTP (P5-CLOCK-NOT-READY,
+##  P5-FAULT-REJECT-DISABLED on a deployment with faults enabled; local evidence), P5-DELETE-RETAIN-
+##  TESTER (a fresh store holds no earlier finalized report), P5-TESTER-CROSS-OMIT (an own-team
+##  run) and 4 timing-dependent busy cases (the stand-in finishes work before a clock call or
+##  DELETE can see it).
+PHASE5_PENDING = 8
 
 
 def tester_env(db, overrides=None):
@@ -323,7 +324,7 @@ def main():
         counts5 = {}
         for item in (report5 or {}).get("results", []):
             counts5[item["outcome"]] = counts5.get(item["outcome"], 0) + 1
-        check(f"357 Phase 5 results: {357 - PHASE5_PENDING} pass, {PHASE5_PENDING} skip (unbuilt or unproducible here)",
+        check(f"357 Phase 5 results: {357 - PHASE5_PENDING} pass, {PHASE5_PENDING} skip (unproducible here)",
               counts5 == {"pass": 357 - PHASE5_PENDING, "skip": PHASE5_PENDING}, f"{json.dumps(counts5)} in {elapsed:.0f}s")
         failing = [f"{x['test_id']}: {x['message']}" for x in (report5 or {}).get("results", []) if x["outcome"] in ("fail", "error")]
         if failing:
@@ -334,6 +335,11 @@ def main():
               json.dumps({k: (v["covered"], v["total"]) for k, v in ((report5 or {}).get("coverage") or {}).items()}))
         if report5:
             (WORK / "phase5_report.json").write_bytes(r.content)
+            ##  P5-TESTER-STORED-BYTES acceptance: the stored report equals the run response byte for byte.
+            stored = phase5_client.get(f"/test/report?session_id={session}", headers=AUTH)
+            check("GET /test/report returns the run response's exact bytes, model profile included",
+                  stored.status_code == 200 and stored.content == r.content and b'"model"' in stored.content,
+                  f"{stored.status_code}, {len(stored.content)} vs {len(r.content)} bytes")
         control(ruleset="1.0.0", processing_polls=0, phase5=False, specification="2.1.0")
     finally:
         for proc in procs:

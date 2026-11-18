@@ -65,7 +65,7 @@ part, it is named.
 | P5-LOCAL-DELETE-RESTART | none | Open (system) |
 | P5-LOCAL-GENUINE-FAULTS | the seven injected fault cases | Open (system: real failures) |
 | P5-LOCAL-MIGRATION | none | Open (system) |
-| P4-LOCAL-FAULT-DISABLED | P5-FAULT-REJECT-DISABLED (skips on a deployment with faults enabled) | Open (system: a deployment with the switch off) |
+| P4-LOCAL-FAULT-DISABLED | P5-FAULT-REJECT-DISABLED (skips on a deployment with faults enabled; local evidence, agreed with Team 9 on 2026-11-17) | Open (system: a deployment with the switch off) |
 | P4-LOCAL-CONCURRENT-AUDIT | none | Open (system) |
 | P4-LOCAL-CONCURRENT-KEY | inherited idempotency cases (sequential replays only) | Open (system) |
 | P4-LOCAL-WORKER-TIMEOUT | none | Open (system) |
@@ -75,7 +75,7 @@ part, it is named.
 | P4-LOCAL-STORAGE-FAILURE | P5-FAULT-STORAGE (injected only) | Open (system) |
 | P4-LOCAL-SOURCE-CORRUPTION | none | Open (system) |
 | P4-LOCAL-OUTPUT-BOUND | none | Open (system) |
-| P4-LOCAL-NOT-READY | inherited not-ready cases where producible | Open (system) |
+| P4-LOCAL-NOT-READY | inherited not-ready cases where producible; also stands in for hosted P5-CLOCK-NOT-READY, which no request can produce (agreed with Team 9 on 2026-11-17) | Open (system) |
 | P4-LOCAL-STATE-TRANSITIONS | inherited audit and remediation cases | Open (system) |
 | P4-LOCAL-MIGRATION | none | Open (system) |
 | P4-LOCAL-CLEANUP-ACTIVE | inherited cleanup cases | Open (system) |
