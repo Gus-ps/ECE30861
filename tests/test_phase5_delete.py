@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 from pathlib import Path
 import tempfile
@@ -154,6 +155,34 @@ class DeleteWorkbookTests(unittest.TestCase):
                 self.assertEqual(left == 0, results['delete'] == 204)
                 orphans = db.execute('SELECT COUNT(*) FROM p4_jobs WHERE version_id NOT IN (SELECT id FROM p4_resources)').fetchone()[0]
                 self.assertEqual(orphans, 0)
+
+    def test_delete_racing_schedule_put_leaves_no_schedule(self):
+        app, client = self.start()
+        for attempt in range(5):
+            workbook_id = self.upload(client)['workbookId']
+            wb = f'/api/v1/workbooks/{workbook_id}'
+            barrier = threading.Barrier(2, timeout=10)
+
+            def put():
+                barrier.wait()
+                return client.put(wb + '/schedule', headers=OWNER,
+                                  json={'enabled': True, 'intervalDays': 7})
+
+            def delete():
+                barrier.wait()
+                return client.delete(wb, headers=OWNER)
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                put_result = executor.submit(put)
+                delete_result = executor.submit(delete)
+                put_response = put_result.result()
+                delete_response = delete_result.result()
+            with self.subTest(attempt=attempt), app.state.database.connect() as db:
+                self.assertEqual(delete_response.status_code, 204, delete_response.text)
+                self.assertIn(put_response.status_code, (200, 404), put_response.text)
+                row = db.execute('SELECT 1 FROM p5_schedules WHERE workbook_id=?',
+                                 (workbook_id,)).fetchone()
+                self.assertIsNone(row)
 
     def test_delete_removes_legacy_phase3_rows(self):
         database = Database(self.path); database.initialize()

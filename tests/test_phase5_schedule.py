@@ -3,6 +3,7 @@
 No WCAG checker or scheduling dispatcher is implemented by this module.
 """
 import json
+import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -149,9 +150,12 @@ class ScheduleTests(unittest.TestCase):
 
     def test_namespace_cleanup(self):
         admin={'Authorization':'Bearer admin'}
-        for name in ('one','two'):
-            response=self.client.post('/test/setup',headers=admin,json={'session_id':name,'setup':{}})
-            self.assertEqual(response.status_code,201,response.text)
+        with patch.dict(os.environ, {'ENABLE_TEST_FAULTS': 'true'}):
+            for name in ('one','two'):
+                response=self.client.post('/test/setup',headers=admin,json={
+                    'session_id':name,'setup':{'faults':{'deletion_failures':1}},
+                })
+                self.assertEqual(response.status_code,201,response.text)
         headers=dict(self.headers,**{'X-Test-Session':'one'})
         ids,base=self.upload(headers=headers)
         path='/api/v1/workbooks/'+ids['workbookId']+'/schedule'
@@ -163,8 +167,12 @@ class ScheduleTests(unittest.TestCase):
         response=self.client.post('/test/setup',headers=admin,json={'session_id':'blocked','setup':{'cleanup_session_ids':['one']}})
         self.assertEqual(response.status_code,409)
         with self.app.state.store.connect(write=True) as db:
+            faults = db.execute('SELECT session_id,kind,remaining FROM p5_faults ORDER BY session_id')
+            self.assertEqual([tuple(row) for row in faults], [('one','deletion',1), ('two','deletion',1)])
             db.execute("UPDATE p4_jobs SET state='DONE' WHERE namespace='one'")
         response=self.client.post('/test/setup',headers=admin,json={'session_id':'clean','setup':{'cleanup_session_ids':['one']}})
         self.assertEqual(response.status_code,201,response.text)
         with self.app.state.store.connect() as db:
             self.assertEqual(db.execute("SELECT count(*) n FROM p5_schedules WHERE namespace='one'").fetchone()['n'],0)
+            faults = db.execute('SELECT session_id,kind,remaining FROM p5_faults')
+            self.assertEqual([tuple(row) for row in faults], [('two','deletion',1)])
