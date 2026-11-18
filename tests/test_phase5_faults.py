@@ -271,7 +271,10 @@ class ReportVersionTests(unittest.TestCase):
 
 class RemainingFaultTests(unittest.TestCase):
     """REQ-13 / AC-14. P5-FAULT-REMEDIATION, P5-FAULT-REPORT, P5-FAULT-STORAGE,
-    P5-FAULT-REJECT-AUDIT-REPORT-COMBINATION and P5-FAULT-REJECT-REJECT-NO-CONSUME.
+    P5-FAULT-REJECT-UNKNOWN, P5-FAULT-REJECT-BOOLEAN, P5-FAULT-REJECT-EMPTY,
+    P5-FAULT-REJECT-DISABLED, P5-FAULT-REJECT-ORDINARY, P5-FAULT-REJECT-OTHER-SESSION,
+    P5-FAULT-REJECT-REUSED-ID, P5-FAULT-REJECT-AUDIT-REPORT-COMBINATION,
+    P5-FAULT-REJECT-REJECT-NO-CONSUME. P5-FAULT-AUDIT is exercised by the existing audit tests.
     """
 
     setUp = dispatch_tests.DispatchTests.setUp
@@ -427,6 +430,88 @@ class RemainingFaultTests(unittest.TestCase):
         valid = self.fault_setup({'report_failures': 1, 'remediation_failures': 1})
         self.assertEqual(valid.status_code, 201, valid.text)
         self.assertEqual(self.fault_setup({'report_failures': 1}).status_code, 409)
+
+    def upload_response(self, path, headers, data=None):
+        return self.client.post(path, headers=headers,
+                                files={'file': ('book.xlsx', workbook() if data is None else data)})
+
+    def resource_counts(self):
+        with self.app.state.store.connect() as db:
+            return (
+                *[db.execute('SELECT COUNT(*) FROM p4_resources WHERE kind=?', (kind,)).fetchone()[0]
+                  for kind in ('workbook', 'version', 'audit', 'report')],
+                db.execute('SELECT COUNT(*) FROM p4_jobs').fetchone()[0],
+                db.execute('SELECT COUNT(*) FROM p5_upload_reservations').fetchone()[0],
+            )
+
+    def test_initial_storage_fault_is_durable_atomic_and_isolated(self):
+        headers = self.prepare(faults={'storage_failures': 1})
+        foreign = self.prepare('foreign')
+        path = '/api/v1/workbooks'
+        self.restart()
+        for outside in (OWNER, foreign):
+            self.assertEqual(self.upload_response(path, outside).status_code, 202)
+        before = self.resource_counts()
+        invalid = self.upload_response(path, headers, b'invalid ZIP')
+        self.assertEqual(invalid.status_code, 422, invalid.text)
+        denied = self.upload_response(path, {'X-Test-Session': 'clock'})
+        self.assertEqual(denied.status_code, 401, denied.text)
+        self.assertEqual(self.counter('storage'), 1)
+        failed = self.upload_response(path, headers)
+        self.assertEqual(failed.status_code, 500, failed.text)
+        self.assert_injected(failed.json(), 'storage', failed.headers['X-Request-ID'])
+        self.assertEqual(self.resource_counts(), before)
+        self.restart()
+        self.assertEqual(self.counter('storage'), 0)
+        self.assertEqual(self.fault_setup({'storage_failures': 1}).status_code, 409)
+        self.assertEqual(self.upload_response(path, headers).status_code, 202)
+
+    def test_new_version_storage_fault_preserves_source_history_and_other_faults(self):
+        headers = self.prepare(faults={'storage_failures': 1, 'report_failures': 1})
+        store = self.app.state.store
+        # Establish the existing version before either fault is eligible for this scenario.
+        with patch.object(store, 'claim_fault', return_value=False):
+            ids, version = self.upload(headers)
+        old_audit = self.read_audit(headers, version, ids['auditId'])
+        original = self.original_records(version, headers)
+        path = version.rsplit('/versions/', 1)[0] + '/versions'
+        before = self.resource_counts()
+        denied = self.upload_response(path, {**headers, 'Authorization': 'Bearer b'})
+        self.assertEqual(denied.status_code, 403, denied.text)
+        failed = self.upload_response(path, headers)
+        self.assertEqual(failed.status_code, 500, failed.text)
+        self.assert_injected(failed.json(), 'storage', failed.headers['X-Request-ID'])
+        self.assertEqual(self.resource_counts(), before)
+        self.assertEqual(self.counter('storage'), 0)
+        self.assertEqual(self.counter('report'), 1)
+        self.assertEqual(self.original_records(version, headers), original)
+        self.assertEqual(self.read_audit(headers, version, ids['auditId']), old_audit)
+        retry = self.upload_response(path, headers)
+        self.assertEqual(retry.status_code, 202, retry.text)
+        new = retry.json()
+        new_version = f"{path}/{new['versionId']}"
+        failed_report = self.read_audit(headers, new_version, new['auditId'])
+        self.assert_injected(failed_report['error'], 'report', retry.headers['X-Request-ID'])
+        final = self.upload_response(path, headers)
+        self.assertEqual(final.status_code, 202, final.text)
+        final_ids = final.json()
+        self.assertIsNone(self.read_audit(headers, f"{path}/{final_ids['versionId']}", final_ids['auditId'])['error'])
+
+    def test_reject_invalid_or_disabled_faults_without_creating_sessions(self):
+        for kind in ('remediation', 'report', 'storage'):
+            key = f'{kind}_failures'
+            for faults in ({}, {f'{key}_unknown': 1}, *({key: v} for v in (True, 1.0, 0, 2, '1', None))):
+                with self.subTest(faults=faults):
+                    response = self.fault_setup(faults, kind)
+                    self.assertEqual(response.status_code, 400, response.text)
+                    self.assertEqual(set(response.json()), {'message', 'source'})
+            with patch.dict(os.environ, {'ENABLE_TEST_FAULTS': 'false'}):
+                response = self.fault_setup({key: 1}, kind)
+                self.assertEqual(response.status_code, 403, response.text)
+                self.assertEqual(set(response.json()), {'message', 'source'})
+        with self.app.state.store.connect() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM test_sessions').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM p5_faults').fetchone()[0], 0)
 
 
 if __name__ == '__main__':

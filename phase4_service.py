@@ -236,7 +236,10 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         if identity in reviewers and not wb:
             raise ApiError(403, 'FORBIDDEN', 'Reviewers have read-only access.')
         vid = identifier('version')
-        if wb:
+        namespace = request.state.namespace
+        staged = wb is not None
+        committed = False
+        if staged:
             with store.connect(write=True) as db:
                 store.fence(db, wb)
                 lookup(db, wb, 'workbook', request, identity, mutate=True)
@@ -245,21 +248,30 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         try:
             filename, data = await validate_upload(request, file)
             with store.connect(write=True) as db:
-                tests.check(db, request.state.namespace, identity, lock=True)
-                if wb:
+                tests.check(db, namespace, identity, lock=True)
+                if staged:
                     store.fence(db, wb)
                     lookup(db, wb, 'workbook', request, identity, mutate=True)
-                else:
-                    wb = identifier('workbook')
-                    store.insert(db, 'workbook', wb, {'workbookId':wb}, identity, request.state.namespace, wb)
-                body = dict(workbookId=wb, versionId=vid, fileName=filename, sha256=hashlib.sha256(data).hexdigest(),
-                            createdAt=now(), status='PROCESSING', latestAuditId=None, sourceVersionId=None)
-                store.insert(db, 'version', vid, body, identity, request.state.namespace, wb, vid, data)
-                version = store.get(db, vid)
-                aid = begin_audit(store, db, version, request.state.request_id)
+                injected = store.claim_fault(db, namespace, 'storage')
+                if not injected:
+                    if not staged:
+                        wb = identifier('workbook')
+                        store.insert(db, 'workbook', wb, {'workbookId':wb}, identity, namespace, wb)
+                    body = dict(workbookId=wb, versionId=vid, fileName=filename, sha256=hashlib.sha256(data).hexdigest(),
+                                createdAt=now(), status='PROCESSING', latestAuditId=None, sourceVersionId=None)
+                    store.insert(db, 'version', vid, body, identity, namespace, wb, vid, data)
+                    version = store.get(db, vid)
+                    aid = begin_audit(store, db, version, request.state.request_id)
+                if staged:
+                    db.execute('DELETE FROM p5_upload_reservations WHERE id=?', (vid,))
+            committed = True
         finally:
-            with store.connect(write=True) as db:
-                db.execute('DELETE FROM p5_upload_reservations WHERE id=?', (vid,))
+            if staged and not committed:
+                with store.connect(write=True) as db:
+                    db.execute('DELETE FROM p5_upload_reservations WHERE id=?', (vid,))
+        if injected:
+            raise ApiError(500, 'TEST_STORAGE_FAILURE', 'Storage failure requested by the isolated test session.',
+                           {'stage': 'storage', 'testOnly': True})
         background.add_task(runner.drain)
         return dict(workbookId=wb, versionId=vid, auditId=aid, status='PROCESSING')
 
