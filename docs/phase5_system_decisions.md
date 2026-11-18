@@ -118,6 +118,24 @@ against .perf/baseline.json, storage.json, after_api.json and final.json found
 - **Approval status:** Developer work request only. No Pod approval.
 - **Implementation / verification status:** Implemented and tested locally, including startup tick within five seconds, busy deferral, two concurrent stores sharing one SQLite database, restart coalescing, deletion, and one-shot fault rollback. PostgreSQL, actual multiple service processes, production deployment and release drain behavior remain unverified.
 
+## SYS-013 — Version new audit reports and complete isolated fault controls (2026-11-18)
+
+- **Report compatibility:** Operation R serves the snapshot saved when an audit reaches a terminal state. Label new snapshots `specificationVersion=3.0.0` and accept both specification versions in the read contract. Keep `reportVersion=2.0.0`, the report shape and the stored Phase 4 snapshots. Putting the version at write time keeps the saved record authoritative and avoids regenerating it on download.
+- **Remediation:** Claim the one-shot counter in the acceptance transaction after decision validation and idempotency checks. The worker verifies the source and records `TEST_REMEDIATION_FAILURE` before editing or publishing, including for decision-only requests. A replay with the original key returns the saved acceptance. A fresh attempt uses a new key.
+- **Report finalization:** Claim the counter when accepting an upload or manual audit, including an upload of a new version. Scheduled audits and remediation output audits do not consume it. After the engine completes, save a `PROCESSING_FAILED` audit and `TEST_REPORT_FAILURE` snapshot with all six checks listed and empty findings. If snapshot persistence fails, roll back that attempt and record the genuine `STORAGE_FAILED` against the audit and job when storage permits. Its report endpoint returns HTTP 500 while the snapshot is unavailable. A failure to persist even the terminal state is logged.
+- **Upload storage:** Validate the upload and recheck its namespace and workbook access before claiming the counter. Commit the claim without creating a workbook, version, audit or job. Release any new-version staging reservation in the same transaction and return `TEST_STORAGE_FAILURE` after commit. Use `{"stage":"storage","testOnly":true}` for the synchronous details, following the deletion fault convention.
+- **Setup:** Reject `audit_failures` combined with `report_failures` before preparing or cleaning any session. Preserve the existing audit fault and its pre-rule failure snapshot. The other fault combinations remain valid.
+- **Approval status:** Developer work request only. No Pod approval.
+- **Implementation / verification status:** Implemented and verified locally on SQLite. The new report was checked against the shared `NewAuditReport` schema. A test forces an actual SQLite report INSERT rejection and verifies the terminal fallback. PostgreSQL, hosted deployment and a real storage outage remain unverified.
+
+## SYS-014 — Record the Phase 5 implementation handoff and developer choices (2026-11-18)
+
+- **Handoff:** This branch takes over the Phase 5 work left open on `Jon-Gus_branch`. Work remaining at the end of the handoff returns to Jon. Use `PHASE5_TASKS.md` and `PHASE5_DECISIONS.md` as the handoff record.
+- **Completed:** D4 selected option 1 and is implemented under SYS-008 and SYS-011. D7 selected option 1 and is implemented under SYS-012. DEL-7 is checked based on its scheduler cancellation test.
+- **Selected for later implementation:** On 2026-11-18, the developer selected D1 option 1, D2 option 2, D3 option 1, D5 option 1, D6 option 1, D8 option 2, D9 option 1 and D10 option 1. Implementation remains pending on `haruki/phase5-schedule`, and their task checkboxes still reflect that status.
+- **Approval status:** Developer selection only. No Pod approval.
+- **Implementation / verification status:** Decision records updated. This entry records choices for subsequent work.
+
 ## Investigated inherited discrepancies (not fixed)
 
 - test_cleanup_rejects_active_audits updates only the legacy audits table to

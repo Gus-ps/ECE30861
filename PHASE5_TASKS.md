@@ -178,10 +178,10 @@ explicit tokens and reviewer grants).
   (Assertions: `P5-DELETE-RESTORE`, `P5-DELETE-OBJECT-VERSIONS`,
   `P5-MANUAL-DELETE-BACKUPS`.)
   `44ca7e0`: section "Deletion, backups and copies" added to docs/phase5_security.md; it states that a restore can currently resurrect deletions. Policy open as D6.
-- [B] (D7) **DEL-7: Cancel scheduled work.** No audit or reminder runs for a deleted workbook
+- [x] (D7) **DEL-7: Cancel scheduled work.** No audit or reminder runs for a deleted workbook
   (`P5-DELETE-CANCEL-FUTURE`). The scheduler isn't on this branch, so write a decision
   entry and mark this item `[B]`, unless that entry is already `CHOSEN`.
-  Blocked on D7 (dispatcher cancellation rule). Related: D4 (removing schedule rows).
+  `4ae93ce` implements cancellation verified by `test_delete_prevents_future_work_and_rejects_pending_scheduled_audit` in `tests/test_phase5_scheduler.py`, recorded in SYS-012 (`bdced4d`).
 
 ## Interface accessibility (REQ-15, AC-17, spec §16)
 

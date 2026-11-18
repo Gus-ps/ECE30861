@@ -40,7 +40,7 @@ reaches the blocked task.
 ## Entries
 
 ## D1: How fine-grained is a reviewer grant?  (blocks: ACC-2)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §4 says "Explicitly granted reviewers can read ... an ungranted reviewer is
 denied", but doesn't say what a grant covers. Today `REVIEWER_GRANTS_JSON` maps a reviewer
 to a list of owners (`{"reviewer": ["owner"]}`), so one grant covers every workbook that
@@ -73,10 +73,10 @@ Why 1 is recommended: it is the only option the shared tests can exercise withou
 contract change, and the spec's wording is satisfied when a grant has to be configured
 explicitly per reviewer.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D2: Should plain HTTP be rejected rather than redirected?  (blocks: none; ACC-4 gap)
-Status: OPEN
+Status: CHOSEN (option 2, 2026-11-18)
 Context: REQ-14 says "HTTPS only". On the EC2 demo, Caddy listens on port 80 and, by
 default, redirects to HTTPS (`scripts/deploy-ec2-demo.ps1` lines 47-48, 66). A client that
 sends `Authorization: Bearer ...` over HTTP has already exposed the token before the
@@ -102,10 +102,10 @@ See docs/phase5_security.md.
 Why 2 is recommended: it fixes the exposure where it happens (at the TLS front end), and
 the only HTTP traffic it keeps is the certificate challenge.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D3: Are plaintext bearer tokens acceptable under "no plaintext passwords"?  (blocks: none; ACC-4 gap)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: The service has no passwords. `API_TOKENS_JSON` and `TEST_ADMIN_TOKENS_JSON` map
 plaintext tokens to users. They are kept in Secrets Manager (ECS) or a root-only env file
 (EC2 demo) and compared in memory with `secrets.compare_digest` (`phase4_service.py` `user`).
@@ -130,10 +130,10 @@ Why 1 is recommended: REQ-14's concern is user passwords, and there are none. Ra
 bearer tokens in a managed secret store is standard practice. Option 2 is a cheap
 hardening if the pod wants it.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D4: How does deletion remove schedules and notifications that this branch doesn't have?  (blocks: none; DEL-1 part)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §10 says a 204 comes only after "notification records and schedules" are
 removed too, and P5-DELETE-COMPLETE / -OLD-URLS check the schedule and notification URLs.
 The schedule table (`p5_schedules`) and Op 11/G exist only on the unmerged
@@ -163,10 +163,10 @@ those routes don't exist.
 Why 1 is recommended: it keeps this branch inside its scope and adds nothing until the
 tables exist, and the remaining change is mechanical.
 
-Chosen:
+Chosen: `delete_workbook` includes schedules, notifications and considered reminder keys in its transactional deletion list (SYS-008 and SYS-011).
 
 ## D5: Design of the durable deletion reservation and recoverable cleanup  (blocks: DEL-4, DEL-5)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §10 requires "a durable deletion reservation and recoverable cleanup": on a
 partial failure, return 500 `DELETION_FAILED`, keep the cleanup intent, answer 404 to
 ordinary reads and writes, let the owner's retry finish the same cleanup, and give other
@@ -216,10 +216,10 @@ Why 1 is recommended: it is the most direct reading of §10 and makes both local
 assertions testable. `DELETION_IN_PROGRESS` can be adopted later (option 2) if the pod
 gives it a meaning.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D6: How are backups and copies kept from resurrecting a deleted workbook?  (blocks: none; DEL-6 gap)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §10 says deletion also covers "application-managed copies/backups that would
 otherwise preserve that content" and "A restore must never resurrect an acknowledged
 deletion"; only content-free evidence such as an opaque deletion key may remain. Today
@@ -259,10 +259,10 @@ restore brings deleted workbooks back.
 Why 1 is recommended: it is the only option that both keeps recovery possible and makes
 "a restore never resurrects a deletion" true by construction, at moderate cost.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D7: How does deletion guarantee no future scheduled audit or reminder runs?  (blocks: DEL-7)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §10 says no future audit or reminder may run for a deleted workbook
 (P5-DELETE-CANCEL-FUTURE), and a delete racing a scheduler claim must have one winner.
 `haruki/phase5-schedule` stores schedules in `p5_schedules` (keyed by `workbook_id`,
@@ -297,10 +297,10 @@ Why 1 is recommended: the transaction plus `fence` design from DEL-1/DEL-2 alrea
 "one consistent winner". The dispatcher only has to use it, which is a one-paragraph
 requirement rather than new machinery.
 
-Chosen:
+Chosen: `locked_schedules` takes the workbook fence and re-reads the schedule before either dispatch path can claim work (SYS-012).
 
 ## D8: Disabled buttons are 2.56:1. Change their look, or rely on the WCAG exemption?  (blocks: UI-5)
-Status: OPEN
+Status: CHOSEN (option 2, 2026-11-18)
 Context: UI-5 requires 4.5:1 for normal text "in every state the page uses".
 `button:disabled{opacity:.5}` in `static/index.html` renders white on effectively
 `#8ba5bb` = 2.56:1 (`#new-version` before the first upload; `#submit-decisions` when no
@@ -330,10 +330,10 @@ decision.
 Why 2 is recommended: it satisfies the task's stricter "every state" reading with a
 one-line CSS change and no behavior change.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D9: What does the delete control look like, and how is it shown only to owners?  (blocks: UI-7)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §16: owners can "delete a workbook after an explicit confirmation identifying
 it", completed by keyboard, with the result announced. DEL-1 provides
 `DELETE /api/v1/workbooks/{id}` (204; 403 for reviewers; 409 `ACTIVE_OPERATION` while work
@@ -375,10 +375,10 @@ Why 1 is recommended: it meets §16's "explicit confirmation identifying it" in 
 is fully keyboard- and screen-reader-friendly and stays consistent with the page, at a
 modest size.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
 
 ## D10: Which automated accessibility scanner, and who runs it?  (blocks: UI-8)
-Status: OPEN
+Status: CHOSEN (option 1, 2026-11-18)
 Context: Spec §16 requires "an automated accessibility scan and manual keyboard
 inspection"; P5-MANUAL-A11Y-SCAN wants scan results as evidence. The interface is a
 single page whose important states are built by script: the initial form, the
@@ -410,4 +410,4 @@ a new tool or dependency (Node or a browser), which rule 9 doesn't let the agent
 Why 1 is recommended: it gives real, full-DOM scan evidence for AC-17 now, without adding
 dependencies. Option 3 is the better long-term choice if the team accepts the tooling.
 
-Chosen:
+Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
