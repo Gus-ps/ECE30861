@@ -13,7 +13,8 @@ SessionId = Annotated[str, StringConstraints(strict=True, pattern=r'^[A-Za-z0-9_
 
 class FaultOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    audit_failures: StrictInt = Field(ge=1, le=1)
+    audit_failures: StrictInt | None = Field(None, ge=1, le=1)
+    deletion_failures: StrictInt | None = Field(None, ge=1, le=1)
 
 
 class SetupOptions(BaseModel):
@@ -96,9 +97,10 @@ class SystemTests:
 
     def setup(self, owner, body):
         import os
+        faults = body.setup.faults.model_dump(exclude_unset=True) if body.setup.faults else {}
         if 'faults' in body.setup.model_fields_set:
-            if body.setup.faults is None:
-                raise TestSessionError(400, 'faults must contain audit_failures: 1.')
+            if not faults or None in faults.values():
+                raise TestSessionError(400, 'faults must name at least one fault with the value 1.')
             if os.getenv('ENABLE_TEST_FAULTS', '').lower() != 'true':
                 raise TestSessionError(403, 'Test audit failures are disabled.')
         with self.database.connect(write=True) as db:
@@ -118,14 +120,17 @@ class SystemTests:
                 VALUES (?,?,'READY') ON CONFLICT(session_id) DO NOTHING''', (body.session_id, owner))
             if inserted.rowcount != 1:
                 raise TestSessionError(409, 'Test session already exists.')
-            if body.setup.faults is not None:
+            if 'audit_failures' in faults:
                 db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
+            if 'deletion_failures' in faults:
+                db.execute("INSERT INTO p5_faults VALUES (?,'deletion',1)", (body.session_id,))
             for session_id in cleanup:
                 db.execute('DELETE FROM p5_schedules WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_keys WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_jobs WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_resources WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_faults WHERE session_id=?', (session_id,))
+                db.execute('DELETE FROM p5_faults WHERE session_id=?', (session_id,))
                 # Only explicitly tagged resources are eligible; ordinary versions are untouched.
                 ids = [row['workbook_id'] for row in db.execute(
                     'SELECT workbook_id FROM test_workbooks WHERE session_id=?', (session_id,)).fetchall()]
