@@ -28,6 +28,7 @@ from phase4_jobs import RULESET_VERSION, Runner, begin_audit, child, identifier
 from phase4_store import Store, encode, now
 import phase5_reminders as reminders
 import phase5_schedule as schedules
+import phase5_scheduler as scheduler
 from phase5_clock import PATH as CLOCK_PATH
 from service_errors import ApiError
 from test_interface import SystemTests
@@ -38,13 +39,14 @@ MAX_UPLOAD = 25_000_000
 
 def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility_checker=None,
                enable_test_interface=None, test_admin_tokens=None, test_session_users=None,
-               reviewer_grants=None):
+               reviewer_grants=None, *, enable_scheduler=True):
     if workbook_validator is None:
         from app import load_workbook_validator
         workbook_validator = load_workbook_validator()
     credentials = tokens if tokens is not None else json.loads(os.getenv('API_TOKENS_JSON', '{}'))
     admins = test_admin_tokens if test_admin_tokens is not None else json.loads(os.getenv('TEST_ADMIN_TOKENS_JSON', '{}'))
     reviewers = reviewer_grants if reviewer_grants is not None else json.loads(os.getenv('REVIEWER_GRANTS_JSON', '{}'))
+    scheduler_interval = scheduler.interval_seconds() if enable_scheduler else None
     database = Database(db_path)
     database.initialize()
     store = Store(database)
@@ -60,9 +62,21 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         runner.recover()
         thread = threading.Thread(target=runner.loop, daemon=True)
         thread.start()
-        yield
-        runner.stop.set()
-        await asyncio.to_thread(thread.join, 5)
+        scheduler_stop = threading.Event()
+        scheduler_thread = None
+        try:
+            if scheduler_interval is not None:
+                dispatch_thread = threading.Thread(target=scheduler.run_scheduler,
+                    args=(store, scheduler_stop, scheduler_interval), name='phase5-scheduler', daemon=True)
+                dispatch_thread.start()
+                scheduler_thread = dispatch_thread
+            yield
+        finally:
+            if scheduler_thread is not None:
+                scheduler_stop.set()
+                await asyncio.to_thread(scheduler_thread.join)
+            runner.stop.set()
+            await asyncio.to_thread(thread.join, 5)
 
     app = FastAPI(title='Workbook accessibility service', version='1.0', lifespan=lifespan,
                   responses={s: {'model': Error} for s in (400,401,403,404,409,413,415,422,500,503)})

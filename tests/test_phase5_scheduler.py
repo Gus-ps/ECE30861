@@ -1,10 +1,19 @@
 """REQ-12 / AC-12 / AC-13. P5-LOCAL-SCHEDULER-TICK, P5-LOCAL-SCHEDULER-RESTART,
 P5-DELETE-CANCEL-FUTURE.
 """
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import os
+import sqlite3
+import threading
 import unittest
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
+
+from app import create_app
+from database import Database
+from phase4_store import Store
 import phase5_scheduler as scheduler
 import test_phase5_dispatch as dispatch_tests
 
@@ -90,3 +99,89 @@ class SchedulerTests(unittest.TestCase):
         with self.app.state.store.connect() as db:
             for table in ('p4_jobs', 'p5_notifications', 'p5_reminder_considered'):
                 self.assertEqual(db.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 0)
+
+    def test_restart_and_concurrent_store_ticks_claim_durable_occurrences_once(self):
+        _, path = self.configured()
+        db_path = self.app.state.database.path
+        # Simulate a restart after missing multiple intervals, then race two independent stores.
+        stores = [Store(Database(db_path)), Store(Database(db_path))]
+        barrier = threading.Barrier(2, timeout=5)
+
+        def concurrent_tick(store):
+            barrier.wait()
+            return scheduler.tick(store)
+
+        instant = '2027-01-04T12:00:00Z'
+        with patch.object(scheduler, 'datetime', wraps=datetime) as clock, ThreadPoolExecutor(2) as pool:
+            clock.now.return_value = datetime.fromisoformat(instant)
+            futures = [pool.submit(concurrent_tick, store) for store in stores]
+            results = [future.result(timeout=10) for future in futures]
+        self.assertEqual(sorted((len(audits), len(notifications)) for audits, notifications in results),
+                         [(0, 0), (1, 1)])
+        self.assertEqual(self.schedule(OWNER, path)['nextAuditAt'], '2027-01-05T00:00:00Z')
+        self.assertEqual(self.tick_at(instant, Store(Database(db_path))), ([], []))
+
+    def test_lifespan_starts_scheduler_with_configured_interval_and_joins_it(self):
+        _, path = self.configured()
+        started = threading.Event()
+        threads = []
+        run = scheduler.run_scheduler
+
+        def observe_loop(store, stop, interval):
+            threads.append(threading.current_thread())
+            run(store, stop, interval)
+
+        original_tick = scheduler.tick
+
+        def observe_tick(store):
+            result = original_tick(store)
+            started.set()
+            return result
+
+        db_path = self.app.state.database.path
+        with patch.dict(os.environ, {'SCHEDULER_INTERVAL_SECONDS': '0.05'}):
+            app = create_app(db_path, {'a': 'owner'})
+        with (patch.object(scheduler, 'run_scheduler', side_effect=observe_loop) as loop,
+              patch.object(scheduler, 'tick', side_effect=observe_tick),
+              patch.object(scheduler, 'datetime', wraps=datetime) as clock):
+            clock.now.return_value = datetime.fromisoformat(DUE)
+            with TestClient(app) as client:
+                self.assertTrue(started.wait(5), 'No tick within five seconds of startup.')
+                self.assertTrue(threads[0].is_alive())
+                result = client.get(path + '/notifications', headers=OWNER)
+                self.assertEqual(result.status_code, 200, result.text)
+                self.assertEqual(len(result.json()['notifications']), 1)
+                self.assertEqual(loop.call_args.args[2], 0.05)
+            self.assertFalse(threads[0].is_alive())
+
+    def test_lifespan_can_disable_scheduler(self):
+        app = create_app(self.app.state.database.path, {'a': 'owner'}, enable_scheduler=False)
+        with patch.object(scheduler, 'run_scheduler') as loop:
+            with TestClient(app) as client:
+                self.assertEqual(client.get('/api/v1/health').status_code, 200)
+            loop.assert_not_called()
+
+    def test_loop_recovers_after_tick_exception_and_logs_safe_fields(self):
+        store = self.app.state.store
+        stop = threading.Event()
+
+        def attempt(*args, **kwargs):
+            if dispatch.call_count == 1:
+                raise sqlite3.OperationalError('private details')
+            stop.set()
+            return [], []
+
+        with (patch.object(scheduler, 'dispatch_work', side_effect=attempt) as dispatch,
+              self.assertLogs('phase5_scheduler', level='ERROR') as logs):
+            scheduler.run_scheduler(store, stop, 0.001)
+        self.assertEqual(dispatch.call_count, 2)
+        self.assertIn('error_type=OperationalError', logs.output[0])
+        self.assertNotIn('private details', logs.output[0])
+
+    def test_interval_defaults_to_one_second_and_rejects_invalid_values(self):
+        with patch.dict(os.environ, clear=True):
+            self.assertEqual(scheduler.interval_seconds(), 1)
+        for value in ('NaN', 'inf', '0', '-1', '6', 'invalid'):
+            with self.subTest(value=value), patch.dict(os.environ, {'SCHEDULER_INTERVAL_SECONDS': value}):
+                with self.assertRaisesRegex(ValueError, 'SCHEDULER_INTERVAL_SECONDS'):
+                    scheduler.interval_seconds()
