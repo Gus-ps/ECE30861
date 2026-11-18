@@ -20,6 +20,10 @@ API documentation and schemas are at `/docs` and `/openapi.json`.
 `API_TOKENS_JSON` maps bearer tokens to user IDs; there are no default credentials.
 SQLite defaults to `data/workbooks.sqlite3`; `DATABASE_PATH` can override it.
 
+`SCHEDULER_INTERVAL_SECONDS` sets the polling interval for ordinary data.
+It defaults to 1 second and accepts values greater than zero and up to 5.
+Tests can disable the scheduler thread with `create_app(enable_scheduler=False)`.
+
 On a test deployment, start the service with `ENABLE_TEST_INTERFACE=true` and
 `ENABLE_TEST_CLOCK=true` to enable the clock. New test sessions start at
 `2027-01-01T00:00:00Z` unless `POST /test/setup` supplies `setup.clock.currentTime`.
