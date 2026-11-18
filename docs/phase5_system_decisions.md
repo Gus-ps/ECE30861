@@ -51,6 +51,7 @@ so no unpublished source file is needed. No claim of full Phase 5 acceptance.
 - **Rationale / alternatives / risks:** Baseline 88 tests: 14 failures, 41 errors, 1 skip. Major classes are old checker/ruleset expectations, incomplete historical OOXML fixtures, and Phase 3 API/namespace/cleanup assumptions. These are observations, not proof every failure has one cause.
 - **Approval status:** Developer continuation authorization only; no Pod approval and no authorization to fix legacy failures.
 - **Implementation / verification status:** After implementation 94 tests: same 14 failures/41 errors/1 skip; 6 new tests pass. Exact 55 event tuples unchanged: new failures 0, resolved failures 0. .perf/baseline.json, storage.json and after_api.json retain subTest IDs; full logs and recorder are gitignored.
+- **Baseline for subsequent changes:** Use `scripts/test_gate.py` and `scripts/test_baseline.json` for the regression gate.
 
 ## SYS-007 — Content-Type validation: not implemented; decision required (2026-11-16)
 
@@ -65,6 +66,15 @@ response, and disabled interval retention. All 9 schedule tests pass. Full suite
 97 tests, 14 failures, 41 errors, 1 skip. Exact failure/error event comparisons
 against .perf/baseline.json, storage.json, after_api.json and final.json found
 0 new and 0 removed events; review.json and review.log record this run.
+
+## SYS-008 — Integrate workbook deletion and schedule configuration (2026-11-18)
+
+- **Source / scope:** Merge `origin/Jon-Gus_branch` into `haruki/phase5-schedule` and apply shared specification §§4, 5, 10 and 11 to operations G, 11 and 14.
+- **Locking:** Schedule PUT takes the same per-workbook `fence(db, workbook_id)` as DELETE before resource lookup. This supersedes SYS-005's PostgreSQL row lock. The fence uses a PostgreSQL transaction-scoped advisory lock and SQLite serializes writes with `BEGIN IMMEDIATE`.
+- **Deletion:** DELETE removes the workbook's `p5_schedules` row in the same transaction as the workbook. This resolves the schedule portion of Jon's D4 under §10. The notification portion of D4 and cancellation of future work (D7) remain open.
+- **Access control:** The access matrix covers schedule GET and PUT, including operation-specific success statuses, ACC-3 checks of denial bodies and headers, and schedule state checks after denials.
+- **Approval status:** Developer work request only. No Pod approval.
+- **Implementation / verification status:** Implemented and verified locally on SQLite. Tests cover schedule GET and PUT returning 404 after deletion, preservation on an injected pre-delete failure, preservation of other workbooks' schedules, a concurrent PUT and DELETE leaving no schedule row, and session cleanup removing schedule and fault rows. PostgreSQL lock behavior remains unverified.
 
 ## Investigated inherited discrepancies (not fixed)
 
