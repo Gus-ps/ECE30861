@@ -1,10 +1,9 @@
 """REQ-12 / AC-12, AC-15: schedule configuration only; no WCAG checker."""
 from datetime import datetime, timedelta, timezone
-import json
-import re
 
 from pydantic import Field
-from contracts import Contract, Identifier, Timestamp
+from contracts import Contract, Identifier, Timestamp, strict_json
+import phase5_clock as clocks
 from service_errors import ApiError
 
 
@@ -32,6 +31,10 @@ class ScheduleResponse(Contract):
 
 
 def effective_now(db, namespace):
+    if namespace is not None:
+        simulated = clocks.read(db, namespace)
+        if simulated is not None:
+            return simulated
     return datetime.now(timezone.utc)
 
 
@@ -46,18 +49,8 @@ def initialize(store):
 
 def parse_body(raw):
     from datetime import date
-    def pairs(items):
-        result = {}
-        for key, value in items:
-            if key in result:
-                raise ValueError('Duplicate key')
-            result[key] = value
-        return result
-    def invalid(value):
-        raise ValueError('Nonfinite number')
     try:
-        body = json.loads(raw.decode('utf-8'), object_pairs_hook=pairs, parse_constant=invalid)
-        value = ScheduleRequest.model_validate(body)
+        value = ScheduleRequest.model_validate(strict_json(raw))
         if value.enabled and value.intervalDays is None:
             raise ValueError('Interval required')
         if value.complianceDeadline is not None:

@@ -1,4 +1,5 @@
 """Authenticated, durable system test sessions; never reset ordinary user data."""
+import os
 import re
 import secrets
 from typing import Annotated, Literal
@@ -7,6 +8,8 @@ from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, StrictInt
+from contracts import strict_json
+from phase5_clock import ClockRequest, INITIAL_TIME
 
 SessionId = Annotated[str, StringConstraints(strict=True, pattern=r'^[A-Za-z0-9_-]{1,64}$')]
 
@@ -21,6 +24,7 @@ class SetupOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
     cleanup_session_ids: list[SessionId] = Field(default_factory=list, max_length=100)
     faults: FaultOptions | None = None
+    clock: ClockRequest = Field(default_factory=lambda: ClockRequest(currentTime=INITIAL_TIME))
 
 
 class SystemSetup(BaseModel):
@@ -63,6 +67,7 @@ class TestSessionError(Exception):
 class SystemTests:
     def __init__(self, database, enabled, admins, users):
         self.database, self.enabled, self.admins, self.users = database, enabled, admins, users
+        self.clock_enabled = enabled and os.getenv('ENABLE_TEST_CLOCK', '').lower() == 'true'
         for mapping in (admins, users):
             if not isinstance(mapping, dict):
                 raise ValueError('Test credentials and membership must be JSON objects.')
@@ -96,7 +101,8 @@ class SystemTests:
         return session_id
 
     def setup(self, owner, body):
-        import os
+        if 'clock' in body.setup.model_fields_set and not self.clock_enabled:
+            raise TestSessionError(403, 'Test clock is disabled.')
         faults = body.setup.faults.model_dump(exclude_unset=True) if body.setup.faults else {}
         if 'faults' in body.setup.model_fields_set:
             if not faults or None in faults.values():
@@ -120,11 +126,15 @@ class SystemTests:
                 VALUES (?,?,'READY') ON CONFLICT(session_id) DO NOTHING''', (body.session_id, owner))
             if inserted.rowcount != 1:
                 raise TestSessionError(409, 'Test session already exists.')
+            if self.clock_enabled:
+                db.execute('INSERT INTO p5_clocks (session_id,"current_time") VALUES (?,?)',
+                           (body.session_id, body.setup.clock.currentTime))
             if 'audit_failures' in faults:
                 db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
             if 'deletion_failures' in faults:
                 db.execute("INSERT INTO p5_faults VALUES (?,'deletion',1)", (body.session_id,))
             for session_id in cleanup:
+                db.execute('DELETE FROM p5_clocks WHERE session_id=?', (session_id,))
                 db.execute('DELETE FROM p5_schedules WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_keys WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_jobs WHERE namespace=?', (session_id,))
@@ -185,8 +195,14 @@ class SystemTests:
 
         errors = {status: {'model': EndpointError} for status in (400, 401, 403, 404, 409, 500)}
 
+        async def validate_setup_json(request: Request):
+            try:
+                strict_json(await request.body())
+            except (ValueError, RecursionError):
+                raise TestSessionError(400, 'Missing or malformed test request data.') from None
+
         @app.post('/test/setup', status_code=201, response_model=SessionResponse, responses=errors)
-        def setup(body: SystemSetup, owner=Depends(admin)):
+        def setup(body: SystemSetup, owner=Depends(admin), _=Depends(validate_setup_json)):
             return self.setup(owner, body)
 
         @app.get('/test/report', response_model=SystemReport, responses=errors)

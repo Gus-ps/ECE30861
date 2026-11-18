@@ -1,4 +1,5 @@
 """HTTP data types for the operations and schemas supplied in PROMPT.md."""
+import json
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -12,6 +13,22 @@ VersionStatus = Literal['PROCESSING', 'AUDIT_COMPLETE', 'REVIEW_REQUIRED', 'REME
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
+
+
+def strict_json(raw):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('Duplicate key')
+            result[key] = value
+        return result
+
+    def reject_constant(value):
+        raise ValueError('Nonfinite number')
+
+    return json.loads(raw.decode('utf-8'), object_pairs_hook=unique_object,
+                      parse_constant=reject_constant)
 
 
 class Error(Contract):

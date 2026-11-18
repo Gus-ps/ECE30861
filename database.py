@@ -77,6 +77,8 @@ class Database:
                 findings TEXT NOT NULL DEFAULT '[]', limitations TEXT NOT NULL DEFAULT '[]', error TEXT)''')
             db.execute('''CREATE TABLE IF NOT EXISTS test_sessions (
                 session_id TEXT PRIMARY KEY, owner TEXT NOT NULL, state TEXT NOT NULL)''')
+            db.execute('''CREATE TABLE IF NOT EXISTS p5_clocks (
+                session_id TEXT PRIMARY KEY REFERENCES test_sessions(session_id), "current_time" TEXT NOT NULL)''')
             db.execute('''CREATE TABLE IF NOT EXISTS test_workbooks (
                 workbook_id TEXT PRIMARY KEY REFERENCES versions(workbook_id),
                 session_id TEXT NOT NULL REFERENCES test_sessions(session_id))''')
