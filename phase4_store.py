@@ -100,6 +100,11 @@ class Store:
     def active(self, db, version_id):
         return db.execute("SELECT 1 FROM p4_jobs WHERE version_id=? AND state IN ('PENDING','RUNNING')", (version_id,)).fetchone() is not None
 
+    def fence(self, db, workbook_id):
+        # SQLite already serializes writers with BEGIN IMMEDIATE.
+        if self.database.postgres:
+            db.execute('SELECT pg_advisory_xact_lock(hashtext(?))', (workbook_id,))
+
     def job(self, db, job_id, kind, resource_id, version_id, namespace, payload):
         db.execute('INSERT INTO p4_jobs VALUES (?,?,?,?,?,?,?,?)',
                    (job_id, kind, resource_id, version_id, namespace, 'PENDING', None, encode(payload)))

@@ -231,6 +231,7 @@ class Runner:
                                   decisions=records, approvedChanges=[d for d in records if d['action'] == 'APPLY'])
                 resource['body']['provenance'] = provenance
                 with self.store.connect(write=True) as db:
+                    self.store.fence(db, version['workbook_id'])
                     if not self.lease(db, job):
                         return
                     audit['startedAt'] = format_time(effective_now(db, version['namespace']))

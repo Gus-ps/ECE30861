@@ -71,8 +71,9 @@ class TestSessionError(Exception):
 
 
 class SystemTests:
-    def __init__(self, database, enabled, admins, users):
-        self.database, self.enabled, self.admins, self.users = database, enabled, admins, users
+    def __init__(self, store, enabled, admins, users):
+        self.store, self.database = store, store.database
+        self.enabled, self.admins, self.users = enabled, admins, users
         self.clock_enabled = enabled and os.getenv('ENABLE_TEST_CLOCK', '').lower() == 'true'
         for mapping in (admins, users):
             if not isinstance(mapping, dict):
@@ -157,7 +158,7 @@ class SystemTests:
                 db.execute("UPDATE test_sessions SET state='CLEANED' WHERE session_id=?", (session_id,))
         return {'session_id': body.session_id}
 
-    def advance_clock(self, owner, session_id, raw):
+    def advance_clock(self, owner, session_id, raw, request_id):
         if not re.fullmatch(SESSION_ID_PATTERN, session_id):
             raise ApiError(400, 'INVALID_TEST_SESSION', 'Unknown or invalid test session.')
         storage_errors = (sqlite3.Error,)
@@ -166,19 +167,18 @@ class SystemTests:
             storage_errors += (Error,)
         try:
             with self.database.connect(write=True) as db:
+                # Use cleanup's session lock before taking the clock and workbook locks.
                 self.require_clock_session(db, owner, session_id)
                 current = clocks.read(db, session_id, lock=self.database.postgres)
                 if current is None:
-                    # Cleanup may have removed the clock while the row lock was pending.
-                    self.require_clock_session(db, owner, session_id)
                     raise ApiError(409, 'LEGACY_SESSION_CLOCK', 'Prepare a new test session with a clock.')
-                return clocks.advance(db, session_id, current, raw)
+                return clocks.advance(self.store, db, session_id, current, raw, request_id)
         except storage_errors:
             logging.exception('Test clock transaction failed.')
             raise ApiError(500, 'STORAGE_FAILED', 'The test clock could not be advanced.') from None
 
     def require_clock_session(self, db, owner, session_id):
-        row = self.session(db, session_id)
+        row = self.session(db, session_id, lock=True)
         if row is not None and row['owner'] != owner:
             raise ApiError(403, 'FORBIDDEN', 'Test session belongs to another administrator.')
         if row is None or row['state'] == 'CLEANED':
@@ -245,7 +245,7 @@ class SystemTests:
         async def advance_clock(request: Request, owner=Depends(clock_admin)):
             raw = await clocks.read_request_body(request)
             return await run_in_threadpool(
-                self.advance_clock, owner, request.headers['x-test-session'], raw,
+                self.advance_clock, owner, request.headers['x-test-session'], raw, request.state.request_id,
             )
 
         if not self.enabled:

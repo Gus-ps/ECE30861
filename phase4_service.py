@@ -48,7 +48,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     database.initialize()
     store = Store(database)
     schedules.initialize(store)
-    tests = SystemTests(database,
+    tests = SystemTests(store,
                         enable_test_interface if enable_test_interface is not None else os.getenv('ENABLE_TEST_INTERFACE', '').lower() == 'true',
                         admins, test_session_users if test_session_users is not None else json.loads(os.getenv('TEST_SESSION_USERS_JSON', '{}')))
     runner = Runner(store, accessibility_checker)
@@ -145,7 +145,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     async def put_schedule(workbook_id: Identifier, request: Request, identity=Depends(user)):
         raw = await request.body()
         with store.connect(write=True) as db:
-            fence(db, workbook_id)
+            store.fence(db, workbook_id)
             workbook = lookup(db, workbook_id, 'workbook', request, identity, mutate=True)
             body = schedules.parse_body(raw)
             return schedules.write(db, workbook, body)
@@ -155,11 +155,6 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             return store.bytes(db, version)
         except ValueError:
             raise ApiError(500, 'SOURCE_INTEGRITY_FAILED', 'Stored workbook integrity check failed.')
-
-    def fence(db, wb):
-        # Serialize writes to one workbook against its deletion. SQLite's BEGIN IMMEDIATE already does.
-        if database.postgres:
-            db.execute('SELECT pg_advisory_xact_lock(hashtext(?))', (wb,))
 
     def check_active(db, vid):
         if store.active(db, vid):
@@ -220,7 +215,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         vid = identifier('version')
         if wb:
             with store.connect(write=True) as db:
-                fence(db, wb)
+                store.fence(db, wb)
                 lookup(db, wb, 'workbook', request, identity, mutate=True)
                 # Staging reservation: DELETE returns 409 until it is released or the 35 s upload bound passes.
                 db.execute('INSERT INTO p5_upload_reservations VALUES (?,?,?)', (vid, wb, time.time() + 35))
@@ -229,7 +224,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             with store.connect(write=True) as db:
                 tests.check(db, request.state.namespace, identity, lock=True)
                 if wb:
-                    fence(db, wb)
+                    store.fence(db, wb)
                     lookup(db, wb, 'workbook', request, identity, mutate=True)
                 else:
                     wb = identifier('workbook')
@@ -277,7 +272,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     def reaudit(request:Request, background:BackgroundTasks, workbook_id:Identifier, version_id:Identifier,
                 body:ReauditRequest|None=None, identity=Depends(user)):
         with store.connect(write=True) as db:
-            fence(db,workbook_id)
+            store.fence(db,workbook_id)
             version = lookup(db,version_id,'version',request,identity,wb=workbook_id,mutate=True)
             check_active(db,version_id)
             blob(db,version)
@@ -302,7 +297,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     def delete_workbook(request:Request, workbook_id:Identifier, identity=Depends(user)):
         versions="SELECT id FROM p4_resources WHERE workbook_id=? AND kind='version'"
         with store.connect(write=True) as db:
-            fence(db,workbook_id)
+            store.fence(db,workbook_id)
             lookup(db,workbook_id,'workbook',request,identity,mutate=True)
             if db.execute(f"""SELECT 1 FROM p4_jobs WHERE state IN ('PENDING','RUNNING') AND version_id IN ({versions})
                 UNION ALL SELECT 1 FROM p5_upload_reservations WHERE workbook_id=? AND expires>?""",
@@ -416,7 +411,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         response=dict(accepted,outputVersionId=None,outputId=None,auditId=None,error=None)
         with store.connect(write=True) as db:
             # Recheck all state under the reservation transaction, including concurrent identical replays.
-            fence(db,workbook_id)
+            store.fence(db,workbook_id)
             version=lookup(db,version_id,'version',request,identity,wb=workbook_id,mutate=True)
             previous=db.execute('SELECT * FROM p4_keys WHERE scope=? AND key=?',(scope,key)).fetchone()
             if previous:

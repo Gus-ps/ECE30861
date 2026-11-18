@@ -1,9 +1,10 @@
-"""REQ-12 / AC-12, AC-15: schedule configuration only; no WCAG checker."""
-from datetime import timedelta
+"""REQ-12 / AC-12, AC-15: configure schedules and accept periodic audits."""
+from datetime import datetime, timedelta
 
 from pydantic import Field
 from contracts import Contract, Identifier, Timestamp, strict_json
-from phase5_clock import effective_now
+from phase4_jobs import begin_audit
+from phase5_clock import effective_now, format_time
 from service_errors import ApiError
 
 
@@ -52,16 +53,20 @@ def parse_body(raw):
         raise ApiError(400, 'INVALID_REQUEST', 'Invalid schedule configuration.') from None
 
 
+def latest_version_id(db, workbook_id):
+    version = db.execute("""SELECT id FROM p4_resources
+        WHERE workbook_id=? AND kind='version' ORDER BY seq DESC LIMIT 1""",
+        (workbook_id,)).fetchone()
+    return version['id'] if version else None
+
+
 def read(db, workbook):
     row = db.execute('SELECT * FROM p5_schedules WHERE workbook_id=?',
                      (workbook['id'],)).fetchone()
-    version = db.execute("""SELECT id FROM p4_resources
-        WHERE workbook_id=? AND kind='version' ORDER BY seq DESC LIMIT 1""",
-        (workbook['id'],)).fetchone()
     return dict(workbookId=workbook['id'], enabled=bool(row['enabled']) if row else False,
         intervalDays=row['interval_days'] if row else None,
         complianceDeadline=row['compliance_deadline'] if row else None,
-        versionId=version['id'], nextAuditAt=row['next_audit_at'] if row else None,
+        versionId=latest_version_id(db, workbook['id']), nextAuditAt=row['next_audit_at'] if row else None,
         reminderDays=[90, 30, 7])
 
 
@@ -87,3 +92,48 @@ def write(db, workbook, body):
          body['intervalDays'], body['complianceDeadline'], due,
          instant.isoformat().replace('+00:00', 'Z')))
     return read(db, workbook)
+
+
+def dispatch_due_audits(store, db, namespace, instant, request_id, *, reject_busy=False, limit=None):
+    """Fence and accept due audits within the caller's write transaction."""
+    scope, params = ('namespace IS NULL', ()) if namespace is None else ('namespace=?', (namespace,))
+    candidates = db.execute(f'''SELECT workbook_id,next_audit_at FROM p5_schedules
+        WHERE {scope} AND enabled=1 AND next_audit_at IS NOT NULL''', params)
+    workbook_ids = sorted(row['workbook_id'] for row in candidates
+                          if datetime.fromisoformat(row['next_audit_at']) <= instant)
+    due = []
+    for workbook_id in workbook_ids:
+        store.fence(db, workbook_id)
+        # Re-read under the fence to discard deleted or rescheduled candidates.
+        row = db.execute('SELECT * FROM p5_schedules WHERE workbook_id=?', (workbook_id,)).fetchone()
+        if not row or row['namespace'] != namespace or not row['enabled'] or row['next_audit_at'] is None:
+            continue
+        previous = datetime.fromisoformat(row['next_audit_at'])
+        if previous <= instant:
+            due.append((previous, workbook_id, row['interval_days']))
+    if limit is not None and len(due) > limit:
+        raise ApiError(409, 'CLOCK_WORK_LIMIT', 'Too many scheduled audits are due.')
+
+    accepted = []
+    for previous, workbook_id, interval_days in sorted(due):
+        version_id = latest_version_id(db, workbook_id)
+        if version_id is None:
+            continue
+        if store.active(db, version_id):
+            if reject_busy:
+                raise ApiError(409, 'ACTIVE_OPERATION', 'An operation is already active for this version.')
+            continue
+        interval = timedelta(days=interval_days)
+        try:
+            next_due = previous + ((instant - previous) // interval + 1) * interval
+        except OverflowError:
+            raise ApiError(400, 'TIME_RANGE_EXCEEDED', 'Schedule exceeds supported time range.') from None
+        accepted.append((version_id, workbook_id, format_time(next_due)))
+
+    audits = []
+    for version_id, workbook_id, next_due in accepted:
+        version = store.get(db, version_id, 'version')
+        audits.append(begin_audit(store, db, version, request_id, scheduled_at=instant))
+        db.execute('UPDATE p5_schedules SET next_audit_at=?, updated_at=? WHERE workbook_id=?',
+                   (next_due, format_time(instant), workbook_id))
+    return audits

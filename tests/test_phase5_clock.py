@@ -197,15 +197,16 @@ class ClockTests(unittest.TestCase):
         self.assertLessEqual(before, ordinary_effective)
         self.assertLessEqual(ordinary_effective, after)
 
-        self.assert_advanced(self.advance('first', LATER), LATER)
-        self.assertEqual(self.clock_rows(), {'first': LATER, 'second': DEFAULT})
+        before_due = '2027-01-01T12:00:00Z'
+        self.assert_advanced(self.advance('first', before_due), before_due)
+        self.assertEqual(self.clock_rows(), {'first': before_due, 'second': DEFAULT})
         for path, headers, response in schedules:
             retained = self.client.get(path, headers=headers)
             self.assertEqual(retained.status_code, 200, retained.text)
             self.assertEqual(retained.json(), response.json())
         _, _, next_schedule = self.schedule('first', interval=1)
         self.assertEqual(next_schedule.status_code, 200, next_schedule.text)
-        self.assertEqual(next_schedule.json()['nextAuditAt'], '2028-01-02T00:00:00Z')
+        self.assertEqual(next_schedule.json()['nextAuditAt'], '2027-01-02T12:00:00Z')
 
     def test_clock_authorization_precedes_body_validation(self):
         self.assertEqual(self.setup_session('clock').status_code, 201)
@@ -257,15 +258,15 @@ class ClockTests(unittest.TestCase):
         self.assert_advanced(self.advance('clock', LATER), LATER)
 
     def test_schedule_overflow_after_clock_advance_preserves_configuration(self):
-        self.assertEqual(self.setup_session('clock').status_code, 201)
-        path, headers, created = self.schedule('clock', interval=1)
+        self.assertEqual(self.setup_session('clock', clock={'currentTime': '9999-12-29T00:00:00Z'}).status_code, 201)
+        path, headers, created = self.schedule('clock', interval=2)
         self.assertEqual(created.status_code, 200, created.text)
-        maximum = '9999-12-31T23:59:59.999999Z'
-        self.assert_advanced(self.advance('clock', maximum), maximum)
-        response = self.client.put(path, headers=headers, json={'enabled': True, 'intervalDays': 2})
+        before_due = '9999-12-30T23:59:59.999999Z'
+        self.assert_advanced(self.advance('clock', before_due), before_due)
+        response = self.client.put(path, headers=headers, json={'enabled': True, 'intervalDays': 3})
         self.assert_project_error(response, 400, 'TIME_RANGE_EXCEEDED')
         self.assertEqual(self.client.get(path, headers=headers).json(), created.json())
-        self.assertEqual(self.clock_rows(), {'clock': maximum})
+        self.assertEqual(self.clock_rows(), {'clock': before_due})
 
     def test_openapi_documents_clock_models_and_bearer_security(self):
         schema = self.client.get('/openapi.json').json()

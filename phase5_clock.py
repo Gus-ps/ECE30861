@@ -9,6 +9,7 @@ from service_errors import ApiError
 
 PATH = '/api/v1/test/clock'
 INITIAL_TIME = '2027-01-01T00:00:00Z'
+AUDIT_WORK_LIMIT = 1000
 ClockTimestamp = Annotated[str, StringConstraints(
     pattern=r'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$',
 ), Field(json_schema_extra={'format': 'date-time'})]
@@ -49,7 +50,7 @@ def effective_now(db, namespace):
     return datetime.now(timezone.utc)
 
 
-def advance(db, session_id, current, raw):
+def advance(store, db, session_id, current, raw, request_id):
     if raw is None:
         raise ApiError(413, 'REQUEST_TOO_LARGE', 'JSON request exceeds 1 MiB.')
     try:
@@ -62,14 +63,18 @@ def advance(db, session_id, current, raw):
     if instant > current:
         db.execute('UPDATE p5_clocks SET "current_time"=? WHERE session_id=?',
                    (request.currentTime, session_id))
-    audits, notifications = process_due_work(db, session_id, instant)
+    audits, notifications = process_due_work(store, db, session_id, instant, request_id)
     return ClockResponse(currentTime=request.currentTime, triggeredAudits=audits,
                          triggeredNotifications=notifications)
 
 
-def process_due_work(db, session_id, instant):
+def process_due_work(store, db, session_id, instant, request_id):
     """Accept due work inside the clock transaction and return newly accepted IDs."""
-    return [], []
+    from phase5_schedule import dispatch_due_audits
+
+    audits = dispatch_due_audits(store, db, session_id, instant, request_id,
+                                 reject_busy=True, limit=AUDIT_WORK_LIMIT)
+    return audits, []
 
 
 async def read_request_body(request):
