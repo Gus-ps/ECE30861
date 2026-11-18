@@ -46,7 +46,13 @@ class DeleteWorkbookTests(unittest.TestCase):
         app, client = self.start()
         self.assertEqual(client.post('/test/setup', headers={'Authorization': 'Bearer admin'},
                                      json={'session_id': 'side'}).status_code, 201)
-        up = self.upload(client); self.upload(client); self.upload(client, SIDE)
+        up = self.upload(client)
+        schedules = {}
+        for record, headers in ((up, OWNER), (self.upload(client), OWNER), (self.upload(client, SIDE), SIDE)):
+            path = f"/api/v1/workbooks/{record['workbookId']}/schedule"
+            configured = client.put(path, headers=headers, json={'enabled': True, 'intervalDays': 7})
+            self.assertEqual(configured.status_code, 200, configured.text)
+            schedules[path] = (headers, configured.json())
         wb = '/api/v1/workbooks/' + up['workbookId']
         base = f"{wb}/versions/{up['versionId']}"
         finding = client.get(base + '/audits/' + up['auditId'], headers=OWNER).json()['findings'][0]
@@ -56,7 +62,8 @@ class DeleteWorkbookTests(unittest.TestCase):
         out = f"{wb}/versions/{job['outputVersionId']}"
         urls = [base, base + '/source', base + '/audits/' + up['auditId'], base + '/audits/' + up['auditId'] + '/review',
                 base + '/audits/' + up['auditId'] + '/report', out, out + '/audits/' + job['auditId'] + '/report',
-                '/api/v1/remediations/' + rem['remediationId'], '/api/v1/outputs/' + job['outputId'] + '/workbook', wb + '/history']
+                '/api/v1/remediations/' + rem['remediationId'], '/api/v1/outputs/' + job['outputId'] + '/workbook',
+                wb + '/history', wb + '/schedule']
         for url in urls:
             self.assertEqual(client.get(url, headers=OWNER).status_code, 200, url)
         with app.state.database.connect() as db:
@@ -68,12 +75,18 @@ class DeleteWorkbookTests(unittest.TestCase):
         self.assertEqual((response.status_code, response.content), (204, b''))
         for url in urls:
             self.assertEqual(client.get(url, headers=OWNER).status_code, 404, url)
+        self.assertEqual(client.put(wb + '/schedule', headers=OWNER, json={'enabled': False}).status_code, 404)
+        del schedules[wb + '/schedule']
+        for path, (headers, schedule) in schedules.items():
+            response = client.get(path, headers=headers)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json(), schedule)
         self.assertEqual(client.post(base + '/audits', headers=OWNER, json={}).status_code, 404)
         self.assertEqual(client.post(wb + '/versions', headers=OWNER, files={'file': ('b.xlsx', workbook())}).status_code, 404)
         self.assertEqual(client.post(base + '/remediations', headers=dict(OWNER, **{'Idempotency-Key': 'k'}), json=body).status_code, 404)
         self.assertEqual(client.delete(wb, headers=OWNER).status_code, 404)
         with app.state.database.connect() as db:
-            for table in ('p4_resources', 'p4_keys'):
+            for table in ('p4_resources', 'p4_keys', 'p5_schedules'):
                 self.assertEqual(db.execute(f'SELECT COUNT(*) FROM {table} WHERE workbook_id=?', (up['workbookId'],)).fetchone()[0], 0)
             jobs = db.execute('SELECT COUNT(*) FROM p4_jobs WHERE version_id IN (?,?)', (up['versionId'], job['outputVersionId'])).fetchone()[0]
             self.assertEqual(jobs, 0)

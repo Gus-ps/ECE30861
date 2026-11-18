@@ -39,6 +39,8 @@ class DeletionFaultTests(unittest.TestCase):
         self.assertEqual(self.setup_session('plain', {}).status_code, 201)
         fault = dict(OWNER, **{'X-Test-Session': 'fault'})
         wb, up = self.upload(fault)
+        schedule = self.client.put(wb + '/schedule', headers=fault, json={'enabled': True, 'intervalDays': 7})
+        self.assertEqual(schedule.status_code, 200, schedule.text)
         source, data = f"{wb}/versions/{up['versionId']}/source", self.data
         # Ordinary data and another namespace are never eligible.
         for headers in (OWNER, dict(OWNER, **{'X-Test-Session': 'plain'})):
@@ -58,6 +60,9 @@ class DeletionFaultTests(unittest.TestCase):
                          {'code': 'TEST_DELETION_FAILURE', 'message': 'Deletion failure requested by the isolated test session.',
                           'details': {'stage': 'deletion', 'testOnly': True}})
         self.assertEqual(self.client.get(source, headers=fault).content, data)
+        retained = self.client.get(wb + '/schedule', headers=fault)
+        self.assertEqual(retained.status_code, 200, retained.text)
+        self.assertEqual(retained.json(), schedule.json())
         self.client = self.restart()  # so does its consumption
         self.assertEqual(self.client.delete(wb, headers=fault).status_code, 204)
         self.assertEqual(self.client.get(source, headers=fault).status_code, 404)

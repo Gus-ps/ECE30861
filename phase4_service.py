@@ -140,10 +140,8 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     async def put_schedule(workbook_id: Identifier, request: Request, identity=Depends(user)):
         raw = await request.body()
         with store.connect(write=True) as db:
+            fence(db, workbook_id)
             workbook = lookup(db, workbook_id, 'workbook', request, identity, mutate=True)
-            if database.postgres:
-                db.execute('SELECT id FROM p4_resources WHERE id=? FOR UPDATE',
-                           (workbook_id,)).fetchone()
             body = schedules.parse_body(raw)
             return schedules.write(db, workbook, body)
 
@@ -327,7 +325,8 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 (request.state.namespace,)).rowcount == 1
             if not injected:
                 db.execute(f'DELETE FROM p4_jobs WHERE version_id IN ({versions})',(workbook_id,))
-                for table in ('p4_keys','p4_resources','audits','test_workbooks','versions','p5_upload_reservations'):
+                for table in ('p4_keys','p4_resources','audits','test_workbooks','versions',
+                              'p5_upload_reservations','p5_schedules'):
                     db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
         if injected:
             raise ApiError(500,'TEST_DELETION_FAILURE','Deletion failure requested by the isolated test session.',
