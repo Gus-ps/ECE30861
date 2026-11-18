@@ -33,10 +33,19 @@ class ScheduleResponse(Contract):
 
 def initialize(store):
     with store.connect(write=True) as db:
+        if store.database.postgres:
+            db.execute('SELECT pg_advisory_xact_lock(3086101)')
         db.execute("""CREATE TABLE IF NOT EXISTS p5_schedules (
             workbook_id TEXT PRIMARY KEY, namespace TEXT, owner TEXT NOT NULL,
             enabled INTEGER NOT NULL, interval_days INTEGER,
-            compliance_deadline TEXT, next_audit_at TEXT, updated_at TEXT NOT NULL)""")
+            compliance_deadline TEXT, next_audit_at TEXT, updated_at TEXT NOT NULL,
+            deadline_set_at TEXT)""")
+        if store.database.postgres:
+            db.execute('ALTER TABLE p5_schedules ADD COLUMN IF NOT EXISTS deadline_set_at TEXT')
+        elif not any(row['name'] == 'deadline_set_at' for row in db.execute('PRAGMA table_info(p5_schedules)')):
+            db.execute('ALTER TABLE p5_schedules ADD COLUMN deadline_set_at TEXT')
+        db.execute("""UPDATE p5_schedules SET deadline_set_at=updated_at
+            WHERE compliance_deadline IS NOT NULL AND deadline_set_at IS NULL""")
         db.execute('CREATE INDEX IF NOT EXISTS p5_schedule_due ON p5_schedules(next_audit_at)')
 
 
@@ -83,34 +92,47 @@ def write(db, workbook, body):
             due = (instant + timedelta(days=body['intervalDays'])).isoformat().replace('+00:00', 'Z')
     except OverflowError:
         raise ApiError(400, 'TIME_RANGE_EXCEEDED', 'Schedule exceeds supported time range.') from None
-    db.execute("""INSERT INTO p5_schedules VALUES (?,?,?,?,?,?,?,?)
+    db.execute("""INSERT INTO p5_schedules
+        (workbook_id,namespace,owner,enabled,interval_days,compliance_deadline,next_audit_at,updated_at,deadline_set_at)
+        VALUES (?,?,?,?,?,?,?,?,?)
         ON CONFLICT(workbook_id) DO UPDATE SET namespace=excluded.namespace,
         owner=excluded.owner, enabled=excluded.enabled, interval_days=excluded.interval_days,
         compliance_deadline=excluded.compliance_deadline, next_audit_at=excluded.next_audit_at,
-        updated_at=excluded.updated_at""",
+        updated_at=excluded.updated_at,
+        deadline_set_at=CASE WHEN p5_schedules.compliance_deadline=excluded.compliance_deadline
+            THEN p5_schedules.deadline_set_at ELSE excluded.deadline_set_at END""",
         (workbook['id'], workbook['namespace'], workbook['owner'], int(body['enabled']),
          body['intervalDays'], body['complianceDeadline'], due,
-         instant.isoformat().replace('+00:00', 'Z')))
+         format_time(instant), format_time(instant) if body['complianceDeadline'] is not None else None))
     return read(db, workbook)
 
 
-def dispatch_due_audits(store, db, namespace, instant, request_id, *, reject_busy=False, limit=None):
-    """Fence and accept due audits within the caller's write transaction."""
+def locked_schedules(store, db, namespace, candidate):
+    """Lock a fixed set in workbook ID order and re-read it under the fence."""
     scope, params = ('namespace IS NULL', ()) if namespace is None else ('namespace=?', (namespace,))
-    candidates = db.execute(f'''SELECT workbook_id,next_audit_at FROM p5_schedules
-        WHERE {scope} AND enabled=1 AND next_audit_at IS NOT NULL''', params)
-    workbook_ids = sorted(row['workbook_id'] for row in candidates
-                          if datetime.fromisoformat(row['next_audit_at']) <= instant)
-    due = []
+    rows = db.execute(f'SELECT * FROM p5_schedules WHERE {scope}', params)
+    workbook_ids = sorted(row['workbook_id'] for row in rows if candidate(row))
+    locked = []
     for workbook_id in workbook_ids:
         store.fence(db, workbook_id)
         # Re-read under the fence to discard deleted or rescheduled candidates.
         row = db.execute('SELECT * FROM p5_schedules WHERE workbook_id=?', (workbook_id,)).fetchone()
-        if not row or row['namespace'] != namespace or not row['enabled'] or row['next_audit_at'] is None:
-            continue
-        previous = datetime.fromisoformat(row['next_audit_at'])
-        if previous <= instant:
-            due.append((previous, workbook_id, row['interval_days']))
+        if row and row['namespace'] == namespace and candidate(row):
+            locked.append(row)
+    return locked
+
+
+def audit_due(row, instant):
+    return (row['enabled'] and row['next_audit_at'] is not None
+            and datetime.fromisoformat(row['next_audit_at']) <= instant)
+
+
+def dispatch_due_audits(store, db, namespace, instant, request_id, *, reject_busy=False, limit=None, schedules=None):
+    """Accept due audits within the caller's write transaction."""
+    if schedules is None:
+        schedules = locked_schedules(store, db, namespace, lambda row: audit_due(row, instant))
+    due = [(datetime.fromisoformat(row['next_audit_at']), row['workbook_id'], row['interval_days'])
+           for row in schedules if audit_due(row, instant)]
     if limit is not None and len(due) > limit:
         raise ApiError(409, 'CLOCK_WORK_LIMIT', 'Too many scheduled audits are due.')
 

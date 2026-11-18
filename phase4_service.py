@@ -26,6 +26,7 @@ from phase4_contracts import (AuditReport, HistoryResponse, ReauditRequest, Reau
                              RemediationAccepted, RemediationRequest, RemediationResponse, ReviewResponse)
 from phase4_jobs import RULESET_VERSION, Runner, begin_audit, child, identifier
 from phase4_store import Store, encode, now
+import phase5_reminders as reminders
 import phase5_schedule as schedules
 from phase5_clock import PATH as CLOCK_PATH
 from service_errors import ApiError
@@ -48,6 +49,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     database.initialize()
     store = Store(database)
     schedules.initialize(store)
+    reminders.initialize(store)
     tests = SystemTests(store,
                         enable_test_interface if enable_test_interface is not None else os.getenv('ENABLE_TEST_INTERFACE', '').lower() == 'true',
                         admins, test_session_users if test_session_users is not None else json.loads(os.getenv('TEST_SESSION_USERS_JSON', '{}')))
