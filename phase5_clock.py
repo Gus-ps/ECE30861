@@ -10,6 +10,7 @@ from service_errors import ApiError
 PATH = '/api/v1/test/clock'
 INITIAL_TIME = '2027-01-01T00:00:00Z'
 AUDIT_WORK_LIMIT = 1000
+REMINDER_WORK_LIMIT = 3000
 ClockTimestamp = Annotated[str, StringConstraints(
     pattern=r'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$',
 ), Field(json_schema_extra={'format': 'date-time'})]
@@ -70,11 +71,16 @@ def advance(store, db, session_id, current, raw, request_id):
 
 def process_due_work(store, db, session_id, instant, request_id):
     """Accept due work inside the clock transaction and return newly accepted IDs."""
-    from phase5_schedule import dispatch_due_audits
+    from phase5_reminders import dispatch_due_reminders, due_thresholds
+    from phase5_schedule import audit_due, dispatch_due_audits, locked_schedules
 
+    schedules = locked_schedules(store, db, session_id,
+                                 lambda row: audit_due(row, instant) or due_thresholds(row, instant))
+    notifications = dispatch_due_reminders(store, db, session_id, instant,
+                                          limit=REMINDER_WORK_LIMIT, schedules=schedules)
     audits = dispatch_due_audits(store, db, session_id, instant, request_id,
-                                 reject_busy=True, limit=AUDIT_WORK_LIMIT)
-    return audits, []
+                                 reject_busy=True, limit=AUDIT_WORK_LIMIT, schedules=schedules)
+    return audits, notifications
 
 
 async def read_request_body(request):

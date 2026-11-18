@@ -10,8 +10,10 @@ P5-REMINDER-AUDIT-SAME-TICK, P5-REMINDER-LEAP-UTC, P5-REMINDER-EMPTY,
 P5-REMINDER-ORDER, P5-REMINDER-FAILED-RECORD, P5-FAULT-NOTIFICATION,
 P5-LOCAL-NOTIFICATION-RESTART. P5-ACCESS-NOTIFICATIONS-* is covered by the access matrix.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 from pathlib import Path
+import sqlite3
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -21,6 +23,7 @@ from phase4_store import Store
 from phase5_clock import format_time
 import phase5_reminders as reminders
 import phase5_schedule as schedules
+import test_phase5_dispatch as dispatch_tests
 
 DEADLINE = '2027-04-26'
 START = '2027-01-01T00:00:00Z'
@@ -105,3 +108,209 @@ class ReminderPolicyTests(unittest.TestCase):
                 with patch.object(schedules, 'effective_now', return_value=datetime.fromisoformat(M90)):
                     schedules.write(db, workbook, dict(body, complianceDeadline='2027-05-01'))
                 self.assertEqual(db.execute('SELECT deadline_set_at FROM p5_schedules').fetchone()[0], M90)
+
+
+class ReminderClockTests(unittest.TestCase):
+    setUp = dispatch_tests.DispatchTests.setUp
+    prepare = dispatch_tests.DispatchTests.prepare
+    upload = dispatch_tests.DispatchTests.upload
+    advance = dispatch_tests.DispatchTests.advance
+    read_audit = dispatch_tests.DispatchTests.read_audit
+    assert_error = dispatch_tests.DispatchTests.assert_error
+    remediate = dispatch_tests.DispatchTests.remediate
+
+    def configure(self, headers, path, deadline=DEADLINE, interval=None):
+        body = {'enabled': interval is not None, 'complianceDeadline': deadline}
+        if interval is not None:
+            body['intervalDays'] = interval
+        result = self.client.put(path + '/schedule', headers=headers, json=body)
+        self.assertEqual(result.status_code, 200, result.text)
+        return result.json()
+
+    def workbook(self, headers, *, clean=False, deadline=DEADLINE, interval=None):
+        if clean:
+            with patch.object(self.runner, 'checker', return_value=[]):
+                ids, version = self.upload(headers)
+        else:
+            ids, version = self.upload(headers)
+        path = version.rsplit('/versions/', 1)[0]
+        self.configure(headers, path, deadline, interval)
+        return ids, path, version
+
+    def tick(self, instant, session='clock'):
+        response = self.advance(instant, session)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['currentTime'], instant)
+        return response.json()
+
+    def rows(self, table):
+        with self.app.state.store.connect() as db:
+            return [dict(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY 1')]
+
+    def notifications(self):
+        return sorted(self.rows('p5_notifications'), key=lambda row: row['seq'])
+
+    def snapshot(self):
+        return {table: self.rows(table) for table in (
+            'p5_clocks', 'p5_schedules', 'p5_notifications', 'p5_reminder_considered',
+            'p4_resources', 'p4_jobs', 'p5_faults',
+        )}
+
+    def test_threshold_boundaries_and_message(self):
+        headers = self.prepare()
+        ids, _, _ = self.workbook(headers)
+        expected = []
+        for instant, offset in ((M90, 90), (M30, 30), (M7, 7)):
+            before = datetime.fromisoformat(instant) - timedelta(microseconds=1)
+            self.assertEqual(self.tick(format_time(before))['triggeredNotifications'], [])
+            nid, = self.tick(instant)['triggeredNotifications']
+            record = self.notifications()[-1]
+            self.assertEqual(record['notification_id'], nid)
+            self.assertEqual(record['scheduled_for'], instant)
+            self.assertEqual(record['status'], 'DELIVERED')
+            self.assertEqual(record['type'], 'COMPLIANCE_DEADLINE_REMINDER')
+            self.assertEqual(record['version_id'], ids['versionId'])
+            for content in (DEADLINE, str(offset), ids['versionId'], reminders.STORED_VERSION_NOTICE):
+                self.assertIn(content, record['message'])
+            expected.append(nid)
+        self.assertEqual([record['notification_id'] for record in self.notifications()], expected)
+
+    def test_jump_and_no_backfill_vectors(self):
+        a = self.prepare('jump')
+        b = self.prepare('late', clock={'currentTime': '2027-02-01T00:00:00Z'})
+        self.workbook(a)
+        self.workbook(b)
+        ids = self.tick('2027-04-20T00:00:00Z', 'jump')['triggeredNotifications']
+        self.assertEqual(ids, [row['notification_id'] for row in self.notifications()])
+        self.assertEqual([row['scheduled_for'] for row in self.notifications()], [M90, M30, M7])
+        self.assertEqual(len(self.tick(M30, 'late')['triggeredNotifications']), 1)
+        self.assertEqual(self.notifications()[-1]['scheduled_for'], M30)
+        self.assertEqual(self.tick(M30, 'late')['triggeredNotifications'], [])
+
+    def test_configuration_at_threshold_and_edit_return_clear(self):
+        headers = self.prepare(clock={'currentTime': M90})
+        _, path, _ = self.workbook(headers)
+        first, = self.tick(M90)['triggeredNotifications']
+        original = self.notifications()[0]
+        self.configure(headers, path)
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.configure(headers, path, '2027-05-01')
+        self.configure(headers, path)
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.configure(headers, path, '2027-05-01')
+        self.assertEqual(len(self.tick('2027-01-31T00:00:00Z')['triggeredNotifications']), 1)
+        self.assertEqual(self.notifications()[0], original)
+        self.configure(headers, path, None)
+        self.assertEqual(self.tick('2027-06-01T00:00:00Z')['triggeredNotifications'], [])
+        self.assertEqual(len(self.notifications()), 2)
+        self.assertEqual(self.notifications()[0]['notification_id'], first)
+
+    def test_clean_considered_and_new_dirty_version_is_used_later(self):
+        headers = self.prepare()
+        _, path, _ = self.workbook(headers, clean=True)
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.assertEqual(len(self.rows('p5_reminder_considered')), 1)
+        newest, _ = self.upload(headers, path + '/versions')
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.assertEqual(len(self.tick(M30)['triggeredNotifications']), 1)
+        self.assertEqual(self.notifications()[0]['version_id'], newest['versionId'])
+
+    def test_audit_same_tick_uses_clean_pre_dispatch_state(self):
+        headers = self.prepare()
+        _, _, version = self.workbook(headers, clean=True, interval=25)
+        result = self.tick(M90)
+        aid, = result['triggeredAudits']
+        self.assertEqual(result['triggeredNotifications'], [])
+        self.assertEqual(self.read_audit(headers, version, aid)['status'], 'PROCESSING')
+        self.assertEqual(len(self.rows('p5_reminder_considered')), 1)
+
+    def test_no_audit_processing_failed_and_declined_are_eligible(self):
+        headers = self.prepare(faults={'audit_failures': 1})
+        failed, _, failed_version = self.workbook(headers)
+        self.assertEqual(self.read_audit(headers, failed_version, failed['auditId'])['status'], 'PROCESSING_FAILED')
+        absent, _, _ = self.workbook(headers)
+        with self.app.state.store.connect(write=True) as db:
+            store = self.app.state.store
+            row = store.get(db, absent['versionId'])
+            store.update(db, row['id'], dict(row['body'], latestAuditId=None))
+        original, _, version = self.workbook(headers)
+        rid = self.remediate(headers, version, original['auditId'])
+        result = self.client.get(f'/api/v1/remediations/{rid}', headers=headers).json()
+        self.assertEqual(result['status'], 'REMEDIATED')
+        with patch.object(self.runner, 'drain'):
+            running, _, running_version = self.workbook(headers)
+        processing = self.read_audit(headers, running_version, running['auditId'])
+        self.assertEqual((processing['status'], processing['findings']), ('PROCESSING', []))
+        ids = self.tick(M90)['triggeredNotifications']
+        self.assertEqual(len(ids), 4)
+        self.assertEqual({row['version_id'] for row in self.notifications()},
+                         {failed['versionId'], running['versionId'], absent['versionId'], result['outputVersionId']})
+
+    def test_fault_is_one_shot_skips_suppression_and_preserves_audit(self):
+        headers = self.prepare(faults={'notification_failures': 1})
+        _, path, _ = self.workbook(headers, clean=True)
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.assertEqual(self.rows('p5_faults')[0]['remaining'], 1)
+        other = self.prepare('other')
+        self.workbook(other)
+        self.tick(M90, 'other')
+        owner = dispatch_tests.OWNER
+        with patch.object(schedules, 'effective_now', return_value=datetime.fromisoformat(START)):
+            self.workbook(owner)
+        with self.app.state.store.connect(write=True) as db:
+            self.assertEqual(len(reminders.dispatch_due_reminders(
+                self.app.state.store, db, None, datetime.fromisoformat(M90))), 1)
+        self.assertEqual(self.rows('p5_faults')[0]['remaining'], 1)
+        ids, version = self.upload(headers, path + '/versions')
+        before = self.read_audit(headers, version, ids['auditId'])
+        failed, = self.tick(M30)['triggeredNotifications']
+        self.assertEqual(self.notifications()[-1]['notification_id'], failed)
+        self.assertEqual(self.notifications()[-1]['status'], 'FAILED')
+        self.assertIn('simulated', self.notifications()[-1]['message'])
+        self.assertEqual(self.read_audit(headers, version, ids['auditId']), before)
+        self.assertEqual(self.rows('p5_faults')[0]['remaining'], 0)
+        self.assertEqual(self.tick(M30)['triggeredNotifications'], [])
+        self.tick(M7)
+        self.assertEqual([r['status'] for r in self.notifications()],
+                         ['DELIVERED', 'DELIVERED', 'FAILED', 'DELIVERED'])
+
+    def test_fault_configuration_validation_and_capability(self):
+        def setup(value):
+            return self.client.post('/test/setup', headers=dispatch_tests.ADMIN, json={
+                'session_id': 'fault', 'setup': {'faults': {'notification_failures': value}},
+            })
+        for value in (True, 1.0, 2, '1', None):
+            with self.subTest(value=value):
+                response = setup(value)
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(set(response.json()), {'message', 'source'})
+        with patch.dict(os.environ, {'ENABLE_TEST_FAULTS': 'false'}):
+            response = setup(1)
+            self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(setup(1).status_code, 201)
+        self.assertEqual(setup(1).status_code, 409)
+
+    def test_work_limit_counts_suppressed_occurrences_and_rolls_back(self):
+        headers = self.prepare()
+        self.workbook(headers, clean=True)
+        before = self.snapshot()
+        with patch('phase5_clock.REMINDER_WORK_LIMIT', 2):
+            self.assert_error(self.advance(M7), 409, 'CLOCK_WORK_LIMIT')
+        self.assertEqual(self.snapshot(), before)
+
+    def test_busy_audit_and_storage_failure_roll_back_reminders(self):
+        headers = self.prepare(faults={'notification_failures': 1})
+        with patch.object(self.runner, 'drain'):
+            self.workbook(headers, interval=25)
+        before = self.snapshot()
+        self.assert_error(self.advance(M90), 409, 'ACTIVE_OPERATION')
+        self.assertEqual(self.snapshot(), before)
+        self.runner.drain()
+        before = self.snapshot()
+        with patch('phase5_schedule.begin_audit', side_effect=sqlite3.OperationalError('audit insert failed')):
+            with self.assertLogs(level='ERROR'):
+                self.assert_error(self.advance(M90), 500, 'STORAGE_FAILED')
+        self.assertEqual(self.snapshot(), before)
+        result = self.tick(M90)
+        self.assertEqual(len(result['triggeredAudits']), 1)
+        self.assertEqual(len(result['triggeredNotifications']), 1)

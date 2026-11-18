@@ -71,10 +71,17 @@ def create_notification(db, namespace, workbook_id, version_id, deadline, thresh
     notification_id = identifier('notification')
     message = (f'Compliance deadline {deadline} is {offset} days after this reminder threshold '
                f'for stored version {version_id}. {STORED_VERSION_NOTICE}')
+    status = 'DELIVERED'
+    if namespace is not None:
+        fault = db.execute("""UPDATE p5_faults SET remaining=0
+            WHERE session_id=? AND kind='notification' AND remaining=1""", (namespace,))
+        if fault.rowcount == 1:
+            status = 'FAILED'
+            message += ' A simulated in-app notification failure prevented delivery.'
     db.execute("""INSERT INTO p5_notifications
         (notification_id,namespace,workbook_id,version_id,type,scheduled_for,status,message)
-        VALUES (?,?,?,?,'COMPLIANCE_DEADLINE_REMINDER',?,'DELIVERED',?)""",
-        (notification_id, namespace, workbook_id, version_id, format_time(threshold), message))
+        VALUES (?,?,?,?,'COMPLIANCE_DEADLINE_REMINDER',?,?,?)""",
+        (notification_id, namespace, workbook_id, version_id, format_time(threshold), status, message))
     return notification_id
 
 

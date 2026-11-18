@@ -24,6 +24,7 @@ class FaultOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
     audit_failures: StrictInt | None = Field(None, ge=1, le=1)
     deletion_failures: StrictInt | None = Field(None, ge=1, le=1)
+    notification_failures: StrictInt | None = Field(None, ge=1, le=1)
 
 
 class SetupOptions(BaseModel):
@@ -138,8 +139,9 @@ class SystemTests:
                            (body.session_id, body.setup.clock.currentTime))
             if 'audit_failures' in faults:
                 db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
-            if 'deletion_failures' in faults:
-                db.execute("INSERT INTO p5_faults VALUES (?,'deletion',1)", (body.session_id,))
+            for kind in ('deletion', 'notification'):
+                if f'{kind}_failures' in faults:
+                    db.execute('INSERT INTO p5_faults VALUES (?,?,1)', (body.session_id, kind))
             for session_id in cleanup:
                 db.execute('DELETE FROM p5_clocks WHERE session_id=?', (session_id,))
                 db.execute('DELETE FROM p5_schedules WHERE namespace=?', (session_id,))
