@@ -127,7 +127,8 @@ def audit_due(row, instant):
             and datetime.fromisoformat(row['next_audit_at']) <= instant)
 
 
-def dispatch_due_audits(store, db, namespace, instant, request_id, *, reject_busy=False, limit=None, schedules=None):
+def dispatch_due_audits(store, db, namespace, instant, request_id, *, reject_busy=False,
+                        limit=None, schedules=None, recorded_deadlines=None):
     """Accept due audits within the caller's write transaction."""
     if schedules is None:
         schedules = locked_schedules(store, db, namespace, lambda row: audit_due(row, instant))
@@ -150,12 +151,14 @@ def dispatch_due_audits(store, db, namespace, instant, request_id, *, reject_bus
             next_due = previous + ((instant - previous) // interval + 1) * interval
         except OverflowError:
             raise ApiError(400, 'TIME_RANGE_EXCEEDED', 'Schedule exceeds supported time range.') from None
-        accepted.append((version_id, workbook_id, format_time(next_due)))
+        accepted.append((version_id, workbook_id, previous, format_time(next_due)))
 
     audits = []
-    for version_id, workbook_id, next_due in accepted:
+    for version_id, workbook_id, previous, next_due in accepted:
         version = store.get(db, version_id, 'version')
         audits.append(begin_audit(store, db, version, request_id, scheduled_at=instant))
         db.execute('UPDATE p5_schedules SET next_audit_at=?, updated_at=? WHERE workbook_id=?',
                    (next_due, format_time(instant), workbook_id))
+        if recorded_deadlines is not None:
+            recorded_deadlines.append(previous)
     return audits

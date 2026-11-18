@@ -92,7 +92,8 @@ def create_notification(db, namespace, workbook_id, version_id, deadline, thresh
     return notification_id
 
 
-def dispatch_due_reminders(store, db, namespace, instant, *, limit=None, schedules=None):
+def dispatch_due_reminders(store, db, namespace, instant, *, limit=None, schedules=None,
+                           recorded_deadlines=None):
     """Consider due thresholds and record eligible notifications in the caller's transaction."""
     if schedules is None:
         schedules = locked_schedules(store, db, namespace, lambda row: due_thresholds(row, instant))
@@ -131,4 +132,6 @@ def dispatch_due_reminders(store, db, namespace, instant, *, limit=None, schedul
         if should_notify and claimed.rowcount == 1:
             notifications.append(create_notification(db, namespace, workbook_id, version_id,
                                                      deadline, threshold, offset))
+            if recorded_deadlines is not None:
+                recorded_deadlines.append(threshold)
     return notifications

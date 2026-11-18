@@ -71,16 +71,10 @@ def advance(store, db, session_id, current, raw, request_id):
 
 def process_due_work(store, db, session_id, instant, request_id):
     """Accept due work inside the clock transaction and return newly accepted IDs."""
-    from phase5_reminders import dispatch_due_reminders, due_thresholds
-    from phase5_schedule import audit_due, dispatch_due_audits, locked_schedules
+    from phase5_scheduler import dispatch_work
 
-    schedules = locked_schedules(store, db, session_id,
-                                 lambda row: audit_due(row, instant) or due_thresholds(row, instant))
-    notifications = dispatch_due_reminders(store, db, session_id, instant,
-                                          limit=REMINDER_WORK_LIMIT, schedules=schedules)
-    audits = dispatch_due_audits(store, db, session_id, instant, request_id,
-                                 reject_busy=True, limit=AUDIT_WORK_LIMIT, schedules=schedules)
-    return audits, notifications
+    return dispatch_work(store, db, session_id, instant, request_id, reject_busy=True,
+                         audit_limit=AUDIT_WORK_LIMIT, reminder_limit=REMINDER_WORK_LIMIT)
 
 
 async def read_request_body(request):
