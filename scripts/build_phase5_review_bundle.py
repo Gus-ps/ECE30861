@@ -42,7 +42,9 @@ def review_md(entry):
         "## What it is", "", entry["notes"], "",
         f"Expected: HTTP {entry['http_status']} on upload, status {entry['expected_status']}, no findings, no "
         "limitations. Written by hand from the definition in `scripts/build_phase5_fixtures.py`, not by running an "
-        "engine. It has not been opened in Excel.", "",
+        "engine. " + ("It opened in Microsoft Excel without a repair prompt on "
+                      f"{entry['excel_open']['date']}." if (entry.get("excel_open") or {}).get("result") == "opened_clean"
+                      else "It has not been opened in Excel."), "",
         "## How to review", "",
         "1. Check `SHA256SUMS.txt`; the workbook's hash is also `sha256` in `expectations-entry.json`.",
         "2. Confirm the workbook holds exactly 250,000 nonempty cells (the shared limit: accepted, not rejected).",

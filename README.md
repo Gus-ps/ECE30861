@@ -165,7 +165,7 @@ The Phase 5 pack, `tester/fixtures/expectations_phase5.json`, is built by
 `scripts/build_phase5_fixtures.py`. It holds the Phase 4 pack's entries unchanged (files under
 `phase4/`) plus `phase5/performance_250000_cells.xlsx`: exactly 250,000 nonempty cells in one
 table, with expected status AUDIT_COMPLETE and no findings. That expectation is hand-authored and
-not yet reviewed or opened in Excel. `scripts/build_phase5_review_bundle.py` writes Team 9's
+not yet reviewed; it opened in Excel without a repair prompt on 2026-11-17. `scripts/build_phase5_review_bundle.py` writes Team 9's
 add-on review bundle. The 57 local and 21 manual plan entries are mapped to owners and evidence in
 `docs/phase5-local-and-manual.md`. Team 12's draft adoption values and open shared decisions are
 in `docs/phase5-adoption-team12.md`. Phase 5 rules already applied: a new report must say

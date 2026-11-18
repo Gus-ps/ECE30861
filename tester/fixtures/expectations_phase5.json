@@ -1,7 +1,7 @@
 {
   "ruleset_version": "2.0.0",
   "specification_version": "3.0.0",
-  "manual_review": "Not reviewed. Phase 5 pack: the adopted Phase 4 pack 2.1.1 entries unchanged (their review state is in that pack's manual_review), plus performance_250000_cells, built by scripts/build_phase5_fixtures.py and hand-authored on 2026-11-17 from its definition before any engine was run. It has not been opened in Excel or reviewed by Team 9.",
+  "manual_review": "Not reviewed. Phase 5 pack: the adopted Phase 4 pack 2.1.1 entries unchanged (their review state is in that pack's manual_review), plus performance_250000_cells, built by scripts/build_phase5_fixtures.py and hand-authored on 2026-11-17 from its definition before any engine was run. It opened in Microsoft Excel without a repair prompt on 2026-11-17 (recorded in its excel_open). It has not been reviewed by Team 9.",
   "fixtures": {
     "clean_all_six": {
       "kind": "accepted",
@@ -2851,14 +2851,14 @@
         "decisions": null
       },
       "excel_open": {
-        "date": null,
+        "date": "2026-11-17",
         "reviewer": null,
         "excel_version": null,
         "platform": null,
-        "result": null,
+        "result": "opened_clean",
         "repaired_parts": [],
         "expected": true,
-        "note": "Not opened in Excel yet."
+        "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform still to be filled in."
       }
     }
   }

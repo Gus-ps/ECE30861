@@ -23,7 +23,7 @@ changes these values, so recompute them at release.
 | Target release SHA or tag | Pending (Team 12 system, deployment branch `origin/Gustavo`) |
 | Tester release SHA or tag | Pending (branch `Logan-tester-phase5`, not yet committed) |
 | Runnable manifest version and hash | `3.0.0-team12-draft`, `tester/fixtures/manifest_phase5.json` SHA256 `cb7b9b0119ed143719cb81e72118f21542015d81d2aeef4f77f9e630a7c83859`. Generated from the plan by `scripts/build_phase5_manifest.py`: 357 hosted cases, 351 with checks and 6 tester self-checks pending |
-| Fixture and expectations hashes | `tester/fixtures/expectations_phase5.json` `d4fe307f317f8b4eca6a84c245520c9e47ba62b7eae5d7293d02a612c851a819` (Phase 4 pack 2.1.1 entries unchanged, plus `performance_250000_cells.xlsx` `cc5113ac0e868e12c11565b97603f93607cf16b5b472a26bec5bc902b2d73ea1`). Phase 4 pack `tester/fixtures/phase4/expectations.json` `2d51a46b93cbc05bc27aed8d04383b35042f1eb10a16167ec2c64a38e1a00cab` |
+| Fixture and expectations hashes | `tester/fixtures/expectations_phase5.json` `9a50b328a46ece5d50f335898da0848c8158348ff5f8d0e528be1827fcf0bb08` (Phase 4 pack 2.1.1 entries unchanged, plus `performance_250000_cells.xlsx` `cc5113ac0e868e12c11565b97603f93607cf16b5b472a26bec5bc902b2d73ea1`). Phase 4 pack `tester/fixtures/phase4/expectations.json` `2d51a46b93cbc05bc27aed8d04383b35042f1eb10a16167ec2c64a38e1a00cab` |
 | Private access provisioning location | Pending. The tester needs per target userA, userB, reviewer and test-admin, plus `reviewer-ungranted` and `test-admin-2` for 5 access cases |
 | Team design version and mapping URL/hash | Draft 1.0.0, `tester/fixtures/design_map_team12.json` SHA256 `73e88b6220e1d8533bd20f0c0b7cdf008b015979e9ad2234c00c4dddb9767c26`, mappingUrl `https://github.com/Gus-ps/ECE30861/blob/Logan-tester-phase5/tester/fixtures/design_map_team12.json`. Pending: Team 12 review, and a final URL on a stable branch or tag |
 | Own-team trusted target identity configuration reviewed | Pending. Configured by `TESTER_TEAM_ID=team12` and `TARGET_TEAMS_JSON` (exact base URLs, `deploy/tester.env.example`) |
@@ -31,7 +31,7 @@ changes these values, so recompute them at release.
 | Own-system report with model coverage | Pending: no real run yet. Rehearsal against the stand-in only: 344 pass, 13 skip, model 38/38 |
 | Reciprocal report without model coverage | Pending: needs a Phase 5 Team 9 system |
 | Human fixture review records | Pending: Phase 4 pack review bundle sent to Team 9; `performance_250000_cells` not yet reviewed |
-| Excel and real-world precision evidence | Pending. Phase 4 fixture opens are recorded in the pack; correction outputs and the performance workbook have not been opened |
+| Excel and real-world precision evidence | Pending. Phase 4 fixture opens are recorded in the pack, and `performance_250000_cells` opened without a repair prompt on 2026-11-17 (its `excel_open`; reviewer, Excel version and platform still to fill in). Correction outputs have not been opened |
 | Accessibility and five-run performance evidence | Pending. P5-PERFORMANCE-RUN-1 to -5 and -COMPARE are built and record upload and end-to-end times; queue and engine times need the system's own evidence |
 | Deletion and backup/restore evidence | Pending (system) |
 | Queue scheduling and notification monitoring evidence | Pending (system) |

@@ -83,8 +83,10 @@ def entry(data):
                   f"integers, every style black on an explicit solid white fill; no merges, links, drawings, objects, "
                   f"comments, defined names or shared strings. Every populated cell is inside the table."),
         "review": {"reviewers": [], "date": None, "decisions": None},
-        "excel_open": {"date": None, "reviewer": None, "excel_version": None, "platform": None, "result": None,
-                       "repaired_parts": [], "expected": True, "note": "Not opened in Excel yet."},
+        "excel_open": {"date": "2026-11-17", "reviewer": None, "excel_version": None, "platform": None,
+                       "result": "opened_clean", "repaired_parts": [], "expected": True,
+                       "note": "Opened in Microsoft Excel with no repair prompt. Reviewer, Excel version and platform "
+                               "still to be filled in."},
     }
 
 
@@ -99,7 +101,8 @@ def build():
         "manual_review": ("Not reviewed. Phase 5 pack: the adopted Phase 4 pack 2.1.1 entries unchanged (their "
                           "review state is in that pack's manual_review), plus performance_250000_cells, built by "
                           "scripts/build_phase5_fixtures.py and hand-authored on 2026-11-17 from its definition "
-                          "before any engine was run. It has not been opened in Excel or reviewed by Team 9."),
+                          "before any engine was run. It opened in Microsoft Excel without a repair prompt on "
+                          "2026-11-17 (recorded in its excel_open). It has not been reviewed by Team 9."),
         "fixtures": fixtures,
     }
     return {f"phase5/{KEY}.xlsx": workbook,
