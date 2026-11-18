@@ -20,6 +20,12 @@ API documentation and schemas are at `/docs` and `/openapi.json`.
 `API_TOKENS_JSON` maps bearer tokens to user IDs; there are no default credentials.
 SQLite defaults to `data/workbooks.sqlite3`; `DATABASE_PATH` can override it.
 
+On a test deployment, start the service with `ENABLE_TEST_INTERFACE=true` and
+`ENABLE_TEST_CLOCK=true` to enable the clock. New test sessions start at
+`2027-01-01T00:00:00Z` unless `POST /test/setup` supplies `setup.clock.currentTime`.
+Operation 13 requires the creating test administrator's bearer token and
+`X-Test-Session`.
+
 ## Endpoints from PROMPT.md
 
 | Operation | Endpoint | Response |
@@ -29,6 +35,7 @@ SQLite defaults to `data/workbooks.sqlite3`; `DATABASE_PATH` can override it.
 | 4 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}` | Filename, SHA-256, timestamps, status and audit/source IDs |
 | 5 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}` | Audit status, findings, limitations and error |
 | 11 | `PUT /api/v1/workbooks/{workbookId}/schedule` | Owner replaces the audit interval and supplied deadline |
+| 13 | `POST /api/v1/test/clock` | Advance the session clock with `{"currentTime":"…Z"}`; 200 with currentTime and two empty trigger arrays in this stage |
 | G | `GET /api/v1/workbooks/{workbookId}/schedule` | Owner or granted reviewer reads schedule and newest version |
 
 The owner-authorized `/api/v1/workbooks/{workbookId}/versions/{versionId}/original`
