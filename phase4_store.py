@@ -100,6 +100,12 @@ class Store:
     def active(self, db, version_id):
         return db.execute("SELECT 1 FROM p4_jobs WHERE version_id=? AND state IN ('PENDING','RUNNING')", (version_id,)).fetchone() is not None
 
+    def claim_fault(self, db, namespace, kind):
+        return namespace is not None and db.execute(
+            'UPDATE p5_faults SET remaining=0 WHERE session_id=? AND kind=? AND remaining=1',
+            (namespace, kind),
+        ).rowcount == 1
+
     def fence(self, db, workbook_id):
         # SQLite already serializes writers with BEGIN IMMEDIATE.
         if self.database.postgres:

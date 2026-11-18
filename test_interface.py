@@ -23,6 +23,8 @@ SessionId = Annotated[str, StringConstraints(strict=True, pattern=SESSION_ID_PAT
 class FaultOptions(BaseModel):
     model_config = ConfigDict(extra='forbid')
     audit_failures: StrictInt | None = Field(None, ge=1, le=1)
+    remediation_failures: StrictInt | None = Field(None, ge=1, le=1)
+    report_failures: StrictInt | None = Field(None, ge=1, le=1)
     deletion_failures: StrictInt | None = Field(None, ge=1, le=1)
     scheduled_audit_failures: StrictInt | None = Field(None, ge=1, le=1)
     notification_failures: StrictInt | None = Field(None, ge=1, le=1)
@@ -116,6 +118,8 @@ class SystemTests:
         if 'faults' in body.setup.model_fields_set:
             if not faults or None in faults.values():
                 raise TestSessionError(400, 'faults must name at least one fault with the value 1.')
+            if 'audit_failures' in faults and 'report_failures' in faults:
+                raise TestSessionError(400, 'audit_failures and report_failures cannot be combined.')
             if os.getenv('ENABLE_TEST_FAULTS', '').lower() != 'true':
                 raise TestSessionError(403, 'Test audit failures are disabled.')
         with self.database.connect(write=True) as db:
@@ -140,7 +144,7 @@ class SystemTests:
                            (body.session_id, body.setup.clock.currentTime))
             if 'audit_failures' in faults:
                 db.execute('INSERT INTO p4_faults VALUES (?,1)', (body.session_id,))
-            for kind in ('deletion', 'notification', 'scheduled_audit'):
+            for kind in ('deletion', 'notification', 'scheduled_audit', 'remediation', 'report'):
                 if f'{kind}_failures' in faults:
                     db.execute('INSERT INTO p5_faults VALUES (?,?,1)', (body.session_id, kind))
             for session_id in cleanup:

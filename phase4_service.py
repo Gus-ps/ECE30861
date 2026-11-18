@@ -383,6 +383,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             rows=db.execute("SELECT payload FROM p4_resources WHERE kind='report' AND version_id=? ORDER BY seq",(version_id,)).fetchall()
             snapshot=next((json.loads(r['payload'])['snapshot'] for r in rows if json.loads(r['payload'])['auditId']==audit_id),None)
         if snapshot is None:
+            failure = audit['body'].get('error')
+            if failure and failure['code'] == 'STORAGE_FAILED':
+                raise ApiError(500, 'STORAGE_FAILED', failure['message'])
             raise ApiError(409,'LEGACY_REPORT_UNAVAILABLE','Request a new audit to produce a report.')
         AuditReport.model_validate(snapshot)
         raw=encode(snapshot).encode('utf-8')
@@ -446,8 +449,11 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 raise ApiError(409,'STALE_AUDIT','The source audit changed while validating decisions.')
             store.insert(db,'remediation',rid,{'response':response,'provenance':{}},identity,request.state.namespace,workbook_id,version_id)
             db.execute('INSERT INTO p4_keys VALUES (?,?,?,?,?,?)',(scope,key,digest,encode(accepted),request.state.namespace,workbook_id))
-            store.job(db,rid,'remediation',rid,version_id,request.state.namespace,
-                      {'decisions':decisions,'findings':audit['body']['findings'],'records':records,'requestId':request.state.request_id})
+            payload = {'decisions': decisions, 'findings': audit['body']['findings'],
+                       'records': records, 'requestId': request.state.request_id}
+            if store.claim_fault(db, request.state.namespace, 'remediation'):
+                payload['remediationFault'] = True
+            store.job(db,rid,'remediation',rid,version_id,request.state.namespace,payload)
         background.add_task(runner.drain)
         return accepted
 

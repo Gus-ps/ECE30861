@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app import create_app
+import phase4_jobs
 from phase4_store import encode
 from test_phase4_service import workbook
 import test_phase5_dispatch as dispatch_tests
@@ -266,6 +267,166 @@ class ReportVersionTests(unittest.TestCase):
             self.assertEqual(response.content, original)
         with store.connect() as db:
             self.assertEqual(store.get(db, row['id'])['body'], payload)
+
+
+class RemainingFaultTests(unittest.TestCase):
+    """REQ-13 / AC-14. P5-FAULT-REMEDIATION, P5-FAULT-REPORT, P5-FAULT-STORAGE,
+    P5-FAULT-REJECT-AUDIT-REPORT-COMBINATION and P5-FAULT-REJECT-REJECT-NO-CONSUME.
+    """
+
+    setUp = dispatch_tests.DispatchTests.setUp
+    prepare = dispatch_tests.DispatchTests.prepare
+    upload = dispatch_tests.DispatchTests.upload
+    configure = dispatch_tests.DispatchTests.configure
+    advance = dispatch_tests.DispatchTests.advance
+    read_audit = dispatch_tests.DispatchTests.read_audit
+
+    def restart(self):
+        self.app = create_app(
+            self.app.state.database.path, {'a': 'owner', 'b': 'other'},
+            enable_test_interface=True, test_admin_tokens={'admin': 'administrator'},
+            test_session_users={'administrator': ['owner', 'other']}, enable_scheduler=False,
+        )
+        self.client = TestClient(self.app)
+        self.addCleanup(self.client.close)
+        self.runner = self.app.state.runner
+
+    def fault_setup(self, faults, session='clock'):
+        return self.client.post('/test/setup', headers=ADMIN,
+                                json={'session_id': session, 'setup': {'faults': faults}})
+
+    def counter(self, kind):
+        with self.app.state.store.connect() as db:
+            return db.execute("SELECT remaining FROM p5_faults WHERE session_id='clock' AND kind=?",
+                              (kind,)).fetchone()[0]
+
+    def assert_injected(self, error, operation, request_id):
+        self.assertEqual(error, {
+            'code': f'TEST_{operation.upper()}_FAILURE',
+            'message': f'{operation.capitalize()} failure requested by the isolated test session.',
+            'requestId': request_id, 'details': {'stage': operation, 'testOnly': True},
+        })
+
+    def original_records(self, version, headers):
+        path = version.rsplit('/versions/', 1)[0]
+        return (self.client.get(version + '/source', headers=headers).content,
+                self.client.get(path + '/history', headers=headers).json())
+
+    def test_remediation_fault_is_durable_and_publishes_nothing(self):
+        headers = self.prepare(faults={'remediation_failures': 1})
+        ids, version = self.upload(headers)
+        audit = self.read_audit(headers, version, ids['auditId'])
+        original = self.original_records(version, headers)
+        store = self.app.state.store
+        before_report = self.client.get(f"{version}/audits/{ids['auditId']}/report", headers=headers).content
+        self.restart()
+        body = {'auditId': ids['auditId'], 'decisions': [
+            {'findingId': audit['findings'][0]['findingId'], 'action': 'DECLINE'},
+        ]}
+        endpoint = version + '/remediations'
+        rejected = self.client.post(endpoint, headers=headers, json=body)
+        self.assertEqual(rejected.status_code, 400, rejected.text)
+        self.assertEqual(self.counter('remediation'), 1)
+        accepted = self.client.post(endpoint, headers={**headers, 'Idempotency-Key': 'first'}, json=body)
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        read = '/api/v1/remediations/' + accepted.json()['remediationId']
+        status = self.client.get(read, headers=headers).json()
+        self.assertEqual(status['status'], 'PROCESSING_FAILED')
+        for name in ('outputVersionId', 'auditId', 'outputId'):
+            self.assertIsNone(status[name])
+        self.assert_injected(status['error'], 'remediation', accepted.headers['X-Request-ID'])
+        self.assertEqual(self.original_records(version, headers), original)
+        with store.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM p4_resources WHERE kind='report'").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM p4_resources WHERE kind='output'").fetchone()[0], 0)
+        self.assertEqual(self.client.get(f"{version}/audits/{ids['auditId']}/report",
+                                         headers=headers).content, before_report)
+        self.restart()
+        self.assertEqual(self.counter('remediation'), 0)
+        replay = self.client.post(endpoint, headers={**headers, 'Idempotency-Key': 'first'}, json=body)
+        self.assertEqual(replay.json(), accepted.json())
+        second = self.client.post(endpoint, headers={**headers, 'Idempotency-Key': 'second'}, json=body)
+        self.assertEqual(second.status_code, 202, second.text)
+        read = '/api/v1/remediations/' + second.json()['remediationId']
+        self.assertEqual(self.client.get(read, headers=headers).json()['status'], 'REMEDIATED')
+
+    def test_report_failure_runs_engine_then_records_empty_failed_snapshot(self):
+        headers = self.prepare(faults={'report_failures': 1})
+        self.restart()
+        path = '/api/v1/workbooks'
+        data = workbook()
+        with patch('phase4_jobs.child', wraps=phase4_jobs.child) as child:
+            accepted = self.client.post(path, headers=headers, files={'file': ('book.xlsx', data)})
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        child.assert_called_once()
+        self.assertEqual(child.call_args.args[0], 'audit')
+        ids = accepted.json()
+        version = f"{path}/{ids['workbookId']}/versions/{ids['versionId']}"
+        failed = self.read_audit(headers, version, ids['auditId'])
+        self.assertEqual((failed['status'], failed['findings']), ('PROCESSING_FAILED', []))
+        self.assert_injected(failed['error'], 'report', accepted.headers['X-Request-ID'])
+        report = self.client.get(f"{version}/audits/{ids['auditId']}/report", headers=headers).json()
+        self.assertEqual(report['error'], failed['error'])
+        self.assertEqual(report['status'], 'PROCESSING_FAILED')
+        self.assertEqual(report['checksPerformed'],
+                         ['ALT_TEXT', 'WORKSHEET_NAME', 'TABLE_HEADER', 'MERGED_CELLS', 'LINK_TEXT', 'COLOR_CONTRAST'])
+        self.assertEqual(report['findings'], [])
+        self.assertEqual(report['unresolvedFindings'], [])
+        self.assertEqual(self.client.get(version + '/source', headers=headers).content, data)
+        self.restart()
+        self.assertEqual(self.counter('report'), 0)
+        second = self.client.post(version + '/audits', headers=headers, json={})
+        self.assertEqual(second.status_code, 202, second.text)
+        self.assertIsNone(self.read_audit(headers, version, second.json()['auditId'])['error'])
+        self.assertEqual(self.read_audit(headers, version, ids['auditId']), failed)
+
+    def test_failed_report_insert_leaves_controlled_storage_failure(self):
+        headers = self.prepare(faults={'report_failures': 1})
+        with self.app.state.store.connect(write=True) as db:
+            db.execute("""CREATE TRIGGER reject_report BEFORE INSERT ON p4_resources
+                WHEN NEW.kind='report' BEGIN SELECT RAISE(ABORT, 'report insert failed'); END""")
+        ids, version = self.upload(headers)
+        failed = self.read_audit(headers, version, ids['auditId'])
+        self.assertEqual((failed['status'], failed['findings'], failed['error']['code']),
+                         ('PROCESSING_FAILED', [], 'STORAGE_FAILED'))
+        report = self.client.get(f"{version}/audits/{ids['auditId']}/report", headers=headers)
+        self.assertEqual((report.status_code, report.json()['code']), (500, 'STORAGE_FAILED'))
+        with self.app.state.store.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM p4_resources WHERE kind='report'").fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT state FROM p4_jobs WHERE id=?', (ids['auditId'],)).fetchone()[0],
+                             'FAILED')
+
+    def test_report_fault_skips_scheduled_and_outside_audits(self):
+        headers = self.prepare(faults={'report_failures': 1})
+        # Prepare an existing version without accepting the namespace's first ordinary audit fault.
+        store = self.app.state.store
+        with patch.object(store, 'claim_fault', return_value=False):
+            _, version = self.upload(headers)
+        foreign = self.prepare('foreign')
+        for outside in (OWNER, foreign):
+            ids, path = self.upload(outside)
+            self.assertIsNone(self.read_audit(outside, path, ids['auditId'])['error'])
+        self.configure(headers, version.rsplit('/versions/', 1)[0])
+        tick = self.advance(dispatch_tests.DUE)
+        self.assertEqual(tick.status_code, 200, tick.text)
+        aid, = tick.json()['triggeredAudits']
+        self.runner.drain()
+        self.assertIsNone(self.read_audit(headers, version, aid)['error'])
+        bad = self.client.post(version + '/audits', headers=headers, json={'unknown': 1})
+        self.assertEqual(bad.status_code, 400, bad.text)
+        self.assertEqual(self.counter('report'), 1)
+        accepted = self.client.post(version + '/audits', headers=headers, json={})
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        self.assert_injected(self.read_audit(headers, version, accepted.json()['auditId'])['error'],
+                             'report', accepted.headers['X-Request-ID'])
+
+    def test_reject_audit_report_combination_and_accept_other_combinations(self):
+        conflict = self.fault_setup({'audit_failures': 1, 'report_failures': 1})
+        self.assertEqual(conflict.status_code, 400, conflict.text)
+        self.assertEqual(set(conflict.json()), {'message', 'source'})
+        valid = self.fault_setup({'report_failures': 1, 'remediation_failures': 1})
+        self.assertEqual(valid.status_code, 201, valid.text)
+        self.assertEqual(self.fault_setup({'report_failures': 1}).status_code, 409)
 
 
 if __name__ == '__main__':

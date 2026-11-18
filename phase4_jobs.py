@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -38,15 +39,14 @@ def begin_audit(store, db, version, request_id, *, scheduled_at=None):
     payload = {'requestId': request_id}
     if scheduled_at is not None:
         payload['trigger'] = 'schedule'
-        if namespace is not None:
-            claimed = db.execute("""UPDATE p5_faults SET remaining=0
-                WHERE session_id=? AND kind='scheduled_audit' AND remaining=1""", (namespace,))
-            if claimed.rowcount == 1:
-                payload['scheduledFault'] = True
+        if store.claim_fault(db, namespace, 'scheduled_audit'):
+            payload['scheduledFault'] = True
     elif namespace:
         claimed = db.execute('UPDATE p4_faults SET remaining=0 WHERE session_id=? AND remaining=1',
                              (namespace,))
         payload['fault'] = claimed.rowcount == 1
+        if not payload['fault'] and store.claim_fault(db, namespace, 'report'):
+            payload['reportFault'] = True
     store.job(db, aid, 'audit', aid, version['id'], namespace, payload)
     return aid
 
@@ -144,30 +144,34 @@ class Runner:
         row = db.execute('SELECT state,lease FROM p4_jobs WHERE id=?', (job['id'],)).fetchone()
         return row and row['state'] == 'RUNNING' and row['lease'] == job['lease']
 
-    def report(self, version, audit, provenance=None):
+    def report(self, version, audit, provenance=None, *, checks_performed=None):
         provenance = provenance or {}
         body = version['body']
+        if checks_performed is None:
+            checks_performed = [] if audit['error'] else RULES
         return dict(reportVersion='2.0.0', specificationVersion='3.0.0',
                     workbookId=body['workbookId'], versionId=body['versionId'], auditId=audit['auditId'],
                     fileName=body['fileName'], sha256=body['sha256'], sourceVersionId=body['sourceVersionId'],
                     auditDate=audit['completedAt'], rulesetVersion=audit['rulesetVersion'], status=audit['status'],
-                    checksPerformed=[] if audit['error'] else RULES,
+                    checksPerformed=checks_performed,
                     findings=audit['findings'], decisions=provenance.get('decisions', []),
                     approvedChanges=provenance.get('approvedChanges', []), unresolvedFindings=audit['findings'],
                     manualReviewItems=[f for f in audit['findings'] if f['classification'] == 'MANUAL_REVIEW'],
                     limitations=audit['limitations'], remediationId=provenance.get('remediationId'),
                     outputVersionId=provenance.get('outputVersionId'), outputId=provenance.get('outputId'), error=audit['error'])
 
-    def persist_audit(self, db, version, audit, items=None, provenance=None):
+    def persist_audit(self, db, version, audit, items=None, provenance=None, *,
+                      checks_performed=None, store_report=True):
         completed = effective_now(db, version['namespace'])
         audit['completedAt'] = format_time(max(completed, datetime.fromisoformat(audit['startedAt'])))
         self.store.update(db, audit['auditId'], audit)
         if items is not None:
             self.store.insert(db, 'review', identifier('context'), {'auditId': audit['auditId'], 'items': items},
                               version['owner'], version['namespace'], version['workbook_id'], version['id'])
-        snapshot = self.report(version, audit, provenance)
-        self.store.insert(db, 'report', identifier('report'), {'auditId': audit['auditId'], 'snapshot': snapshot},
-                          version['owner'], version['namespace'], version['workbook_id'], version['id'])
+        if store_report:
+            snapshot = self.report(version, audit, provenance, checks_performed=checks_performed)
+            self.store.insert(db, 'report', identifier('report'), {'auditId': audit['auditId'], 'snapshot': snapshot},
+                              version['owner'], version['namespace'], version['workbook_id'], version['id'])
         if version['body']['latestAuditId'] == audit['auditId']:
             version['body']['status'] = ('REMEDIATED' if version['body']['sourceVersionId'] and audit['status'] != 'PROCESSING_FAILED' else audit['status'])
             self.store.update(db, version['id'], version['body'])
@@ -210,12 +214,20 @@ class Runner:
                 audit.update(findings=validated_findings(result['findings']), limitations=sorted(set(result['limitations'])),
                              error=None)
                 audit['status'] = status(audit['findings'])
+                if args.get('reportFault'):
+                    self.fail_report(job)
+                    return
                 with self.store.connect(write=True) as db:
                     if not self.lease(db, job):
                         return
                     self.persist_audit(db, version, audit, result['items'], provenance)
                     db.execute("UPDATE p4_jobs SET state='DONE' WHERE id=?", (job['id'],))
             else:
+                if args.get('remediationFault'):
+                    self.fail(job, 'TEST_REMEDIATION_FAILURE',
+                              'Remediation failure requested by the isolated test session.',
+                              {'stage': 'remediation', 'testOnly': True})
+                    return
                 output = Path(directory) / 'output.xlsx'
                 if any(d['action'] == 'APPLY' for d in args['decisions']):
                     result = child('remediate', path, args, output)
@@ -253,7 +265,23 @@ class Runner:
                     self.store.update(db, resource['id'], resource['body'])
                     db.execute("UPDATE p4_jobs SET state='DONE' WHERE id=?", (job['id'],))
 
-    def fail(self, job, code, message, details=None):
+    def fail_report(self, job):
+        persistence_errors = (sqlite3.Error, TypeError, ValueError)
+        if self.store.database.postgres:
+            from psycopg import Error
+            persistence_errors += (Error,)
+        try:
+            self.fail(job, 'TEST_REPORT_FAILURE',
+                      'Report failure requested by the isolated test session.',
+                      {'stage': 'report', 'testOnly': True}, checks_performed=RULES)
+        except persistence_errors:
+            # The first transaction rolled back. Try to retain the true terminal error.
+            try:
+                self.fail(job, 'STORAGE_FAILED', 'The audit report could not be stored.', store_report=False)
+            except persistence_errors:
+                logging.error('Could not record STORAGE_FAILED for audit job %s.', job['id'])
+
+    def fail(self, job, code, message, details=None, *, checks_performed=None, store_report=True):
         with self.store.connect(write=True) as db:
             if not self.lease(db, job):
                 return
@@ -265,7 +293,8 @@ class Runner:
                 audit = resource['body']
                 audit.update(status='PROCESSING_FAILED', findings=[], limitations=[], error=error)
                 version = self.store.get(db, job['version_id'])
-                self.persist_audit(db, version, audit, provenance=self.provenance(db, version))
+                self.persist_audit(db, version, audit, provenance=self.provenance(db, version),
+                                   checks_performed=checks_performed, store_report=store_report)
             else:
                 resource['body']['response'].update(status='PROCESSING_FAILED', outputVersionId=None, outputId=None, auditId=None, error=error)
                 self.store.update(db, resource['id'], resource['body'])
