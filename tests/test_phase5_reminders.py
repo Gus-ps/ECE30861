@@ -8,7 +8,12 @@ P5-REMINDER-JUMP, P5-REMINDER-DEDUP, P5-REMINDER-CLEAN-THEN-DIRTY,
 P5-REMINDER-RETURN-DEADLINE, P5-REMINDER-DEADLINE-EDIT, P5-REMINDER-LATEST-VERSION,
 P5-REMINDER-AUDIT-SAME-TICK, P5-REMINDER-LEAP-UTC, P5-REMINDER-EMPTY,
 P5-REMINDER-ORDER, P5-REMINDER-FAILED-RECORD, P5-FAULT-NOTIFICATION,
-P5-LOCAL-NOTIFICATION-RESTART. P5-ACCESS-NOTIFICATIONS-* is covered by the access matrix.
+P5-LOCAL-NOTIFICATION-RESTART. The access matrix covers
+P5-ACCESS-NOTIFICATIONS-NO-TOKEN, P5-ACCESS-NOTIFICATIONS-INVALID-TOKEN,
+P5-ACCESS-NOTIFICATIONS-FOREIGN-OWNER, P5-ACCESS-NOTIFICATIONS-WRONG-NAMESPACE,
+P5-ACCESS-NOTIFICATIONS-TEST-ADMIN, P5-ACCESS-NOTIFICATIONS-UNKNOWN-RESOURCE,
+P5-ACCESS-NOTIFICATIONS-OWNER, P5-ACCESS-NOTIFICATIONS-GRANTED-REVIEWER,
+P5-ACCESS-NOTIFICATIONS-UNGRANTED-REVIEWER.
 """
 from datetime import datetime, timedelta
 import os
@@ -17,6 +22,10 @@ import sqlite3
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+
+from app import create_app
 
 from database import Database
 from phase4_store import Store
@@ -163,7 +172,9 @@ class ReminderClockTests(unittest.TestCase):
         for instant, offset in ((M90, 90), (M30, 30), (M7, 7)):
             before = datetime.fromisoformat(instant) - timedelta(microseconds=1)
             self.assertEqual(self.tick(format_time(before))['triggeredNotifications'], [])
-            nid, = self.tick(instant)['triggeredNotifications']
+            result = self.tick(instant)
+            self.assertEqual(result['triggeredAudits'], [])
+            nid, = result['triggeredNotifications']
             record = self.notifications()[-1]
             self.assertEqual(record['notification_id'], nid)
             self.assertEqual(record['scheduled_for'], instant)
@@ -314,3 +325,97 @@ class ReminderClockTests(unittest.TestCase):
         result = self.tick(M90)
         self.assertEqual(len(result['triggeredAudits']), 1)
         self.assertEqual(len(result['triggeredNotifications']), 1)
+
+    def get_notifications(self, headers, path):
+        response = self.client.get(path + '/notifications', headers=headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(set(response.json()), {'notifications'})
+        return response.json()['notifications']
+
+    def test_empty_contract_invalid_id_and_openapi(self):
+        headers = self.prepare()
+        _, path, _ = self.workbook(headers)
+        self.assertEqual(self.get_notifications(headers, path), [])
+        response = self.client.get('/api/v1/workbooks/bad!id/notifications', headers=headers)
+        self.assert_error(response, 400, 'INVALID_REQUEST')
+        schema = self.client.get('/openapi.json').json()
+        operation = schema['paths']['/api/v1/workbooks/{workbook_id}/notifications']['get']
+        self.assertIn({'HTTPBearer': []}, operation['security'])
+        self.assertEqual(operation['responses']['200']['content']['application/json']['schema']['$ref'],
+                         '#/components/schemas/NotificationResponse')
+
+    def test_order_and_terminal_records_survive_restart(self):
+        headers = self.prepare(faults={'notification_failures': 1})
+        ids, path, _ = self.workbook(headers)
+        first, = self.tick(M90)['triggeredNotifications']
+        self.configure(headers, path, '2027-02-25')
+        second, = self.tick(M90)['triggeredNotifications']
+        expected = self.get_notifications(headers, path)
+        self.assertEqual([row['notificationId'] for row in expected], [first, second])
+        self.assertEqual([row['status'] for row in expected], ['FAILED', 'DELIVERED'])
+        for row in expected:
+            self.assertEqual(set(row), {'notificationId', 'type', 'workbookId', 'versionId',
+                                        'scheduledFor', 'status', 'message'})
+            self.assertEqual(row['scheduledFor'], M90)
+            self.assertEqual(row['workbookId'], ids['workbookId'])
+            self.assertEqual(row['versionId'], ids['versionId'])
+            self.assertEqual(row['type'], 'COMPLIANCE_DEADLINE_REMINDER')
+            self.assertTrue(1 <= len(row['message']) <= 500)
+        considered = self.rows('p5_reminder_considered')
+        self.app = create_app(
+            self.app.state.database.path, {'a': 'owner', 'b': 'other'},
+            enable_test_interface=True, test_admin_tokens={'admin': 'administrator'},
+            test_session_users={'administrator': ['owner', 'other']},
+        )
+        self.client = TestClient(self.app)
+        self.addCleanup(self.client.close)
+        self.assertEqual(self.get_notifications(headers, path), expected)
+        self.assertEqual(self.rows('p5_reminder_considered'), considered)
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.configure(headers, path)
+        self.assertEqual(self.tick(M90)['triggeredNotifications'], [])
+        self.assertEqual(self.get_notifications(headers, path), expected)
+
+    def test_clock_returns_notification_ids_in_threshold_and_workbook_order(self):
+        headers = self.prepare()
+        workbooks = [self.workbook(headers) for _ in range(2)]
+        ids = self.tick('2027-04-20T00:00:00Z')['triggeredNotifications']
+        notifications = [row for _, path, _ in workbooks for row in self.get_notifications(headers, path)]
+        expected = sorted(notifications, key=lambda row: (row['scheduledFor'], row['workbookId']))
+        self.assertEqual(len(expected), 6)
+        self.assertEqual(ids, [row['notificationId'] for row in expected])
+
+    def test_delete_fault_preserves_rows_and_success_deletes_only_target(self):
+        headers = self.prepare(faults={'deletion_failures': 1})
+        ids, path, _ = self.workbook(headers)
+        _, keep, _ = self.workbook(headers)
+        self.tick(M90)
+        original = self.snapshot()
+        self.assert_error(self.client.delete(path, headers=headers), 500, 'TEST_DELETION_FAILURE')
+        for table in ('p5_notifications', 'p5_reminder_considered'):
+            self.assertEqual(self.rows(table), original[table])
+        self.assertEqual(len(self.get_notifications(headers, path)), 1)
+        remaining = self.get_notifications(headers, keep)
+        self.assertEqual(self.client.delete(path, headers=headers).status_code, 204)
+        self.assert_error(self.client.get(path + '/notifications', headers=headers), 404, 'NOT_FOUND')
+        self.assertEqual(self.get_notifications(headers, keep), remaining)
+        for table in ('p5_notifications', 'p5_reminder_considered'):
+            self.assertEqual(self.rows(table), [row for row in original[table]
+                                                if row['workbook_id'] != ids['workbookId']])
+
+    def test_session_cleanup_keeps_other_namespace_rows(self):
+        remove = self.prepare('remove')
+        keep = self.prepare('keep')
+        self.workbook(remove)
+        # A suppressed occurrence also has to be removed by cleanup.
+        self.workbook(remove, clean=True)
+        _, path, _ = self.workbook(keep)
+        self.tick(M90, 'remove')
+        self.tick(M90, 'keep')
+        self.assertEqual(len(self.rows('p5_reminder_considered')), 3)
+        remaining = self.get_notifications(keep, path)
+        original = self.snapshot()
+        self.prepare('cleanup', cleanup_session_ids=['remove'])
+        self.assertEqual(self.get_notifications(keep, path), remaining)
+        for table in ('p5_notifications', 'p5_reminder_considered'):
+            self.assertEqual(self.rows(table), [row for row in original[table] if row['namespace'] == 'keep'])

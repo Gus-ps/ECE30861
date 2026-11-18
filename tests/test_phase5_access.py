@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 import tempfile
 import unittest
@@ -5,6 +6,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app import create_app
+from phase5_reminders import create_notification
 from test_phase4_service import workbook
 
 OWNER = {'Authorization': 'Bearer a'}
@@ -21,6 +23,7 @@ CALLERS = {
 }
 VERSION = '/api/v1/workbooks/{wb}/versions/{v}'
 SCHEDULE = '/api/v1/workbooks/{wb}/schedule'
+NOTIFICATIONS = '/api/v1/workbooks/{wb}/notifications'
 OWNER_WRITE_STATUS = {'11': 200, '14': 204}
 # Reads first, then writes in an order that keeps each owner write valid.
 OPERATIONS = [
@@ -33,6 +36,7 @@ OPERATIONS = [
     ('V', 'GET', VERSION + '/audits/{a}/review', {}),
     ('R', 'GET', VERSION + '/audits/{a}/report', {}),
     ('G', 'GET', SCHEDULE, {}),
+    ('12', 'GET', NOTIFICATIONS, {}),
     ('7', 'POST', VERSION + '/remediations', {'remediation': True}),
     ('3', 'POST', '/api/v1/workbooks/{wb}/versions', {'files': {'file': ('next.xlsx', workbook())}}),
     ('6', 'POST', VERSION + '/audits', {'json': {}}),
@@ -53,7 +57,8 @@ class AccessOrderTests(unittest.TestCase):
 
     def counts(self):
         with self.app.state.database.connect() as db:
-            tables = ('p4_resources', 'p4_keys', 'p4_jobs', 'p5_schedules')
+            tables = ('p4_resources', 'p4_keys', 'p4_jobs', 'p5_schedules',
+                      'p5_notifications', 'p5_reminder_considered')
             return [db.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0] for t in tables]
 
     def test_access_check_order_for_every_workbook_route(self):
@@ -75,14 +80,25 @@ class AccessOrderTests(unittest.TestCase):
         })
         self.assertEqual(schedule.status_code, 200, schedule.text)
         schedule = schedule.json()
+        store = self.app.state.store
+        with store.connect(write=True) as db:
+            workbook_id = up['workbookId']
+            deadline = schedule['complianceDeadline']
+            threshold = datetime.fromisoformat('2027-10-02T00:00:00Z')
+            nid = create_notification(db, None, workbook_id, job['outputVersionId'], deadline, threshold, 90)
+            db.execute('INSERT INTO p5_reminder_considered VALUES (?,NULL,?,90)', (workbook_id, deadline))
+        notification_path = NOTIFICATIONS.format(**known)
+        notifications = self.client.get(notification_path, headers=OWNER).json()
+        notification, = notifications['notifications']
+        self.assertEqual(notification['notificationId'], nid)
         # Nothing identifying the resource may appear in a denial (ACC-3).
         meta, outmeta = (self.client.get(VERSION.format(wb=up['workbookId'], v=v), headers=OWNER).json()
                          for v in (up['versionId'], job['outputVersionId']))
         secrets = {*known.values(), job['outputVersionId'], job['auditId'], finding['findingId'], 'alice',
                    meta['fileName'], audit['startedAt'], audit['completedAt'],
                    schedule['complianceDeadline'], schedule['nextAuditAt'],
+                   nid, notification['message'], notification['scheduledFor'],
                    *(m[k] for m in (meta, outmeta) for k in ('sha256', 'createdAt'))}
-        store = self.app.state.store
         for op, method, path, kwargs in OPERATIONS:
             for caller, (headers, read, write, missing) in CALLERS.items():
                 allowed = read if method == 'GET' else write
@@ -98,12 +114,17 @@ class AccessOrderTests(unittest.TestCase):
                         with patch.object(store, 'bytes', wraps=store.bytes) as reads:
                             response = self.client.request(method, path.format(**ids), headers=headers, **args)
                         self.assertEqual(response.status_code, expected, response.text)
+                        if op == '12' and expected == 200:
+                            self.assertEqual(response.json(), notifications)
                         if expected >= 400:
                             self.assertEqual(set(response.json()), {'code', 'message', 'requestId', 'details'})
                             exposed = response.text + str(response.headers)
                             self.assertEqual([s for s in secrets if s in exposed], [])
                             reads.assert_not_called()
                             self.assertEqual(self.counts(), before)
+                            if op == '12':
+                                self.assertEqual(self.client.get(notification_path, headers=OWNER).json(),
+                                                 notifications)
                             if op in ('G', '11'):
                                 retained = self.client.get(schedule_path, headers=OWNER)
                                 self.assertEqual(retained.status_code, 200, retained.text)

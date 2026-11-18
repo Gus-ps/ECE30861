@@ -140,6 +140,13 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             workbook = lookup(db, workbook_id, 'workbook', request, identity)
             return schedules.read(db, workbook)
 
+    @app.get('/api/v1/workbooks/{workbook_id}/notifications',
+             response_model=reminders.NotificationResponse)
+    def get_notifications(workbook_id: Identifier, request: Request, identity=Depends(user)):
+        with store.connect() as db:
+            lookup(db, workbook_id, 'workbook', request, identity)
+            return reminders.read_notifications(db, workbook_id)
+
     @app.put('/api/v1/workbooks/{workbook_id}/schedule',
              response_model=schedules.ScheduleResponse,
              openapi_extra={'requestBody': {'required': True, 'content': {
@@ -312,7 +319,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             if not injected:
                 db.execute(f'DELETE FROM p4_jobs WHERE version_id IN ({versions})',(workbook_id,))
                 for table in ('p4_keys','p4_resources','audits','test_workbooks','versions',
-                              'p5_upload_reservations','p5_schedules'):
+                              'p5_upload_reservations','p5_schedules','p5_notifications','p5_reminder_considered'):
                     db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
         if injected:
             raise ApiError(500,'TEST_DELETION_FAILURE','Deletion failure requested by the isolated test session.',

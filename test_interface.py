@@ -145,6 +145,8 @@ class SystemTests:
             for session_id in cleanup:
                 db.execute('DELETE FROM p5_clocks WHERE session_id=?', (session_id,))
                 db.execute('DELETE FROM p5_schedules WHERE namespace=?', (session_id,))
+                db.execute('DELETE FROM p5_notifications WHERE namespace=?', (session_id,))
+                db.execute('DELETE FROM p5_reminder_considered WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_keys WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_jobs WHERE namespace=?', (session_id,))
                 db.execute('DELETE FROM p4_resources WHERE namespace=?', (session_id,))

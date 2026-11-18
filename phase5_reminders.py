@@ -48,6 +48,13 @@ def initialize(store):
         db.execute('CREATE INDEX IF NOT EXISTS p5_reminder_namespace ON p5_reminder_considered(namespace)')
 
 
+def read_notifications(db, workbook_id):
+    rows = db.execute("""SELECT notification_id AS "notificationId", type, workbook_id AS "workbookId",
+        version_id AS "versionId", scheduled_for AS "scheduledFor", status, message
+        FROM p5_notifications WHERE workbook_id=? ORDER BY scheduled_for, seq""", (workbook_id,))
+    return {'notifications': [dict(row) for row in rows]}
+
+
 def due_thresholds(row, instant):
     if row['compliance_deadline'] is None or row['deadline_set_at'] is None:
         return []
