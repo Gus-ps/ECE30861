@@ -35,7 +35,7 @@ Operation 13 requires the creating test administrator's bearer token and
 | 4 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}` | Filename, SHA-256, timestamps, status and audit/source IDs |
 | 5 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}` | Audit status, findings, limitations and error |
 | 11 | `PUT /api/v1/workbooks/{workbookId}/schedule` | Owner replaces the audit interval and supplied deadline |
-| 13 | `POST /api/v1/test/clock` | Advance the session clock with `{"currentTime":"…Z"}`; 200 with currentTime and two empty trigger arrays in this stage |
+| 13 | `POST /api/v1/test/clock` | Advance the session clock with `{"currentTime":"…Z"}` and accept due periodic audits. Returns 200 with the time, accepted audit IDs and an empty notification list |
 | G | `GET /api/v1/workbooks/{workbookId}/schedule` | Owner or granted reviewer reads schedule and newest version |
 
 The owner-authorized `/api/v1/workbooks/{workbookId}/versions/{versionId}/original`
