@@ -39,8 +39,9 @@ probed, so behavior on the live hosts still needs a human check.
 
 ## Deletion, backups and copies (Operation 14)
 
-The implementation and EC2 configuration below were verified locally or inspected in
-the repository. Production deployment and infrastructure restores still need evidence.
+The implementation, EC2 configuration and ECS template below were verified locally or
+inspected in the repository. Production deployment and the hosted restore (DEL-11) still
+need evidence.
 
 - **Live rows:** DELETE reserves the workbook, fences it against new work, and removes
   its jobs, idempotency keys, schedules, notifications, reminder decisions, upload
@@ -63,9 +64,36 @@ the repository. Production deployment and infrastructure restores still need evi
   ledger was enabled. When the path is unset, startup warns and a restore can reintroduce
   deleted data. A new ledger file can be created in the configured directory. Startup
   discards only an unterminated final record and refuses other corruption or file errors.
-- **ECS/RDS handoff to Jon:** ECS still needs a durable ledger outside the database and
-  task filesystem, such as an S3-backed store, plus a backup retention and snapshot
-  policy. The current RDS configuration retains automated backups for about one day and
-  retains final snapshots on deletion or replacement. Restoring those copies can
-  reintroduce deleted workbooks while the ECS ledger is absent. The infrastructure
-  template is unchanged.
+- **ECS ledger (D11):** `infrastructure/aws.yaml` creates `DeletionLedgerBucket`
+  (versioned, public access blocked, SSE-S3, retained when the stack is deleted) and
+  passes its name to the container as `DELETION_LEDGER_BUCKET`. Each deletion PUTs
+  `deletions/<workbook_id>.json`, holding the same two fields as a file ledger line,
+  before any content is removed. Startup lists the `deletions/` prefix and reapplies every
+  ID. A failed PUT returns 500 `DELETION_FAILED` and keeps the reservation; an S3 error or
+  an invalid key at startup refuses startup (`phase5_deletion.py` `s3_ledger_records`,
+  `phase4_service.py` `create_app`). The task role (`TaskRole` `WriteDeletionLedger`) may
+  only put `deletions/*` and list that prefix, so the service can't remove entries.
+- **RDS backups (D12):** automated backups are kept for 1 day (`BackupRetentionPeriod: 1`),
+  so deleted content can survive in them for about a day. `DeletionPolicy` and
+  `UpdateReplacePolicy` are `Delete`, so no final snapshot outlives the database. A
+  template change that would replace the instance now discards it without a snapshot:
+  take a manual snapshot first and delete it within 1 day.
+- **Restore on ECS/RDS (D12):**
+  1. Stop traffic (scale the service to 0 or pause it).
+  2. Restore the snapshot or point-in-time backup to a new RDS instance.
+  3. Point `DB_HOST` at the new instance. Leave the ledger bucket untouched; it must never
+     be restored to an older state than the database.
+  4. Start one task. Startup (`deletion.recover`) replays the ledger before accepting
+     work and refuses to start if the ledger can't be read.
+  5. Check the startup logs for ledger errors and that sample deleted workbook IDs return
+     404, then scale back up.
+  6. Delete the old instance and any manual snapshot taken for the change.
+
+  The hosted check of this procedure (DEL-11) is recorded in
+  `docs/phase5_restore_evidence.md`.
+- **Troubleshooting:** if the service refuses to start because both
+  `DELETION_LEDGER_PATH` and `DELETION_LEDGER_BUCKET` are set, that is deliberate (D11):
+  startup replays only one ledger, so a split ledger would let a restore bring back the
+  deletions recorded in the other. Unset the one that isn't the deployment's ledger (the
+  file on EC2, the bucket on ECS). When moving between them, first copy the old ledger's
+  IDs into the new one; this isn't automated.

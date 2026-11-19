@@ -182,6 +182,15 @@ against .perf/baseline.json, storage.json, after_api.json and final.json found
 | Version `createdAt` in namespaces with a clock | This branch, with a shared contract decision | SYS-009–010 and specification §9. Audit times use effective time. Version creation time still uses real UTC and its policy remains undecided. |
 | Inherited regression failures | This branch | SYS-006. Triage the 55 existing failure/error events against the current contract while preserving historical expectations and identifying implementation defects separately. |
 
+## SYS-018 — S3 deletion ledger and RDS backup policy on ECS (2026-11-19)
+
+- **Resolves:** The ECS/RDS part of SYS-016 ("ECS/RDS handoff") and the SYS-017 row "ECS ledger and RDS backups", except the hosted restore check, which remains as DEL-11. Those earlier entries are left unchanged as history.
+- **Ledger (D11 option 2):** `DELETION_LEDGER_BUCKET` selects an S3 ledger in `phase5_deletion.py` (`S3Ledger`, `s3_ledger_records`). Each deletion PUTs `deletions/<workbook_id>.json`, with the same `workbook_id` and `timestamp` body as a file ledger line, after the reservation and before content is removed. Startup lists the prefix with pagination, validates each key against the identifier pattern and reapplies the IDs. Any S3 error is handled as a file ledger error: 500 `DELETION_FAILED` with the reservation kept, or refused startup. `phase4_service.py` `create_app` refuses to start when both `DELETION_LEDGER_PATH` and `DELETION_LEDGER_BUCKET` are set, because a split ledger lets a restore reintroduce deletions recorded only in the other one.
+- **Template (D11, D12 option A):** `infrastructure/aws.yaml` adds `DeletionLedgerBucket` (versioning, public access block, SSE-S3, retained on stack deletion), grants `TaskRole` only `s3:PutObject` on `deletions/*` and `s3:ListBucket` limited to that prefix, and passes the bucket name to the container. The RDS instance keeps `BackupRetentionPeriod: 1` and now uses `DeletionPolicy` and `UpdateReplacePolicy` `Delete`, so no final snapshot outlives the database.
+- **Restore procedure:** The six D12 steps are documented in `docs/phase5_security.md` ("Restore on ECS/RDS"). The hosted checklist is `docs/phase5_restore_evidence.md`.
+- **Approval status:** Developer selection (Jon, D11 and D12). No Pod approval.
+- **Implementation / verification status:** Verified locally with an injected fake S3 client (write before removal, PUT failure and retry, replay into a restored SQLite database, invalid keys, both variables set) and a text check of the template. The template has not been deployed or validated by AWS, and the hosted restore (DEL-11) is unverified.
+
 ## Investigated inherited discrepancies (not fixed)
 
 - test_cleanup_rejects_active_audits updates only the legacy audits table to
