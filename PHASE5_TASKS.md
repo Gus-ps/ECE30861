@@ -159,25 +159,25 @@ explicit tokens and reviewer grants).
   Done when: tests pass for `P5-FAULT-DELETION`, `P5-DELETE-FAIL-ONCE` and the
   `P5-FAULT-REJECT-*` cases that apply to this key.
   `c67dff1`: tests/test_phase5_faults.py (2 tests: one-shot/durable/scoped/no-consume; 7 malformed, disabled, reused-ID rejections) pass; gate passed, 108 tests, New: 0.
-- [B] (D5) **DEL-4: Recoverable deletion.** Keep a durable deletion reservation. If a real
+- [x] (D5) **DEL-4: Recoverable deletion.** Keep a durable deletion reservation. If a real
   partial failure happens, return 500 `DELETION_FAILED`, return 404 to ordinary reads and
   writes of that workbook, and keep the reservation. A retry by the owner finishes the
   cleanup, and other users get no access to the reservation.
   Done when: a local test that forces a storage failure partway through passes
   (`P5-DELETE-RECOVER`).
-  Blocked on D5 (reservation design). DEL-5 depends on the same entry.
-- [B] (D5) **DEL-5: Resume deletion after a restart.** Startup recovery
+  `fef3ce8`: Verified partial deletion failure, protected lookups and owner retry in `tests/test_phase5_delete.py`.
+- [x] (D5) **DEL-5: Resume deletion after a restart.** Startup recovery
   (`phase4_jobs.Runner.recover`) finishes pending deletions, so a deleted workbook never
   comes back.
   Done when: a restart test passes (`P5-LOCAL-DELETE-RESTART`).
-  Blocked on D5: what restart recovery resumes depends on the reservation design.
+  `fef3ce8`: Verified startup resumes a partially committed deletion in `tests/test_phase5_delete.py`.
 - [x] **DEL-6: Backups and stored copies.** Document in `docs/phase5_security.md` how
   deletion reaches PostgreSQL rows, RDS automated backups (kept 1 day) and any copies
   the application manages, and why a restore can't bring back an acknowledged deletion.
   Done when: that section exists. Any policy choice becomes a decision entry.
   (Assertions: `P5-DELETE-RESTORE`, `P5-DELETE-OBJECT-VERSIONS`,
   `P5-MANUAL-DELETE-BACKUPS`.)
-  `44ca7e0`: section "Deletion, backups and copies" added to docs/phase5_security.md; it states that a restore can currently resurrect deletions. Policy open as D6.
+  `0c949c7`: Verified local SQLite backup restore with ledger replay; EC2 configuration is documented and the ECS/RDS policy remains with Jon (SYS-016).
 - [x] (D7) **DEL-7: Cancel scheduled work.** No audit or reminder runs for a deleted workbook
   (`P5-DELETE-CANCEL-FUTURE`). The scheduler isn't on this branch, so write a decision
   entry and mark this item `[B]`, unless that entry is already `CHOSEN`.

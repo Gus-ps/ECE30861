@@ -136,6 +136,24 @@ against .perf/baseline.json, storage.json, after_api.json and final.json found
 - **Approval status:** Developer selection only. No Pod approval.
 - **Implementation / verification status:** Decision records updated. This entry records choices for subsequent work.
 
+## SYS-015 — Reserve and resume workbook deletion (2026-11-18)
+
+- **Design:** Apply D5 option 1. Create a content-free `p5_deletions` row after namespace and workbook fencing, owner authorization, active-work checks and the pre-delete fault check. Delete each table in its own transaction and remove the reservation last. Delete jobs before version records so resumed steps can still resolve job ownership. This leaves a durable recovery point after a partial failure and keeps each step repeatable.
+- **Access and concurrency:** Ordinary lookups exclude reserved workbooks in the same query as the resource lookup. Authorized owner retries can resume the reservation and share the workbook fence on each step. Concurrent admitted requests can both finish the same cleanup. A new request after the reservation and workbook are gone returns 404. The scheduler filters reservations before candidate selection and after taking the fence.
+- **Clock and cleanup:** Only operation 13 uses 409 `DELETION_IN_PROGRESS`. It checks for any reservation after locking and authorizing the namespace and before changing time. Test-session cleanup may finish an overlapping deletion. It removes namespace resources, upload reservations and pending deletion rows in one transaction and preserves any ledger entry.
+- **Deadline and recovery:** The DELETE route budgets 30 seconds across authorization and deletion with a monotonic deadline, asynchronous request timeout and database time limits. A timed-out request returns `DELETION_FAILED`. Startup resumes reserved steps before starting workers and the scheduler. File and database commit latency under production conditions remains unverified.
+- **Approval status:** Developer selection only. No Pod approval.
+- **Implementation / verification status:** Implemented and tested locally for partial failure, owner retry, startup recovery, shortened deadline, concurrent retries, clock isolation, scheduler exclusion and cleanup overlap. PostgreSQL and the production deadline remain unverified.
+
+## SYS-016 — Replay deletion intents outside restored databases (2026-11-18)
+
+- **Design and durability:** Apply the application part of D6 option 1. With `DELETION_LEDGER_PATH` configured, append one JSON Lines entry per workbook after committing the reservation and before deleting any content. The only fields are opaque `workbook_id` and UTC `timestamp`. Serialize ledger access through the shared database and fsync the file and, on POSIX, its containing directory before proceeding. An append or sync failure returns 500 and leaves the reservation for recovery.
+- **Startup:** Create a missing ledger file in the configured directory. Warn and discard an unterminated final line. Refuse startup on other file or record errors and log the error type and line number without record content. Re-reserve and delete ledger IDs found in the restored database before the service begins accepting work. If the environment variable is unset, warn and start. Restores can reintroduce deletions in that configuration.
+- **SQLite and EC2:** Every SQLite connection enables `secure_delete`. The EC2 scripts create and mount a private host ledger directory outside the SQLite backup scope. After a successful update the release script prunes older pre-deploy SQLite files, retaining the newest. Retained copies can contain earlier raw content and require the current ledger for safe restoration.
+- **ECS/RDS handoff:** Jon owns selection of an external ECS ledger and the RDS retention and snapshot policy. Existing RDS automated backups can hold deleted content for about a day. Final snapshots may persist. The infrastructure template is unchanged.
+- **Approval status:** Developer selection only. No Pod approval.
+- **Implementation / verification status:** Verified with a local SQLite backup and restore, append and fsync failure tests and startup file validation. EC2 script changes received syntax checks. Production restore, deployment and infrastructure retention remain unverified.
+
 ## Investigated inherited discrepancies (not fixed)
 
 - test_cleanup_rejects_active_audits updates only the legacy audits table to

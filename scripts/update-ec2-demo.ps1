@@ -51,6 +51,7 @@ aws ecr get-login-password --region __REGION__ | docker login --username AWS --p
 docker pull __IMAGE__
 release="__REVISION__-$(date -u +%Y%m%dT%H%M%SZ)"
 previous="workbook-previous-$release"
+install -d -m 0700 -o 1000 -g 1000 /opt/workbook/deletion-ledger
 # SQLite's backup API includes committed WAL data and leaves the live source unchanged.
 docker exec workbook python -c "import sqlite3; source=sqlite3.connect('/service/data/workbooks.sqlite3'); backup=sqlite3.connect('/service/data/pre-deploy-$release.sqlite3'); source.backup(backup); print('Pre-deploy versions:', source.execute('SELECT COUNT(*) FROM versions').fetchone()[0]); backup.close(); source.close()"
 rollback() {
@@ -64,7 +65,11 @@ rollback() {
 docker rename workbook "$previous"
 trap rollback ERR
 docker stop --time 200 "$previous"
-docker run -d --restart unless-stopped --name workbook --env-file /opt/workbook/app.env -e ENABLE_TEST_FAULTS=true -e DATABASE_PATH=/service/data/workbooks.sqlite3 -v /opt/workbook/data:/service/data -p 127.0.0.1:8000:8000 __IMAGE__
+docker run -d --restart unless-stopped --name workbook --env-file /opt/workbook/app.env \
+    -e ENABLE_TEST_FAULTS=true -e DATABASE_PATH=/service/data/workbooks.sqlite3 \
+    -e DELETION_LEDGER_PATH=/service/deletion-ledger/deletions.jsonl \
+    -v /opt/workbook/data:/service/data -v /opt/workbook/deletion-ledger:/service/deletion-ledger \
+    -p 127.0.0.1:8000:8000 __IMAGE__
 ready=false
 for attempt in $(seq 1 30); do
     if curl --max-time 3 -fsS http://127.0.0.1:8000/api/v1/health; then ready=true; break; fi
@@ -74,6 +79,8 @@ test "$ready" = true
 docker exec workbook python -c "import sqlite3; db=sqlite3.connect('/service/data/workbooks.sqlite3'); print('Post-deploy versions:', db.execute('SELECT COUNT(*) FROM versions').fetchone()[0]); print('Integrity:', db.execute('PRAGMA integrity_check').fetchone()[0])"
 docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' workbook
 trap - ERR
+find /opt/workbook/data -maxdepth 1 -type f -name 'pre-deploy-*.sqlite3' \
+    ! -name "pre-deploy-$release.sqlite3" -delete
 echo "Update succeeded; existing token, database, HTTPS proxy, and instance preserved."
 '@
 $script = $script.Replace('__REGION__',$Region).Replace('__REGISTRY__',$registry).Replace('__IMAGE__',$image).Replace('__REVISION__',$revision.Substring(0,12))

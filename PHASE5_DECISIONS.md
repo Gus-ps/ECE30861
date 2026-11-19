@@ -216,7 +216,7 @@ Why 1 is recommended: it is the most direct reading of §10 and makes both local
 assertions testable. `DELETION_IN_PROGRESS` can be adopted later (option 2) if the pod
 gives it a meaning.
 
-Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
+Chosen: Option 1 is implemented in `phase5_deletion.py`, the DELETE route and startup recovery. SYS-015 records the reservation, staging and clock behavior.
 
 ## D6: How are backups and copies kept from resurrecting a deleted workbook?  (blocks: none; DEL-6 gap)
 Status: CHOSEN (option 1, 2026-11-18)
@@ -259,7 +259,7 @@ restore brings deleted workbooks back.
 Why 1 is recommended: it is the only option that both keeps recovery possible and makes
 "a restore never resurrects a deletion" true by construction, at moderate cost.
 
-Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
+Chosen: Option 1 is implemented for the application and EC2 scripts through `DELETION_LEDGER_PATH`, restore replay and SQLite secure deletion (SYS-016). Jon owns the outstanding ECS ledger location and RDS backup retention policy.
 
 ## D7: How does deletion guarantee no future scheduled audit or reminder runs?  (blocks: DEL-7)
 Status: CHOSEN (option 1, 2026-11-18)

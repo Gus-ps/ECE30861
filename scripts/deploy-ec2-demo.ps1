@@ -37,11 +37,15 @@ dnf install -y docker
 systemctl enable --now docker
 mkdir -p /opt/workbook/data /opt/workbook/caddy
 chown 1000:1000 /opt/workbook/data
+install -d -m 0700 -o 1000 -g 1000 /opt/workbook/deletion-ledger
 umask 077
 printf 'API_TOKENS_JSON={"%s":"test-user"}\n' "$(openssl rand -hex 32)" > /opt/workbook/app.env
 aws ecr get-login-password --region __REGION__ | docker login --username AWS --password-stdin __REGISTRY__
 docker pull __IMAGE__
-docker run -d --restart unless-stopped --name workbook --env-file /opt/workbook/app.env -e DATABASE_PATH=/service/data/workbooks.sqlite3 -v /opt/workbook/data:/service/data -p 127.0.0.1:8000:8000 __IMAGE__
+docker run -d --restart unless-stopped --name workbook --env-file /opt/workbook/app.env \
+    -e DATABASE_PATH=/service/data/workbooks.sqlite3 -e DELETION_LEDGER_PATH=/service/deletion-ledger/deletions.jsonl \
+    -v /opt/workbook/data:/service/data -v /opt/workbook/deletion-ledger:/service/deletion-ledger \
+    -p 127.0.0.1:8000:8000 __IMAGE__
 METADATA_TOKEN=$(curl -fsS -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 300' http://169.254.169.254/latest/api/token)
 PUBLIC_IP=$(curl -fsS -H "X-aws-ec2-metadata-token: $METADATA_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
 printf '%s.sslip.io {\n reverse_proxy 127.0.0.1:8000\n}\n' "$PUBLIC_IP" > /opt/workbook/caddy/Caddyfile

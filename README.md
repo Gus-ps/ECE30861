@@ -20,6 +20,10 @@ API documentation and schemas are at `/docs` and `/openapi.json`.
 `API_TOKENS_JSON` maps bearer tokens to user IDs; there are no default credentials.
 SQLite defaults to `data/workbooks.sqlite3`; `DATABASE_PATH` can override it.
 
+`DELETION_LEDGER_PATH` points to a persistent JSON Lines file outside the
+database backup and restore scope. Startup reapplies its deletion intents.
+When unset, startup warns and database restores can reintroduce deleted workbooks.
+
 `SCHEDULER_INTERVAL_SECONDS` sets the polling interval for ordinary data.
 It defaults to 1 second and accepts values greater than zero and up to 5.
 Tests can disable the scheduler thread with `create_app(enable_scheduler=False)`.

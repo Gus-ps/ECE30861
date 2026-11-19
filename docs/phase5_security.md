@@ -39,33 +39,33 @@ probed, so behavior on the live hosts still needs a human check.
 
 ## Deletion, backups and copies (Operation 14)
 
-Assertions: `P5-DELETE-RESTORE`, `P5-DELETE-OBJECT-VERSIONS`, `P5-MANUAL-DELETE-BACKUPS`.
-Like the sections above, this is read from the repository only, not observed on AWS.
+The implementation and EC2 configuration below were verified locally or inspected in
+the repository. Production deployment and infrastructure restores still need evidence.
 
-- **Live rows:** `DELETE /api/v1/workbooks/{id}` removes every row for the workbook (source
-  and output bytes, audits, findings, review contexts, reports, remediations, idempotency
-  keys, jobs, upload reservations and legacy Phase 3 rows) in one transaction
-  (`phase4_service.py` `delete_workbook`). The same code runs on SQLite and PostgreSQL.
-  There is no object store: workbook bytes live in `p4_resources.data`, so there are no
-  object versions to remove.
-- **Physical remnants:** SQLite keeps deleted pages in the file until they are reused.
-  `secure_delete` and `VACUUM` aren't used (`database.py`). PostgreSQL keeps dead tuples
-  until autovacuum reclaims them. Both are on encrypted volumes (EBS `Encrypted`, RDS
-  `StorageEncrypted`). These are provider-level remnants that the spec places outside the
-  prototype's physical-erasure claim, but they are reachable by anyone who can read the
-  database file.
-- **RDS automated backups** (`infrastructure/aws.yaml` line 73, `BackupRetentionPeriod: 1`):
-  for about a day after a deletion, a point-in-time restore or the daily snapshot still
-  contains the workbook. `DeletionPolicy`/`UpdateReplacePolicy: Snapshot` (lines 60-61)
-  also keeps a final manual snapshot when the stack is deleted or the database is
-  replaced, and that snapshot doesn't expire.
-- **Application-managed copies (EC2 demo):** every release made with the EC2 update script
-  first writes `/service/data/pre-deploy-<release>.sqlite3` (script line 55) and never
-  removes it. Each copy keeps every workbook that existed at that release, including ones
-  deleted later. The EBS volume is retained when the instance is terminated
-  (`DeleteOnTermination: false`).
-- **Restores:** nothing stops a restore from resurrecting an acknowledged deletion today.
-  The service keeps no record of deleted workbook IDs outside the database being restored,
-  so restoring an RDS snapshot, a point-in-time copy or a pre-deploy SQLite file brings
-  deleted workbooks back. This doesn't yet meet spec §10 ("A restore must never resurrect
-  an acknowledged deletion"). The policy choice is open as D6.
+- **Live rows:** DELETE reserves the workbook, fences it against new work, and removes
+  its jobs, idempotency keys, schedules, notifications, reminder decisions, upload
+  reservations, legacy rows and workbook resources in committed stages. Workbook bytes
+  live in the database, so the current application has no object-store versions.
+  Startup resumes any pending reservation before starting workers or the scheduler.
+- **SQLite physical storage:** Every application SQLite connection enables
+  `PRAGMA secure_delete=ON` to overwrite deleted database content. Existing backups
+  and filesystem-level copies can still contain earlier bytes.
+- **EC2 demo:** Both EC2 scripts provision the private host directory
+  `/opt/workbook/deletion-ledger` and mount it at `/service/deletion-ledger`.
+  The container uses `DELETION_LEDGER_PATH=/service/deletion-ledger/deletions.jsonl`.
+  This directory is separate from the SQLite data directory and outside the update
+  script's database backups. On a successful update, only the backup taken for that
+  update is retained. Its raw SQLite bytes can still contain workbooks deleted later.
+- **Restore on EC2:** Stop the live service before restoring a database, preserve the
+  current ledger separately, and start the ledger-aware image with the original mount.
+  The application fsyncs the intent before removing live rows and reapplies each recorded
+  deletion before startup finishes. This protection applies to deletes recorded after the
+  ledger was enabled. When the path is unset, startup warns and a restore can reintroduce
+  deleted data. A new ledger file can be created in the configured directory. Startup
+  discards only an unterminated final record and refuses other corruption or file errors.
+- **ECS/RDS handoff to Jon:** ECS still needs a durable ledger outside the database and
+  task filesystem, such as an S3-backed store, plus a backup retention and snapshot
+  policy. The current RDS configuration retains automated backups for about one day and
+  retains final snapshots on deletion or replacement. Restoring those copies can
+  reintroduce deleted workbooks while the ECS ledger is absent. The infrastructure
+  template is unchanged.
