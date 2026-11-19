@@ -59,18 +59,21 @@ def execution_seconds(path):
 
 
 def run_once(base, token, path):
-    run = dict(workbook=path.name, outcome=None, error_code=None, end_to_end_seconds=None,
+    run = dict(workbook=path.name, outcome=None, error_code=None, upload_seconds=None, end_to_end_seconds=None,
                execution_seconds=None, queue_seconds=None, findings_count=None, fingerprint=None,
                findings_bytes=None, report_bytes=None)
     boundary = uuid.uuid4().hex
     body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\n'
             'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n'
             ).encode() + path.read_bytes() + f'\r\n--{boundary}--\r\n'.encode()
+    sent = time.monotonic()
     status, body = call(base, token, 'POST', '/api/v1/workbooks', body,
                         {'Content-Type': f'multipart/form-data; boundary={boundary}'})
+    start = time.monotonic()
+    run['upload_seconds'] = start - sent  # request transfer, validation and storage
     if status != 202:
         return dict(run, outcome=f'UPLOAD_{status}', error_code=error_code(body))
-    accepted, start = json.loads(body), time.monotonic()
+    accepted = json.loads(body)
     audit_path = '/api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}'.format(**accepted)
     while True:
         status, body = call(base, token, 'GET', audit_path)
