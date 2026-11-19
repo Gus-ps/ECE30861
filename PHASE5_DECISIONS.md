@@ -411,3 +411,104 @@ Why 1 is recommended: it gives real, full-DOM scan evidence for AC-17 now, witho
 dependencies. Option 3 is the better long-term choice if the team accepts the tooling.
 
 Chosen: The developer selected the recommended option. Implementation will follow on `haruki/phase5-schedule`.
+
+## D11: Where does the deletion ledger live on ECS?  (blocks: DEL-8, DEL-9, DEL-10, DEL-11)
+Status: CHOSEN (option 2, 2026-11-19)
+Context: D6 option 1 (SYS-016) replays an append-only ledger of deleted workbook IDs at
+startup so that a database restore never resurrects a deletion. The ledger is only
+implemented as a file (`DELETION_LEDGER_PATH`, JSON Lines with fsync, `phase5_deletion.py`
+`ledger_records`). The ECS service is an `AWS::ECS::ExpressGatewayService` on Fargate
+(`infrastructure/aws.yaml` `Service`): task storage is lost on every replacement, more
+than one task can run, and it is unconfirmed whether Express services can mount volumes.
+The ledger must be shared by all tasks, survive redeploys, and sit outside RDS backups.
+`boto3` is already a dependency (`database.py`, Secrets Manager).
+
+1. EFS volume mounted into the task, `DELETION_LEDGER_PATH=/ledger/deletions.jsonl`. Pros:
+   no code change (file code and fsync work over NFS; the database mutex already
+   serializes appends across tasks); same design as EC2. Cons: Express services may not
+   support volume mounts, which would force a switch to a standard ECS service; adds an
+   EFS file system, mount targets and a security group; EFS backups must never roll back
+   behind the database. Code size: small code, medium template.
+2. S3 bucket, one object per deletion (key = workbook ID), versioning on. Pros: very
+   durable, shared across tasks, outside database backups, no change to the service
+   type, cheapest; the task role can be denied `s3:DeleteObject` so the app can't remove
+   entries. Cons: new code path to test; durability before deleting content rests on a
+   successful PUT instead of fsync; startup lists every object (fine at this scale).
+   Code size: medium.
+3. DynamoDB table (key `workbook_id`, plus `timestamp`). Pros: strongly consistent,
+   shared, cheap on demand. Cons: same new code path as option 2; its own point-in-time
+   recovery must never roll back behind the database. Code size: medium.
+4. CloudWatch Logs stream. Pros: already in the AWS footprint. Cons: reading the full
+   history at startup is slow and awkward; log-group retention can silently drop entries.
+   Code size: medium-large.
+
+Why 2 was recommended (when EFS can't be mounted): it needs no change to how the ECS
+service is defined and gives the strongest durability for the least infrastructure.
+
+Chosen: Option 2, S3 bucket storage. Implementation details fixed with this choice, so
+the agent doesn't need further decisions:
+- Configuration: new env var `DELETION_LEDGER_BUCKET` (bucket name). Exactly one of
+  `DELETION_LEDGER_PATH` and `DELETION_LEDGER_BUCKET` may be set; setting both refuses
+  startup. Neither set keeps today's warning. Why refuse rather than pick one: startup
+  replays only the ledger in use, so if deletions were ever split across the file and
+  the bucket (for example after a config change switched which one wins), a database
+  restore would silently bring back the workbooks recorded only in the other ledger.
+  A service that won't start with both set is a configuration error to fix, not a bug:
+  unset the one that isn't the deployment's real ledger. If moving between them, first
+  copy the old ledger's IDs into the new one (D11 doesn't automate this).
+- Records: object key `deletions/<workbook_id>.json`, body the same JSON object as a
+  ledger line (`{"workbook_id":...,"timestamp":...}`). Writing the same key twice is a
+  no-op in effect. Startup lists the `deletions/` prefix (paginated) and takes IDs from
+  the keys; a key that doesn't match `deletions/<id>.json` with the existing ID pattern
+  refuses startup, like an invalid file line. Objects aren't read individually.
+- Failures: any S3/botocore error is handled like a file ledger error (logged by error
+  type only, `RuntimeError`, 500 on DELETE with the reservation kept, startup refused).
+- Bucket (template): versioning enabled, all public access blocked, SSE-S3 encryption,
+  `DeletionPolicy: Retain` and `UpdateReplacePolicy: Retain` (it holds only opaque IDs,
+  which spec §10 allows), no Object Lock, no lifecycle expiry.
+- Task role: `s3:PutObject` on `<bucket>/deletions/*` and `s3:ListBucket` on the bucket
+  limited to the `deletions/` prefix. No `s3:DeleteObject` and no `s3:GetObject`.
+- Tests use an injected fake S3 client. They never call AWS, and no new test dependency
+  (such as moto) is added.
+
+## D12: RDS backup retention, final snapshots and the restore procedure  (blocks: DEL-9, DEL-10, DEL-11)
+Status: CHOSEN (option A, 2026-11-19)
+Context: `infrastructure/aws.yaml` keeps RDS automated backups for 1 day
+(`BackupRetentionPeriod: 1`) and sets `DeletionPolicy`/`UpdateReplacePolicy: Snapshot`,
+which leaves a snapshot that never expires when the stack is deleted or the database is
+replaced. With the D11 ledger, restores are safe whatever their age, so retention only
+decides how long deleted content still physically exists in backups (spec §10) versus
+how far back the service can recover.
+
+A. 1-day automated backups, `DeletionPolicy: Delete` (no final snapshot). Deleted content
+   lasts up to about 1 day. Pros: shortest window while keeping 24 hours of
+   point-in-time recovery; smallest change. Cons: nothing survives stack deletion.
+   Code size: small (template and docs).
+B. 1-day automated backups plus a final snapshot with a written expiry (manual or an AWS
+   Backup lifecycle, within 7 days). Pros: can roll back a stack replacement or
+   teardown. Cons: deleted content lasts up to 7 more days in the snapshot; someone must
+   make sure it expires. Code size: small to medium.
+C. 7-day automated backups, `DeletionPolicy: Delete`. Pros: a week of point-in-time
+   recovery to catch late-noticed bad releases. Cons: deleted content stays in backups
+   up to about 7 days. Code size: small.
+D. No backups (`BackupRetentionPeriod: 0`, `DeletionPolicy: Delete`). Pros: no copy
+   outlives a deletion. Cons: no recovery at all; this was D6 option 2, already rejected.
+   Code size: small.
+
+Why A was recommended: for a course deployment one day of recovery is enough, and it
+keeps the window in which deleted content survives as short as backups allow.
+
+Chosen: Option A. Keep `BackupRetentionPeriod: 1`; set `DeletionPolicy: Delete` and
+`UpdateReplacePolicy: Delete` on the RDS instance, so no snapshot outlives the database
+(note: a template change that forces replacement now discards the old database without a
+snapshot; take a manual snapshot first and delete it within 1 day). The restore
+procedure, documented in `docs/phase5_security.md`, is:
+1. Stop traffic (scale the service to 0 or pause it).
+2. Restore the snapshot or point-in-time backup to a new RDS instance.
+3. Point `DB_HOST` at the new instance. Leave the ledger bucket untouched; it must never
+   be restored to an older state than the database.
+4. Start one task; `recover()` replays the ledger before accepting work, and refuses to
+   start if the ledger can't be read.
+5. Check the startup logs for ledger errors and that sample deleted workbook IDs return
+   404, then scale back up.
+6. Delete the old instance and any manual snapshot taken for the change.

@@ -17,6 +17,8 @@ Start a session in this folder, switch to auto mode or accept-edits mode, and ru
 1. **Branch.** Work only on `Jon-Gus_branch`. Never create, switch or delete branches,
    and never push, merge, rebase or reset.
 2. **Minimal code.** Load the `minimal-code` skill before writing code, and follow it.
+   For PERF items, also load the `service-performance` skill
+   (`.claude/skills/service-performance/`) before measuring or writing results.
 3. **One item per iteration.** Take the first `[~]` item (unfinished work, see rule 12)
    if there is one, otherwise the first `[ ]` item in order. Read its sources, write
    the code and the tests that prove its "Done when" line, then run
@@ -182,6 +184,60 @@ explicit tokens and reviewer grants).
   (`P5-DELETE-CANCEL-FUTURE`). The scheduler isn't on this branch, so write a decision
   entry and mark this item `[B]`, unless that entry is already `CHOSEN`.
   `4ae93ce` implements cancellation verified by `test_delete_prevents_future_work_and_rejects_pending_scheduled_audit` in `tests/test_phase5_scheduler.py`, recorded in SYS-012 (`bdced4d`).
+- [x] (D11) **DEL-8: S3 deletion ledger backend.** Add the S3 ledger chosen in D11 next to
+  the file ledger in `phase5_deletion.py`, configured by `DELETION_LEDGER_BUCKET` in
+  `phase4_service.py` (where `DELETION_LEDGER_PATH` is read today). Follow every detail
+  in D11's Chosen line: key `deletions/<workbook_id>.json`, the same JSON body, both env
+  vars set refuses startup, startup lists the prefix and validates each key, and any S3
+  error behaves like a file ledger error. Create the client with `boto3.client('s3')`
+  only when the bucket is configured, and let tests inject a fake client. Keep the file
+  ledger's behavior unchanged. The both-set startup error must say what to do, for
+  example "DELETION_LEDGER_PATH and DELETION_LEDGER_BUCKET are both set; unset the one
+  that is not this deployment's ledger (see D11)", and the check gets a one-line code
+  comment pointing to D11, so whoever hits it can find the reason.
+  Done when: tests in `tests/test_phase5_delete.py` (or `tests/test_phase5_ledger.py`),
+  using a fake S3 client and never the network, show that: a DELETE writes the object
+  before content is removed; a PUT failure returns 500 `DELETION_FAILED`, keeps the
+  reservation, and a retry finishes; startup replays bucket IDs into a restored database
+  (the S3 version of the existing file-ledger restore test); an invalid key refuses
+  startup; setting both env vars refuses startup. The existing file-ledger tests still
+  pass.
+  `e7f6bbc`: 3 fake-S3 tests in tests/test_phase5_delete.py (PUT before first removal, PUT failure 500 + retry, restore replay, 3 invalid keys, both env vars) and all file-ledger tests pass; gate passed, 217 tests, New: 0.
+- [x] (D11, D12) **DEL-9: Infrastructure template.** Edit `infrastructure/aws.yaml` only (never
+  deploy it, rule 9): add the ledger bucket with the settings in D11's Chosen line; give
+  `TaskRole` only `s3:PutObject` on `deletions/*` and prefix-limited `s3:ListBucket`;
+  pass `DELETION_LEDGER_BUCKET` to `PrimaryContainer`; set the RDS instance's
+  `DeletionPolicy` and `UpdateReplacePolicy` to `Delete` and keep
+  `BackupRetentionPeriod: 1` (D12). Add the bucket name to `Outputs`.
+  Done when: the diff contains exactly those changes, and a standard-library test (PyYAML
+  isn't installed and must not be added) reads `infrastructure/aws.yaml` as text and
+  asserts: the bucket resource with versioning, public access block and encryption;
+  `DELETION_LEDGER_BUCKET` in the container environment; the two S3 actions on the task
+  role and no `s3:DeleteObject`; `DeletionPolicy: Delete`, `UpdateReplacePolicy: Delete`
+  and `BackupRetentionPeriod: 1` on the database. Note in the report that the template
+  was not deployed or validated by AWS.
+  `9c0fa83`: tests/test_phase5_infrastructure.py (4 text checks; fail on the old template) passes; gate passed, 221 tests, New: 0. Not deployed or validated by AWS.
+- [x] (D11, D12) **DEL-10: Document the ECS ledger and restore procedure.** Rewrite the
+  "ECS/RDS handoff to Jon" bullet in `docs/phase5_security.md` ("Deletion, backups and
+  copies") to describe the S3 ledger, the 1-day RDS retention with no final snapshot,
+  and the six-step restore procedure from D12, keeping the section accurate for EC2
+  too. Add a short troubleshooting bullet: if the service refuses to start because
+  both `DELETION_LEDGER_PATH` and `DELETION_LEDGER_BUCKET` are set, that is deliberate
+  (a split ledger lets a restore resurrect deletions, D11); unset the one that isn't
+  the deployment's ledger, and copy IDs across first when migrating between them. Add a dated SYS entry at the end of `docs/phase5_system_decisions.md` that records
+  D11/D12 as resolving the ECS/RDS part of SYS-016 and the matching SYS-017 row (don't
+  edit earlier SYS entries).
+  Done when: both documents state the chosen behavior with file references, and nothing
+  in them still says the ECS ledger or RDS policy is open.
+  `909eb75`: docs/phase5_security.md (S3 ledger, 1-day RDS without final snapshot, D12 six-step restore, both-set troubleshooting), SYS-018 in docs/phase5_system_decisions.md, DEL-11 checklist in docs/phase5_restore_evidence.md; gate passed, 221 tests, New: 0.
+- [H] (D11, D12) **DEL-11: Hosted restore verification.** Jon deploys the DEL-9 template
+  and checks on AWS: delete a workbook, confirm `deletions/<id>.json` exists, restore a
+  point-in-time backup from before the deletion by the D12 procedure, and confirm the
+  workbook returns 404 after startup. The agent only adds a checklist and blank result
+  table for this to `docs/phase5_security.md` (or a new `docs/phase5_restore_evidence.md`)
+  as part of DEL-10, and leaves this item `[H]`.
+  (Assertions: `P5-DELETE-RESTORE`, `P5-MANUAL-DELETE-BACKUPS`.)
+  `909eb75`: checklist and blank result table written in docs/phase5_restore_evidence.md. Left `[H]` for Jon.
 
 ## Interface accessibility (REQ-15, AC-17, spec §16)
 
@@ -260,8 +316,69 @@ explicit tokens and reviewer grants).
   (Assertions: `P5-MANUAL-KEYBOARD`, `P5-MANUAL-A11Y-SCAN`.)
   `2af47a8`: template written (18-step keyboard walkthrough, scan table per page state, contrast table). Left `[H]` for Jon; steps 17 and the scan wait on D9 and D10.
 
+## Performance (AC-18, spec §12 and §17): measure and report only
+
+These items produce evidence for a team discussion. They never change the checker
+(`accessibility_checker/`), `service_worker.py` limits, timeouts, upload limits, response
+limits or the API. A finding that suggests a fix goes under "For team discussion" in
+`docs/phase5_performance.md`, not into code and not into a decision the agent treats as
+chosen. Earlier checker-only measurements are AE-022 in
+`MSYS_NO_PATHCONV=1 git show origin/haruki/accessibility-checker:.docs/assumptions_and_extensions.md`.
+
+- [x] **PERF-1: Service-level measurement script.** Write `scripts/perf_service.py`
+  (standard library plus existing dependencies only) that, against a `--base-url` and
+  `--token`, uploads each given workbook, polls the audit to a terminal status, and
+  repeats `--runs` times (default 5) after one untimed warm-up. Per run it records:
+  outcome and error code, end-to-end seconds from upload acceptance to the terminal
+  status (monotonic clock), worker execution seconds, queue seconds, findings count,
+  findings fingerprint (SHA-256 of the sorted rule ID, worksheet, target, category and
+  finding ID), and the byte size of the findings and report responses. The service
+  doesn't record when a worker claims a job, so measure execution by timing the same
+  workbook through `service_worker`'s entry point in a fresh process, and report queue
+  time as end-to-end minus execution, labelled approximate. Don't add timing fields to
+  the service. Write per-run JSON to `.perf/` (gitignored) and print a summary table with
+  min, median and max, and the verdict rule from the skill.
+  Done when: `tests/test_phase5_perf.py` tests the fingerprint, the summary and the
+  verdict rules on made-up run data (no real boundary run inside the gate), and one run
+  of the script against a local server on a small sample workbook succeeds and is
+  quoted in the report entry.
+  `0b0426b`: tests/test_phase5_perf.py (3 tests: fingerprint, 11 verdict cases, summary) passes; local run on valid.xlsx and link_vectors.xlsx (5 runs + warm-up each, all SUCCESS, one fingerprint) quoted in the report; gate passed, 224 tests, New: 0.
+- [x] **PERF-2: Local boundary measurement and evidence document.** Generate the four
+  AE-022 boundary profiles (a–d) by running Haruki's generator from a copy in `.perf/`
+  (`MSYS_NO_PATHCONV=1 git show origin/haruki/accessibility-checker:scripts/perf_workbooks.py > .perf/perf_workbooks.py`;
+  never commit it or add it to this branch). Start a local server with a temporary
+  `DATABASE_PATH` and a test token, run PERF-1's script on each profile (5 runs plus
+  warm-up, nothing else running), and stop the server. Write
+  `docs/phase5_performance.md` with: the environment block from the skill (including
+  that this host is Windows, where the 384 MiB `RLIMIT_AS` isn't applied); one table per
+  profile; a verdict per AC-18 criterion (60 s, controlled failure, identical findings,
+  queue reported separately); response sizes against the 64 MiB limit; a comparison
+  with AE-022's checker-only results; and a "For team discussion" list that includes at
+  least: integrating the checker optimizations (`f94330f`), the production instance
+  type, worker memory, the 64 MiB response limit for profiles c/d, and whether the
+  service should record a job claim time so queue time can be reported exactly.
+  Done when: the document exists with real numbers from this run, every run (including
+  failures and timeouts) appears in it, and the report entry lists the total
+  measurement time.
+  `c6d5720`: docs/phase5_performance.md with all 20 timed runs (a, b, d 5/5 success with one fingerprint each; c 5/5 PROCESSING_TIMEOUT; d audit GET 151 MB over 64 MiB); measurement 30 min 3 s; gate passed, 224 tests, New: 0.
+- [H] **PERF-3: Team review and production-like run.** Jon brings PERF-2's "For team
+  discussion" list to the team (Haruki owns the checker and AE-022), and a person reruns
+  PERF-1's script against a Linux deployment of the production instance type (the
+  EC2 demo or ECS), adding its results as a second environment in
+  `docs/phase5_performance.md`. The agent writes nothing for this item beyond what
+  PERF-2 produced.
+  (Assertions: `P5-PERFORMANCE-RUN-1` to `-5` and `P5-PERFORMANCE-COMPARE`. PERF-2 reads
+  their texts in `phase5-test-plan.json` and makes the local runs follow them.)
+
 ## Out of scope for this list
 
 Scheduling, reminders, notifications, the test clock, fault types other than
-`deletion_failures`, performance (AC-18) and the tester. Haruki and Logan own those, and
-this list must not touch them.
+`deletion_failures`, and the tester. Haruki and Logan own those, and this list must not
+touch them. Performance is in scope only as the measure-and-report PERF items above;
+changing the checker or worker to improve performance stays with Haruki and the team.
+
+Since 2026-11-19 this branch includes `haruki/phase5-schedule` (fast-forwarded to
+`b86b17b`). ACC-2, UI-5, UI-7 and UI-8 stay `[B]` even though D1, D8, D9 and D10 are
+`CHOSEN`: those choices are implemented on `haruki/phase5-schedule` (SYS-017), so rule 6's
+"set it back to `[ ]`" doesn't apply to them. The open DEL-8 to DEL-10 items are Jon's
+(D11, D12).

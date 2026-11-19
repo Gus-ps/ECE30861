@@ -218,6 +218,11 @@ branch, check the other copies.
   - `ENABLE_TEST_INTERFACE`, `TEST_ADMIN_TOKENS_JSON` and `TEST_SESSION_USERS_JSON`
     control the test interface.
   - `VALIDATOR_PATH` can point to a different validator module.
+  - `DELETION_LEDGER_PATH` (file, EC2) or `DELETION_LEDGER_BUCKET` (S3, ECS; added by
+    DEL-8) holds the deletion ledger that is replayed after a database restore. Set at
+    most one: with both set the service refuses to start on purpose, because a split
+    ledger lets a restore bring deleted workbooks back. That is not a bug to work
+    around; see D11 in `PHASE5_DECISIONS.md` on `Jon-Gus_branch`.
 - Setup and run:
   ```powershell
   python -m pip install -r requirements.txt

@@ -15,46 +15,48 @@ inherited failure/error events.
 
 ## Final summary
 
-_Written by the agent on 2026-11-17 17:23, when no `[ ]` items remained._
+_Rewritten by the agent on 2026-11-19 after PERF-2, when no `[ ]` items remained. It
+replaces the 2026-11-17 summary, which was out of date (the Log keeps that history)._
 
 - Items done: ACC-1 (`1676fad`), ACC-3 (`4045d1c`), ACC-4 (`7f6de45`), DEL-1 (`9fda98e`),
-  DEL-2 (`b1c8a5b`), DEL-3 (`c67dff1`), DEL-6 (`44ca7e0`, documentation; the policy gap is
-  in D6), UI-1 (inventory, no commit), UI-2 (`5605476`), UI-3 (`e43be8e`), UI-4 (`401d78f`),
-  UI-6 (`393b992`).
-- Items blocked (and their decision entries): ACC-2 (D1, reviewer grant granularity; its
-  DELETE reviewer cases are already tested by ACC-1's table), DEL-4 and DEL-5 (D5,
-  deletion reservation design), DEL-7 (D7, scheduler cancellation), UI-5 (D8,
-  disabled-button contrast 2.56:1), UI-7 (D9, delete control design), UI-8 (D10, scanner
-  choice). Open decisions that block nothing: D2 (plain-HTTP redirect), D3 (plaintext
-  tokens), D4 (deleting schedules and notifications on merge), D6 (backups and copies
-  can resurrect deletions).
-- Human-only items: UI-9. Its template is committed (`2af47a8`); the walkthrough, scan and
-  measured contrast need Jon.
-- Final gate result: Ran 112 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED
-  (last run at UI-6; later commits changed only documentation).
-- Behavior that differs from specification 3.0.0:
-  - A restore of RDS backups, final snapshots or the EC2 pre-deploy SQLite copies would
-    bring deleted workbooks back (§10 "A restore must never resurrect"). See DEL-6 and D6.
-  - Deletion is one transaction with no durable reservation, so `DELETION_FAILED`,
-    recovery on retry and restart resumption (§10) aren't implemented (D5).
-  - Schedules and notifications aren't deleted or cancelled because they don't exist on
-    this branch (D4, D7).
-  - Only `audit_failures` and `deletion_failures` fault keys are accepted; the other five
-    §11 keys are rejected as unknown (out of scope for this list).
-  - Plain HTTP is redirected rather than rejected on the EC2 demo (D2), and there is no
-    HSTS.
-  - Client-visible fix made to match §4: a reviewer calling Op 3 on an unknown workbook now
-    gets 404 instead of 403 (ACC-1).
+  DEL-2 (`b1c8a5b`), DEL-3 (`c67dff1`), DEL-4 and DEL-5 (`fef3ce8`), DEL-6 (`0c949c7`),
+  DEL-7 (`4ae93ce`), DEL-8 (`e7f6bbc`), DEL-9 (`9c0fa83`), DEL-10 (`909eb75`), UI-1
+  (inventory, no commit), UI-2 (`5605476`), UI-3 (`e43be8e`), UI-4 (`401d78f`), UI-6
+  (`393b992`), PERF-1 (`0b0426b`), PERF-2 (`c6d5720`). DEL-4 to DEL-7 came in with the
+  fast-forward to `haruki/phase5-schedule` (`b86b17b`).
+- Items marked `[B]`: ACC-2 (D1), UI-5 (D8), UI-7 (D9), UI-8 (D10). All four decisions are
+  `CHOSEN`; per the note at the end of `PHASE5_TASKS.md` their implementation is tracked
+  on `haruki/phase5-schedule` (SYS-017), so this loop didn't reopen them. No decision
+  entry is `OPEN`.
+- Human-only items: DEL-11 (hosted restore; checklist in
+  `docs/phase5_restore_evidence.md`), UI-9 (keyboard walkthrough and scan;
+  `docs/phase5_accessibility_evidence.md`), PERF-3 (team review and a Linux run on the
+  production instance type; `docs/phase5_performance.md` "For team discussion").
+- Final gate result: Ran 224 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED
+  (run before the PERF-2 commit; that commit changed only the measurement script's
+  output field and a document).
+- Behavior that differs from specification 3.0.0 or needs attention:
+  - **Performance (AC-18), local only:** profile c (mixed realistic boundary workbook)
+    fails 5/5 with `PROCESSING_TIMEOUT` on this branch's checker. Profile d's audit GET
+    (Operation 5) returns about 144 MiB, over the 64 MiB response limit, with no size
+    guard; its report is refused with 500 `RESULT_TOO_LARGE`. d would also fail with
+    `MemoryError` under production's 384 MiB worker limit (AE-022).
+  - The S3 ledger, bucket, task-role policy and RDS `Delete` policies are written but
+    not deployed or validated by AWS. With `UpdateReplacePolicy: Delete`, a template
+    change that replaces the database discards it without a snapshot (D12).
+  - SYS-016 and the SYS-017 table still describe the ECS ledger and RDS policy as open;
+    SYS-018 records them as resolved (earlier SYS entries aren't edited).
+  - D2 (reject HTTP, add HSTS) still needs the script change and an operator redeploy
+    (SYS-017).
 - Suggested next steps:
-  1. Decide D5 and D6 first: they cover the remaining deletion guarantees and the largest
-     compliance gap. Then the loop can implement DEL-4 and DEL-5 together.
-  2. Decide D8, D9 and D10 (small UI changes plus the scanner), then run UI-9 by hand.
-  3. Decide D1 (likely option 1, which closes ACC-2 with tests only), and D4/D7 together
-     as merge requirements for `haruki/phase5-schedule`.
-  4. Check the EC2 demo for existing `pre-deploy-*.sqlite3` copies, and decide whether
-     `ENABLE_TEST_FAULTS=true` should stay on the demo host.
-  5. Run the PostgreSQL test (`RUN_POSTGRES_TESTS=1`) to cover the advisory-lock
-     `fence` and the delete path, which were tested only on SQLite.
+  1. Bring PERF-2's "For team discussion" list to Haruki and the pod: integrating
+     `f94330f` (fixes c), and the 64 MiB limit on Operation 5 (d).
+  2. Deploy the DEL-9 template after reviewing the change set, then run DEL-11.
+  3. Run PERF-1's script on the production instance type (PERF-3); the local numbers come
+     from a fast laptop CPU and skip the memory limit.
+  4. Add `DELETION_LEDGER_BUCKET` to `README.md`, which still documents only the file
+     ledger.
+  5. Finish the `haruki/phase5-schedule` items (ACC-2, UI-5, UI-7, UI-8) and UI-9.
 
 ## Entry format
 
@@ -718,3 +720,350 @@ Verification:
 - Not verified: the walkthrough itself (it needs a person).
 Review notes:
 - Step 12 asks the tester to record where focus lands after "View"; see the UI-6 review note.
+
+### D11/D12 recorded; DEL-8 to DEL-11 added  (2026-11-19)
+Outcome: done (planning only, no commit; rule 4 excludes these files)
+Changes:
+- Branch: Jon fast-forwarded `Jon-Gus_branch` from `1fcd54e` to `b86b17b`
+  (`origin/haruki/phase5-schedule`), which already contained `1fcd54e` through merge
+  `44200ed`. That merge marked D1 to D10 `CHOSEN` and DEL-4, DEL-5 and DEL-7 `[x]`
+  without adding Log entries here; this entry notes it.
+- PHASE5_DECISIONS.md: added D11 (ECS deletion ledger location; 4 options; chosen option
+  2, S3 bucket) and D12 (RDS retention and restore; options A to D; chosen A, 1-day
+  automated backups, no final snapshot). Both Chosen lines fix the implementation
+  details (env var, key format, bucket and IAM settings, restore steps) so the loop
+  needs no further decision.
+- PHASE5_TASKS.md: added DEL-8 (S3 ledger code and tests), DEL-9 (`infrastructure/aws.yaml`
+  edits, never deployed), DEL-10 (security doc and a new SYS entry) and DEL-11 (`[H]`,
+  hosted restore check by Jon). Added a note that ACC-2, UI-5, UI-7 and UI-8 stay `[B]`
+  because their chosen options are implemented on `haruki/phase5-schedule` (SYS-017).
+Decisions and assumptions:
+- Jon chose D11 option 2 and D12 option A. The details in their Chosen lines (both env vars
+  set refuses startup; key-only listing; bucket kept with `Retain`; no `s3:DeleteObject`
+  or `s3:GetObject`; RDS `UpdateReplacePolicy: Delete`) were filled in from the options
+  as presented, so a reviewer should confirm them.
+- DEL-9's check is a plain-text test because PyYAML isn't installed and rule 9 forbids
+  adding it.
+Verification:
+- Gate after the fast-forward: Ran 214 tests. Known failures: 55. New: 0. Fixed: 0.
+  GATE PASSED.
+- Not verified: anything on AWS (DEL-11).
+Review notes:
+- D12 sets `UpdateReplacePolicy: Delete`: a template change that forces RDS replacement
+  would discard the old database without a snapshot. D12 says to take a manual snapshot
+  first; check this is acceptable.
+
+### PERF items and service-performance skill added  (2026-11-19)
+Outcome: done (planning only, no commit; rule 4 excludes these files)
+Changes:
+- PHASE5_TASKS.md: new section "Performance (AC-18, spec §12 and §17): measure and
+  report only" with PERF-1 (`scripts/perf_service.py` and `tests/test_phase5_perf.py`),
+  PERF-2 (local boundary runs and `docs/phase5_performance.md`) and PERF-3 (`[H]`, team
+  review and a Linux, production-like run). Rule 2 now also loads the new skill for PERF
+  items. "Out of scope" now lets performance in only as measurement.
+- .claude/skills/service-performance/SKILL.md (new): budgets from spec §12/§17, how
+  to measure (monotonic clock, separate stages, 5 runs plus warm-up, findings
+  fingerprints, sizes, keeping every failed run), the environment block, a verdict
+  rubric (headroom ≤ 75% of budget, marginal, fail, controlled failure) and "report,
+  don't fix".
+Decisions and assumptions:
+- Jon asked for measurement only; fixes go to the team. The PERF items forbid changes
+  to the checker, worker limits, timeouts, limits and the API.
+- The service has no job claim time, so queue time is derived (end-to-end minus a
+  separate `service_worker` run) and labelled approximate. Whether to record claim time
+  is listed for team discussion instead of being added.
+- Boundary workbooks come from Haruki's generator, run from an uncommitted copy in
+  `.perf/`, instead of bringing that script onto this branch.
+- The 75% headroom threshold and the 20% spread rule in the skill are working
+  conventions for judging the evidence, not spec values.
+Verification:
+- None needed (planning only). The performance test IDs `P5-PERFORMANCE-RUN-1..5` and
+  `P5-PERFORMANCE-COMPARE` were checked against `phase5-test-plan.json`.
+Review notes:
+- Local Windows numbers can't show the `MemoryError` failures in AE-022 (`RLIMIT_AS`
+  only applies on POSIX). PERF-3's Linux run is needed for real AC-18 evidence.
+
+### DEL-8: S3 deletion ledger backend  (2026-11-19)
+Outcome: done, `e7f6bbc`
+Changes:
+- phase5_deletion.py: new `S3Ledger(client, bucket)` named tuple and
+  `s3_ledger_records()`. With an entry it PUTs `deletions/<workbook_id>.json` whose body
+  is the same compact JSON object as a file ledger line; without one it lists the
+  `deletions/` prefix through the `list_objects_v2` paginator and returns the IDs taken
+  from the keys. A key that doesn't match `deletions/<id>.json` (the existing ID pattern
+  `[A-Za-z0-9_-]{1,64}`) raises. Any exception is logged by type only and re-raised as
+  the same `RuntimeError` the file ledger uses. `record_intent()` and `recover()` pick
+  the backend by type; their ledger parameter is renamed `ledger_path` -> `ledger`.
+  `ledger_records()` (file ledger) is unchanged.
+- phase4_service.py (`create_app`): reads `DELETION_LEDGER_BUCKET`. If it and
+  `DELETION_LEDGER_PATH` are both non-empty, `create_app` raises `RuntimeError`
+  "DELETION_LEDGER_PATH and DELETION_LEDGER_BUCKET are both set; unset the one that is
+  not this deployment's ledger (see D11)." with a one-line comment pointing to D11.
+  `boto3` is imported and `boto3.client('s3')` created only when the bucket is set.
+  Local variable `ledger_path` renamed `ledger`. No endpoint, status code, error code or
+  table changed: an S3 failure on DELETE is the existing 500 `DELETION_FAILED`, and at
+  startup the existing refusal.
+- tests/test_phase5_delete.py: `FakeS3` (in-memory, one key per page so pagination is
+  exercised, optional injected `ClientError` on PUT), helper `with_s3` (patches
+  `boto3.client` and asserts it was called once with `'s3'`), and 3 tests:
+  `test_s3_ledger_put_precedes_removal_and_put_failure_retries`,
+  `test_s3_ledger_replays_after_sqlite_restore`,
+  `test_s3_ledger_refuses_invalid_keys_and_both_settings`.
+Decisions and assumptions:
+- The client is injected by patching `boto3.client` rather than adding a `create_app`
+  parameter: D11 says to create it with `boto3.client('s3')`, and patching needs no new
+  option. botocore is installed (boto3 is already a dependency), so the fake raises a
+  real `ClientError`.
+- The S3 path catches `Exception`, not just botocore types, because D11 says any
+  S3/botocore error behaves like a file error and botocore has unrelated exception
+  families (`BotoCoreError`, `ClientError`). A deadline expiry (`TimeoutError`) also
+  becomes the ledger `RuntimeError`, as it already does in the file ledger
+  (`TimeoutError` is an `OSError`).
+- S3 writes aren't serialized under the database ledger mutex the file ledger uses: a
+  PUT of the same key is idempotent, so concurrent retries can't duplicate entries.
+- The "neither set" warning still names only `DELETION_LEDGER_PATH` (D11: "keeps
+  today's warning").
+- Invalid-key cases tested: a space in the ID, wrong suffix (`.jsonl`) and a nested
+  path. Bodies are never read at startup (D11).
+Verification:
+- `python -m unittest discover -s tests -p test_phase5_delete.py`: 23 tests OK
+  (including all earlier file-ledger tests).
+- Gate: Ran 217 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED.
+- Not verified: real S3 or IAM behaviour (no AWS calls, rule 9); the bucket and task
+  role arrive in DEL-9, hosted checks are DEL-11.
+Review notes:
+- Look first at `s3_ledger_records` in phase5_deletion.py and the both-set check in
+  `create_app` (phase4_service.py). The check runs in `create_app`, before the database
+  opens, so the process fails on import/start, not in the lifespan.
+- The startup error refers readers to D11 in `PHASE5_DECISIONS.md`, which is
+  uncommitted on this branch (rule 4). Someone has to keep that file reachable.
+
+### DEL-9: Infrastructure template  (2026-11-19)
+Outcome: done, `9c0fa83`
+Changes:
+- infrastructure/aws.yaml (line endings kept as CRLF):
+  - `Database`: `DeletionPolicy` and `UpdateReplacePolicy` changed from `Snapshot` to
+    `Delete` (D12 option A). `BackupRetentionPeriod: 1` unchanged.
+  - New resource `DeletionLedgerBucket` (`AWS::S3::Bucket`): versioning enabled, all four
+    public access block flags true, SSE-S3 (`AES256`) default encryption,
+    `DeletionPolicy`/`UpdateReplacePolicy: Retain`, no Object Lock, no lifecycle rules,
+    no fixed bucket name (CloudFormation generates one).
+  - `TaskRole`: new inline policy `WriteDeletionLedger` with `s3:PutObject` on
+    `${DeletionLedgerBucket.Arn}/deletions/*` and `s3:ListBucket` on the bucket with
+    condition `StringLike s3:prefix: deletions/*`. No `s3:DeleteObject`, no `s3:GetObject`.
+  - `Service.PrimaryContainer.Environment`: `DELETION_LEDGER_BUCKET` = `!Ref
+    DeletionLedgerBucket` (the bucket name). `DELETION_LEDGER_PATH` is not set, so the
+    DEL-8 both-set check can't trip.
+  - `Outputs`: `DeletionLedgerBucketName`.
+- tests/test_phase5_infrastructure.py (new): 4 standard-library tests that cut each
+  top-level resource out of the template text by indentation and assert the lines
+  above, that the task role's only S3 actions are PutObject and ListBucket, and that
+  `s3:DeleteObject` appears nowhere in the template.
+Decisions and assumptions:
+- The bucket has no `BucketName`, so a stack can be created more than once without a
+  name collision; the name reaches the app through `!Ref` and the stack output.
+- The ListBucket condition uses `deletions/*`, which also matches the exact prefix
+  `deletions/` that `list_objects_v2(Prefix='deletions/')` sends (IAM `*` matches an
+  empty string).
+- The new resource sits right after `Database` and the new policy after the existing
+  one, to keep the diff local.
+- The test is text-based and indentation-sensitive because PyYAML isn't installed and
+  must not be added (rule 9). It doesn't parse CloudFormation tags or check that the
+  template is valid.
+Verification:
+- `tests/test_phase5_infrastructure.py`: 4 tests OK. Run against the previous template
+  (`git show HEAD:infrastructure/aws.yaml`) they failed (3 failures, 1 error), so they
+  detect these changes.
+- Gate: Ran 221 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED.
+- **Not deployed, and not validated by AWS** (no `cfn-lint`, no `validate-template`,
+  rule 9). Whether `AWS::ECS::ExpressGatewayService` passes the task role through as
+  expected is checked only by DEL-11.
+Review notes:
+- With `UpdateReplacePolicy: Delete`, any template change that forces RDS replacement
+  now destroys the old database with no snapshot (D12 accepts this; take a manual
+  snapshot first). Deploying this version changes only the policy attributes, which
+  shouldn't replace the instance, but check the change set before executing it.
+- The bucket is `Retain`, so deleting the stack leaves it behind (by design, D11); a
+  rebuilt stack creates a new empty bucket, and its ledger IDs must be copied over
+  before a restore from an older database.
+- Look first at the `TaskRole` policy and the `Database` attributes in the diff.
+
+### DEL-10: Document the ECS ledger and restore procedure  (2026-11-19)
+Outcome: done, `909eb75` (documentation only; also covers the agent part of DEL-11, which
+stays `[H]`)
+Changes:
+- docs/phase5_security.md, section "Deletion, backups and copies": the "ECS/RDS handoff to
+  Jon" bullet is replaced by four bullets: "ECS ledger (D11)" (bucket, key and body,
+  write-before-removal, startup replay, failure behaviour, task-role limits, with file and
+  function references), "RDS backups (D12)" (1-day retention, `Delete` policies, the
+  replacement warning), "Restore on ECS/RDS (D12)" (the six steps, numbered, plus a link
+  to the evidence file) and "Troubleshooting" (both env vars set refuses startup on
+  purpose; unset the one that isn't the deployment's ledger; copy IDs first when
+  migrating). The section intro now says the ECS template was inspected and that the
+  hosted restore (DEL-11) still needs evidence. The EC2 bullets are unchanged.
+- docs/phase5_restore_evidence.md (new): DEL-11 checklist (12 steps: deploy, upload
+  A and B, wait 5 minutes, delete A, check the S3 object, then the D12 restore and the
+  404/200 check, plus an optional both-set startup check) and a blank result table.
+- docs/phase5_system_decisions.md: new SYS-018 after SYS-017, recording D11/D12 as
+  resolving the ECS/RDS part of SYS-016 and the SYS-017 "ECS ledger and RDS backups"
+  row, except the hosted check.
+Decisions and assumptions:
+- "At the end of docs/phase5_system_decisions.md" was read as "after the last SYS entry":
+  SYS-018 sits after SYS-017 and before the non-SYS sections ("Investigated inherited
+  discrepancies", verification, failure list), which stay at the end of the file.
+- The DEL-11 checklist went into a new `docs/phase5_restore_evidence.md` (the task
+  allowed either) so the security notes stay a description, not a form.
+- The 5-minute wait in checklist step 3 is my estimate of how far behind RDS
+  point-in-time restore lags; it isn't from D12. Adjust it if AWS reports a different
+  latest restorable time.
+- README.md still describes only `DELETION_LEDGER_PATH`; DEL-10 didn't list it, so it
+  was left alone.
+Verification:
+- Docs only. Checked that the security doc and SYS-018 no longer describe the ECS ledger
+  or RDS policy as open; line endings kept as CRLF.
+- Gate: Ran 221 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED.
+- Not verified: anything on AWS.
+Review notes:
+- SYS-016 ("ECS/RDS handoff") and the SYS-017 table row still say the ECS ledger and RDS
+  policy are Jon's open work. Rule "don't edit earlier SYS entries" keeps them as history;
+  SYS-018 states that they are resolved. A reader who stops at SYS-017 will get the old
+  status.
+- `README.md` line 23 documents only the file ledger; consider adding
+  `DELETION_LEDGER_BUCKET` there in a later change.
+
+### PERF-1: Service-level measurement script  (2026-11-19)
+Outcome: done, `0b0426b`
+Changes:
+- scripts/perf_service.py (new, standard library only): `--base-url`, `--token`,
+  `--runs` (default 5) and one or more workbook paths. Per workbook: one untimed warm-up
+  run (discarded), then the timed runs. Each run uploads with `POST /api/v1/workbooks`,
+  starts a monotonic clock when the 202 arrives, polls the audit every 0.25 s until its
+  status isn't `PROCESSING` (or 80 s pass: outcome `TIMEOUT`), fetches the report, then
+  times `service_worker.py audit <file>` in a fresh process on this host. Recorded per run:
+  outcome (`SUCCESS`, `PROCESSING_FAILED`, `TIMEOUT`, `UPLOAD_<status>`,
+  `AUDIT_<status>`), error code, end-to-end, execution and queue seconds, findings count,
+  findings fingerprint, byte size of the audit (findings) response and the report
+  response. Per-run JSON goes to `.perf/<stem>-<UTC stamp>.json` (already gitignored);
+  a summary table prints min/median/max and a verdict per budget, the outcomes, distinct
+  fingerprints and the largest response against 64 MiB.
+- tests/test_phase5_perf.py (new): loads the script with `importlib` and tests the
+  fingerprint (order-independent, sensitive to each of the five fields, ignores others),
+  11 verdict cases and the summary lines, all on made-up runs.
+- No service code, endpoint, status code or table changed.
+Decisions and assumptions:
+- urllib instead of httpx: httpx is installed only for tests, not in `requirements.txt`,
+  so it isn't an "existing dependency" of a script.
+- Budgets in the script: execution 60 s, queue 15 s, end-to-end 80 s (the polling
+  deadline from acceptance), all from the skill's table (spec §12/§17).
+- Verdict rule (skill §4), for each metric: `FAIL` if any run is neither `SUCCESS` nor
+  `PROCESSING_FAILED`, a successful run lacks the measurement, successful runs have more
+  than one fingerprint, or the slowest measured run (successes and controlled failures)
+  is over budget. Otherwise `CONTROLLED FAILURE (n/m runs)` if any run failed in a
+  controlled way, else `PASS WITH HEADROOM` (≤ 75%) or `MARGINAL`. "; noisy, repeat" is
+  added when max − min exceeds 20% of the median.
+- A failed side run of `service_worker.py` (non-zero exit or over 60 s) leaves execution
+  and queue empty for that run; for a `SUCCESS` run that makes the metric `FAIL`.
+- "Findings response" is the audit `GET` (findings are embedded in it; there is no
+  separate findings route). A report that isn't 200 is recorded as no size.
+- The fingerprint hashes the JSON of the sorted `[ruleId, worksheet, target, category,
+  findingId]` lists.
+- Running the worker side run on the script's host means execution is measured where the
+  script runs; for PERF-3 the script has to run on the deployment host itself for the
+  queue estimate to mean anything.
+- Written to parse under Python 3.10 grammar (checked with `ast`), in case the Linux host
+  for PERF-3 has an older Python.
+Verification:
+- `tests/test_phase5_perf.py`: 3 tests OK (two test-data mistakes, a wrong median and a
+  noisy "headroom" case, were fixed in the test; the script didn't change).
+- Local run: server `python -m uvicorn app:app --port 8123` with a temporary
+  `DATABASE_PATH` in the session scratchpad, a throwaway token and no ledger; stopped
+  afterwards. Command:
+  `python scripts/perf_service.py --base-url http://127.0.0.1:8123 --token <local> sample_files/valid.xlsx tests/fixtures/deployment/link_vectors.xlsx`
+  (21 s in total). Output:
+  ```
+  valid.xlsx (5013 bytes, 5 runs after 1 warm-up)
+  metric                    min   median      max  verdict
+  execution                0.51     0.55     0.56  PASS WITH HEADROOM (budget 60 s)
+  queue (approx)           0.23     0.27     0.28  PASS WITH HEADROOM; noisy, repeat (budget 15 s)
+  end_to_end               0.78     0.80     0.83  PASS WITH HEADROOM (budget 80 s)
+  outcomes: SUCCESS, SUCCESS, SUCCESS, SUCCESS, SUCCESS
+  findings counts: [1], distinct fingerprints: 1
+  largest response: 2193 bytes (limit 67108864)
+
+  link_vectors.xlsx (11611 bytes, 5 runs after 1 warm-up)
+  metric                    min   median      max  verdict
+  execution                0.53     0.56     0.61  PASS WITH HEADROOM (budget 60 s)
+  queue (approx)           0.22     0.26     0.28  PASS WITH HEADROOM; noisy, repeat (budget 15 s)
+  end_to_end               0.79     0.81     0.82  PASS WITH HEADROOM (budget 80 s)
+  outcomes: SUCCESS, SUCCESS, SUCCESS, SUCCESS, SUCCESS
+  findings counts: [14], distinct fingerprints: 1
+  largest response: 16126 bytes (limit 67108864)
+  ```
+  Windows 11, Python 3.14, SQLite; local, indicative only. These are tiny workbooks, not
+  boundary profiles (that's PERF-2).
+- Gate: Ran 224 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED.
+- Not verified: `TIMEOUT`, `PROCESSING_FAILED` and upload-rejection paths against a real
+  server (only through made-up data in the verdict tests).
+Review notes:
+- End-to-end resolution is limited by the 0.25 s poll interval plus request time, so for
+  small workbooks the approximate queue time (≈0.25 s) is mostly polling latency, and the
+  20% noise flag fires on it. It only becomes meaningful when execution takes seconds.
+- Queue time subtracts a separate worker run from the service's own run; process start-up
+  and file-system caching differ between the two, so small or negative queue values are
+  possible. Look at `run_once` first.
+- The warm-up run also triggers a worker side run; it's discarded entirely.
+
+### PERF-2: Local boundary measurement and evidence document  (2026-11-19)
+Outcome: done, `c6d5720`
+Changes:
+- docs/phase5_performance.md (new): environment block; the four generated workbooks with
+  bytes, sheets and SHA-256; method; one table per profile listing all 5 timed runs
+  (outcome, upload, end-to-end, execution, approximate queue, findings, fingerprint,
+  audit and report bytes); verdicts per AC-18 criterion; response sizes against 64 MiB;
+  comparison with AE-022; what wasn't measured; "For team discussion" (6 items: checker
+  optimizations `f94330f`, production instance type, worker memory, the 64 MiB limit
+  for c/d, recording a job claim time, result storage and transfer cost).
+- scripts/perf_service.py: new per-run field `upload_seconds` (duration of the upload
+  request, covering transfer, validation and storage), because the `P5-PERFORMANCE-RUN-*`
+  assertions ask for validation time as well. It's only in the JSON, not in the
+  summary table. PERF-1's tests still pass unchanged.
+- No service, checker, worker or API change.
+Decisions and assumptions:
+- The generator was copied from `origin/haruki/accessibility-checker` into `.perf/`
+  (gitignored) and run with its defaults; `git fetch origin` was run first to read
+  that branch (no push, no branch change).
+- Each profile got its own fresh server process and SQLite database (driver script in the
+  session scratchpad, not committed), with nothing else running: no tests, no gate, no
+  other edits during the 30-minute run.
+- The warm-up run is discarded by the script and isn't in the document; every timed run
+  is.
+- Profile d's report 500s: the script didn't record the error code. I attributed them
+  to the size guard `RESULT_TOO_LARGE` (`phase4_service.py` line 442) because the server
+  logged no traceback and that is the route's only 500 after a completed audit. The
+  document marks this as inferred.
+- The verdict table also judges the 80 s polling deadline from acceptance (spec §12),
+  besides the four AC-18 criteria the task named.
+- "Queue" for d (about 8 s) is mostly storing and serving a 151 MB result, not waiting;
+  the document says so instead of calling it queueing.
+- The AE-022 comparison uses its worker-path "A" results (same checker as this branch);
+  AE-022 doesn't list file hashes, so they weren't compared.
+Verification:
+- Measurement: 2026-11-19 18:32:26 to 19:02:29 UTC, **30 min 3 s total** for 4 profiles
+  x (1 warm-up + 5 timed runs). Profile generation took 2 s.
+- Results: a, b and d 5/5 `SUCCESS` with one fingerprint each (1, 50 and 250,000
+  findings); execution maxima 25.90, 26.53 and 28.10 s. c 5/5 `PROCESSING_FAILED` /
+  `PROCESSING_TIMEOUT` at 60.1 to 60.4 s end-to-end. Largest response: d's audit GET,
+  151,028,224 bytes.
+- The per-run tables in the document were generated from the `.perf/*.json` files, not
+  typed by hand; the document holds 20 run rows.
+- Gate: Ran 224 tests. Known failures: 55. New: 0. Fixed: 0. GATE PASSED.
+- Not verified: Linux, Python 3.13, PostgreSQL, the production instance, the 384 MiB
+  limit, worker memory, and the tester's own `performance_250000_cells` fixture.
+Review notes:
+- Look first at the verdict table and the sizes table. The two findings that matter for
+  the team: c always times out on this branch, and Operation 5 returns about 144 MiB for d
+  without the 64 MiB guard that the report and history routes have.
+- d "passes" locally only because Windows doesn't apply `RLIMIT_AS`; the document says it
+  doesn't carry over to production.
+- The Final summary section above the Log was rewritten in this iteration (rule 10); the
+  2026-11-17 version is no longer in that section. Log entries were not edited.
