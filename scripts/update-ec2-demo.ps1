@@ -136,10 +136,12 @@ docker exec workbook python -c "import sqlite3; db=sqlite3.connect('/service/dat
 METADATA_TOKEN=$(curl -fsS -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 300' http://169.254.169.254/latest/api/token)
 PUBLIC_IP=$(curl -fsS -H "X-aws-ec2-metadata-token: $METADATA_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
 cp -p /opt/workbook/caddy/Caddyfile /opt/workbook/caddy/Caddyfile.before-phase5
-cat > /opt/workbook/caddy/Caddyfile <<'CADDY'
+cat > /opt/workbook/caddy/Caddyfile.phase5-rendered <<'CADDY'
 __CADDY_CONFIG__
 CADDY
-sed -i "s/__HOST__/$PUBLIC_IP.sslip.io/g" /opt/workbook/caddy/Caddyfile
+sed -i "s/__HOST__/$PUBLIC_IP.sslip.io/g" /opt/workbook/caddy/Caddyfile.phase5-rendered
+# Preserve the existing file inode: Caddy bind-mounts this file.
+cat /opt/workbook/caddy/Caddyfile.phase5-rendered > /opt/workbook/caddy/Caddyfile
 if ! docker exec workbook-https caddy validate --config /etc/caddy/Caddyfile; then
     cp -p /opt/workbook/caddy/Caddyfile.before-phase5 /opt/workbook/caddy/Caddyfile
     false
