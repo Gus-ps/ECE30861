@@ -154,6 +154,31 @@ against .perf/baseline.json, storage.json, after_api.json and final.json found
 - **Approval status:** Developer selection only. No Pod approval.
 - **Implementation / verification status:** Verified with a local SQLite backup and restore, append and fsync failure tests and startup file validation. EC2 script changes received syntax checks. Production restore, deployment and infrastructure retention remain unverified.
 
+## SYS-017 — Remaining Phase 5 work and handoff (2026-11-19)
+
+- **Approval status:** D1–D3 and D8–D10 record developer selections under SYS-014. Pod approval remains unrecorded. Runtime code coverage requires approval before adding a dependency. Shared contract or limit changes require Pod coordination.
+- **Implementation status:** The work below remains open. ACC-1, ACC-3, the schedule and notification access tests, and the existing UI changes and evidence template are already in the repository.
+
+| Remaining work | Owner | Basis and status |
+| --- | --- | --- |
+| ACC-2 reviewer grants | This branch | D1 option 1, SYS-014, specification §4. Finish the owner-wide grant work and reviewer acceptance evidence. |
+| Reject HTTP and add HSTS | This branch and deployment operator | D2 option 2, SYS-014, specification §§4–5 and 16. Update the deployment script and have an operator redeploy and verify. |
+| Document token handling | This branch | D3 option 1, SYS-014, specification §4. Document the existing bearer-token handling. |
+| UI-5 contrast and UI-7 deletion | This branch | D8 option 2 and D9 option 1, SYS-014, specification §16. Update disabled-state contrast and add the owner-only deletion control with confirmation. |
+| UI-8 scan and UI-9 verification | This branch and human reviewers | D10 option 1 and UI-9 in `PHASE5_TASKS.md`, specification §§16–17. Run the selected scan, perform a keyboard walkthrough, and record the results in the existing template. |
+| Schedule and notification UI | This branch | SYS-009–012 and specification §16. Add schedule controls, notification views and the notice that external workbook changes cannot be detected until a new version is uploaded. |
+| Runtime code coverage | This branch, with developer approval | Specification §§13–14. System report currently returns unavailable code coverage. Approve a measurement dependency before implementing it. Logan consumes the resulting coverage in tester reports. |
+| Second checker optimization and integration | This branch | AE-022 and specification §17. Integrate the checker optimizations including `f94330f` and measure the official boundary workbook end to end. The developer measured about 56–57 seconds for the optimized checker alone. Performance on this branch remains unverified. |
+| d-profile memory and response size | This branch and Pod | AE-022 and specification §§12, 17. Resolve worker memory exhaustion and coordinate the 64 MiB response limit with the Pod. |
+| Suite timing and session protection | This branch, deployment operator and Logan | Specification §§12, 19. Align caller and proxy timeouts and deployment protection with the 2,400-second suite and its overhead. Verify release draining with scheduled jobs and active external sessions. |
+| Monitoring evidence | This branch and deployment operator | SYS-012 and specification §16. Demonstrate queue depth, failed jobs, dispatch lag and notification failures, and record the response procedure. |
+| Adoption and tester evidence | Logan, deployment operators and human reviewers | Specification §§17–19. Logan maintains the 357-case manifest and design map on `Logan-tester-phase5`. Complete `ADOPTION.md` with actual release, registry and own-team and reciprocal run evidence. It remains unfilled. |
+| Excel preservation and precision evidence | Human reviewers | Specification §§2, 17 and the inherited Phase 4 acceptance items. Check Excel for repair warnings and manually adjudicate findings on five real workbooks. |
+| ECS ledger and RDS backups | Jon | D6 option 1 and SYS-016, specification §10. Choose external ledger storage, settle backup and snapshot retention, and verify the hosted restore procedure. |
+| Schedule PUT Content-Type | This branch, with a shared contract decision | SYS-007 and specification §4. Accepted media types and rejection behavior remain undecided. |
+| Version `createdAt` in namespaces with a clock | This branch, with a shared contract decision | SYS-009–010 and specification §9. Audit times use effective time. Version creation time still uses real UTC and its policy remains undecided. |
+| Inherited regression failures | This branch | SYS-006. Triage the 55 existing failure/error events against the current contract while preserving historical expectations and identifying implementation defects separately. |
+
 ## Investigated inherited discrepancies (not fixed)
 
 - test_cleanup_rejects_active_audits updates only the legacy audits table to
