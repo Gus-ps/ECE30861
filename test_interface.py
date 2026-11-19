@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from contracts import strict_json
 import phase5_clock as clocks
+from phase5_deletion import namespace_has_deletion
 from service_errors import ApiError
 
 SESSION_ID_PATTERN = r'^[A-Za-z0-9_-]{1,64}$'
@@ -128,6 +129,9 @@ class SystemTests:
                 raise TestSessionError(409, 'Test session already exists.')
             cleanup = sorted(set(body.setup.cleanup_session_ids))
             for session_id in cleanup:
+                db.execute('''DELETE FROM p5_upload_reservations WHERE workbook_id IN (
+                    SELECT workbook_id FROM p4_resources WHERE namespace=?
+                    UNION SELECT workbook_id FROM p5_deletions WHERE namespace=?)''', (session_id, session_id))
                 row = self.session(db, session_id, lock=True)
                 if row is None:
                     continue
@@ -166,6 +170,7 @@ class SystemTests:
                     db.execute('DELETE FROM test_workbooks WHERE workbook_id=?', (workbook_id,))
                     db.execute('DELETE FROM versions WHERE workbook_id=?', (workbook_id,))
                 db.execute("UPDATE test_sessions SET state='CLEANED' WHERE session_id=?", (session_id,))
+                db.execute('DELETE FROM p5_deletions WHERE namespace=?', (session_id,))
         return {'session_id': body.session_id}
 
     def advance_clock(self, owner, session_id, raw, request_id):
@@ -179,6 +184,8 @@ class SystemTests:
             with self.database.connect(write=True) as db:
                 # Use cleanup's session lock before taking the clock and workbook locks.
                 self.require_clock_session(db, owner, session_id)
+                if namespace_has_deletion(db, session_id):
+                    raise ApiError(409, 'DELETION_IN_PROGRESS', 'A workbook deletion is pending in this session.')
                 current = clocks.read(db, session_id, lock=self.database.postgres)
                 if current is None:
                     raise ApiError(409, 'LEGACY_SESSION_CLOCK', 'Prepare a new test session with a clock.')

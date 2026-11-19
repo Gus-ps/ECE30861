@@ -110,13 +110,15 @@ def write(db, workbook, body):
 def locked_schedules(store, db, namespace, candidate):
     """Lock a fixed set in workbook ID order and re-read it under the fence."""
     scope, params = ('namespace IS NULL', ()) if namespace is None else ('namespace=?', (namespace,))
-    rows = db.execute(f'SELECT * FROM p5_schedules WHERE {scope}', params)
+    visible = '''SELECT * FROM p5_schedules WHERE NOT EXISTS (
+        SELECT 1 FROM p5_deletions WHERE workbook_id=p5_schedules.workbook_id)'''
+    rows = db.execute(f'{visible} AND {scope}', params)
     workbook_ids = sorted(row['workbook_id'] for row in rows if candidate(row))
     locked = []
     for workbook_id in workbook_ids:
         store.fence(db, workbook_id)
         # Re-read under the fence to discard deleted or rescheduled candidates.
-        row = db.execute('SELECT * FROM p5_schedules WHERE workbook_id=?', (workbook_id,)).fetchone()
+        row = db.execute(f'{visible} AND workbook_id=?', (workbook_id,)).fetchone()
         if row and row['namespace'] == namespace and candidate(row):
             locked.append(row)
     return locked

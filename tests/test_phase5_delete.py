@@ -2,7 +2,9 @@
 P5-DELETE-RACE, P5-DELETE-CANCEL-FUTURE and P5-DELETE-RESTORE.
 """
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import hashlib
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -14,6 +16,7 @@ from fastapi.testclient import TestClient
 from app import create_app, load_workbook_validator
 from database import Database
 import phase5_deletion as deletion
+import phase5_scheduler as scheduler
 from test_phase4_service import workbook
 
 OWNER = {'Authorization': 'Bearer a'}
@@ -286,6 +289,82 @@ class DeleteWorkbookTests(unittest.TestCase):
         with app.state.store.connect() as db:
             self.assertIsNotNone(deletion.reservation(db, up['workbookId']))
         self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+
+
+    def test_clock_blocks_only_namespace_with_pending_deletion(self):
+        with patch.dict(os.environ, {'ENABLE_TEST_CLOCK': 'true'}):
+            app, client = self.start()
+        admin = {'Authorization': 'Bearer admin'}
+        for name in ('side', 'other'):
+            self.assertEqual(client.post('/test/setup', headers=admin, json={'session_id': name}).status_code, 201)
+        up = self.upload(client, SIDE)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        self.assertEqual(client.put(path + '/schedule', headers=SIDE,
+                                    json={'enabled': True, 'intervalDays': 1}).status_code, 200)
+        self.fail_after_first_step(client, path, SIDE)
+        with app.state.store.connect() as db:
+            before = tuple(db.execute('SELECT * FROM p5_schedules').fetchone())
+        target = {'currentTime': '2027-01-03T00:00:00Z'}
+        rejected = client.post('/api/v1/test/clock', headers={**admin, 'X-Test-Session': 'side'}, json=target)
+        self.assertEqual((rejected.status_code, rejected.json()['code']), (409, 'DELETION_IN_PROGRESS'))
+        other = client.post('/api/v1/test/clock', headers={**admin, 'X-Test-Session': 'other'}, json=target)
+        self.assertEqual(other.status_code, 200, other.text)
+        with app.state.store.connect() as db:
+            self.assertEqual(db.execute('SELECT "current_time" FROM p5_clocks WHERE session_id=?',
+                                        ('side',)).fetchone()[0], '2027-01-01T00:00:00Z')
+            self.assertEqual(tuple(db.execute('SELECT * FROM p5_schedules').fetchone()), before)
+
+    def test_real_tick_skips_reserved_workbook_with_a_due_audit_and_reminder(self):
+        app, client = self.start()
+        up = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        with patch('phase5_schedule.effective_now', return_value=datetime.fromisoformat('2027-01-01T00:00:00Z')):
+            self.assertEqual(client.put(path + '/schedule', headers=OWNER, json={
+                'enabled': True, 'intervalDays': 1, 'complianceDeadline': '2027-04-02',
+            }).status_code, 200)
+        self.fail_after_first_step(client, path)
+        with patch.object(scheduler, 'datetime', wraps=datetime) as clock:
+            clock.now.return_value = datetime.fromisoformat('2027-01-02T00:00:00Z')
+            self.assertEqual(scheduler.tick(app.state.store), ([], []))
+        with app.state.store.connect() as db:
+            self.assertEqual(db.execute('SELECT next_audit_at FROM p5_schedules').fetchone()[0],
+                             '2027-01-02T00:00:00Z')
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM p4_jobs').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM p5_notifications').fetchone()[0], 0)
+
+    def test_cleanup_completes_pending_namespace_deletion_between_steps(self):
+        app, client = self.start()
+        admin = {'Authorization': 'Bearer admin'}
+        self.assertEqual(client.post('/test/setup', headers=admin, json={'session_id': 'side'}).status_code, 201)
+        up = self.upload(client, SIDE)
+        other = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        entered, proceed = threading.Event(), threading.Event()
+        original = deletion.commit_step
+
+        def paused(store, workbook_id, table, deadline):
+            result = original(store, workbook_id, table, deadline)
+            if table == 'p4_jobs':
+                entered.set()
+                if not proceed.wait(5):
+                    raise TimeoutError('Cleanup did not finish.')
+            return result
+
+        with patch.object(deletion, 'commit_step', side_effect=paused), ThreadPoolExecutor(1) as pool:
+            future = pool.submit(client.delete, path, headers=SIDE)
+            try:
+                self.assertTrue(entered.wait(5))
+                response = client.post('/test/setup', headers=admin, json={
+                    'session_id': 'cleanup', 'setup': {'cleanup_session_ids': ['side']},
+                })
+                self.assertEqual(response.status_code, 201, response.text)
+            finally:
+                proceed.set()
+            self.assertEqual(future.result(timeout=5).status_code, 204)
+        with app.state.store.connect() as db:
+            self.assertIsNone(deletion.reservation(db, up['workbookId']))
+            self.assertIsNone(app.state.store.get(db, up['versionId']))
+            self.assertIsNotNone(app.state.store.get(db, other['versionId']))
 
 
 if __name__ == '__main__':

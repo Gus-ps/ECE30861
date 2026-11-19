@@ -15,6 +15,9 @@ def reservation(db, workbook_id):
     return db.execute('SELECT * FROM p5_deletions WHERE workbook_id=?', (workbook_id,)).fetchone()
 
 
+def namespace_has_deletion(db, namespace):
+    return db.execute('SELECT 1 FROM p5_deletions WHERE namespace=? LIMIT 1', (namespace,)).fetchone() is not None
+
 def reserve(db, workbook_id, owner, namespace):
     db.execute('INSERT INTO p5_deletions (workbook_id,owner,namespace,created) VALUES (?,?,?,?)',
                (workbook_id, owner, namespace, now()))
@@ -35,14 +38,20 @@ def delete_step(db, workbook_id, table):
         db.execute(f'DELETE FROM {table} WHERE workbook_id=?', (workbook_id,))
 
 
+def commit_step(store, workbook_id, table, deadline):
+    with store.connect(write=True, deadline=deadline) as db:
+        store.fence(db, workbook_id)
+        if reservation(db, workbook_id) is None:
+            return False  # A concurrent retry or namespace cleanup finished.
+        delete_step(db, workbook_id, table)
+        return True
+
+
 def finish(store, workbook_id, deadline):
     """Commit each step separately, with the workbook fence on every step."""
     for table in STEPS:
-        with store.connect(write=True, deadline=deadline) as db:
-            store.fence(db, workbook_id)
-            if reservation(db, workbook_id) is None:
-                return  # A concurrent retry finished.
-            delete_step(db, workbook_id, table)
+        if not commit_step(store, workbook_id, table, deadline):
+            return
     with store.connect(write=True, deadline=deadline) as db:
         store.fence(db, workbook_id)
         remaining_seconds(deadline)
