@@ -3,7 +3,7 @@
 Gustavo's scope follows `PROMPT.md`: a Python upload website, authenticated
 endpoints, persistent storage, unchanged originals and AWS deployment.
 Jonathan's supplied `validity_check.py` is used without modifying it.
-Accessibility rules come from Haruki's merged `accessibility_checker` package.
+The current Phase 5 service runs the six-rule 2.0.0 checker and supports remediation, report snapshots, version history, scheduling, reminders, notifications, an isolated test clock and recoverable deletion.
 
 ## Run locally
 
@@ -34,22 +34,33 @@ On a test deployment, start the service with `ENABLE_TEST_INTERFACE=true` and
 Operation 13 requires the creating test administrator's bearer token and
 `X-Test-Session`.
 
-## Endpoints from PROMPT.md
+## API endpoints
 
 | Operation | Endpoint | Response |
 | --- | --- | --- |
 | 1 | `GET /api/v1/health` | Availability and API/ruleset versions |
 | 2 | `POST /api/v1/workbooks` | Multipart `file`; 202 with workbookId, versionId, auditId and PROCESSING |
+| 3 | `POST /api/v1/workbooks/{workbookId}/versions` | Upload a new version and accept its initial audit with 202 |
 | 4 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}` | Filename, SHA-256, timestamps, status and audit/source IDs |
 | 5 | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}` | Audit status, findings, limitations and error |
+| 6 | `POST /api/v1/workbooks/{workbookId}/versions/{versionId}/audits` | Accept a manual re-audit with 202 |
+| 7 | `POST /api/v1/workbooks/{workbookId}/versions/{versionId}/remediations` | Accept remediation decisions with 202 and require an idempotency key |
+| 8 | `GET /api/v1/remediations/{remediationId}` | Read remediation status, output identifiers and any error |
+| 9 | `GET /api/v1/outputs/{outputId}/workbook` | Download the generated workbook |
+| 10 | `GET /api/v1/workbooks/{workbookId}/history` | List stored versions and audits |
 | 11 | `PUT /api/v1/workbooks/{workbookId}/schedule` | Owner replaces the audit interval and supplied deadline |
 | 12 | `GET /api/v1/workbooks/{workbookId}/notifications` | Owner or granted reviewer reads the stored in-app notification records |
 | 13 | `POST /api/v1/test/clock` | Advance the session clock with `{"currentTime":"…Z"}`. Returns 200 with the time, accepted audit IDs and newly recorded notification IDs |
+| 14 | `DELETE /api/v1/workbooks/{workbookId}` | Delete an owned workbook and its related records, returning 204 on completion |
 | G | `GET /api/v1/workbooks/{workbookId}/schedule` | Owner or granted reviewer reads schedule and newest version |
+| S | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/source` | Download the stored version without modifying it |
+| V | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}/review` | Read review items and available decisions |
+| R | `GET /api/v1/workbooks/{workbookId}/versions/{versionId}/audits/{auditId}/report` | Download the stored audit report as JSON |
+| Test setup | `POST /test/setup` | Prepare an isolated test session when the test interface is enabled |
+| Test report | `GET /test/report?session_id={sessionId}` | Read coverage information for an owned test session |
 
-The owner-authorized `/api/v1/workbooks/{workbookId}/versions/{versionId}/original`
-download supports the prompt's requirement that unchanged originals remain accessible.
-All resource endpoints require `Authorization: Bearer <token>`; health is public.
+The legacy `/original` path remains an alias for `/source`. Health is public.
+Resource and test endpoints require bearer credentials with the appropriate permissions.
 
 The upload limit is **25,000,000 bytes**. The validity checker enforces the
 50-worksheet and 250,000-nonempty-cell limits, readable workbook format, protection,
@@ -68,31 +79,15 @@ details are also returned to the page. `VALIDATOR_PATH` optionally selects anoth
 validator module. Both boolean returns and older error-list modules are supported.
 
 The default callable is `accessibility_checker.runner.check_workbook(path)`.
-Phase 3 enables WORKSHEET_NAME and ALT_TEXT only. Worksheet-name checks include
-chartsheets, hidden, and very-hidden tabs. Supported drawing objects require both
-alternative-text title and description; decorative or unsupported/ambiguous
-objects produce MANUAL_REVIEW findings. Ambiguous locations use an indexed XML
-path and disclosures in limitations. External object relationships are not fetched.
+Ruleset `2.0.0` checks ALT_TEXT, WORKSHEET_NAME, TABLE_HEADER, MERGED_CELLS,
+LINK_TEXT and COLOR_CONTRAST. Findings are deterministic and ordered by
+rule, worksheet and target. Execution failures report PROCESSING_FAILED
+without partial findings. Remediation creates separate generated versions
+and report snapshots while preserving source bytes.
 
-The callable returns a list-compatible result with an optional limitations list.
-The API validates the eight-field findings and assigns deterministic content,
-ruleset, rule, worksheet, and target IDs. Ruleset version is `1.0.0`. Findings
-are ordered by ruleId/worksheet/target. Empty results produce AUDIT_COMPLETE;
-findings produce REVIEW_REQUIRED; execution failures produce PROCESSING_FAILED
-without partial findings. The checker must not modify the source.
-
-Original download remains an optional extension for the shared pod tests.
-Error codes, details contents, and prose are implementation-defined; cross-team
-checks compare HTTP statuses and the shared response schemas. See
-`pod_spec_alignment.md` and the Word contract under `.docs/`.
-
-The page distinguishes invalid files from valid files with findings or an audit
-failure. Remediation/report generation is left to subsequent team integration;
-this service does not generate corrected workbooks itself.
-
-Background processing uses the application process. Audits interrupted by a
-restart require later worker integration; this scoped version has no recovery
-worker, leases, re-audit endpoint, scheduling or version-history operations.
+The background worker uses durable job claims and marks interrupted running
+jobs as failed on restart. Ordinary scheduling uses real UTC, and the test
+clock advances scheduling for the selected isolated test session.
 
 ## Deploy to AWS
 
