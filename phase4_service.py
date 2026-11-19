@@ -89,6 +89,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         runner.recover()
         thread = threading.Thread(target=runner.loop, daemon=True)
         thread.start()
+        app.state.worker_thread = thread
         scheduler_stop = threading.Event()
         scheduler_thread = None
         try:
@@ -271,6 +272,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @app.get('/api/v1/health', response_model=Health)
     def health():
+        worker = getattr(app.state, 'worker_thread', None)
+        if worker is not None and not worker.is_alive():
+            raise ApiError(503, 'SERVICE_UNAVAILABLE', 'Background processing is unavailable.')
         if workbook_validator is None:
             raise ApiError(503, 'SERVICE_UNAVAILABLE', 'Validation is unavailable.')
         try:
@@ -320,7 +324,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         if injected:
             raise ApiError(500, 'TEST_STORAGE_FAILURE', 'Storage failure requested by the isolated test session.',
                            {'stage': 'storage', 'testOnly': True})
-        background.add_task(runner.drain)
+        background.add_task(runner.poll)
         return dict(workbookId=wb, versionId=vid, auditId=aid, status='PROCESSING')
 
     @app.post('/api/v1/workbooks', status_code=202, response_model=UploadResponse)
@@ -364,7 +368,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             check_active(db,version_id)
             blob(db,version)
             aid = begin_audit(store,db,version,request.state.request_id)
-        background.add_task(runner.drain)
+        background.add_task(runner.poll)
         return dict(auditId=aid,versionId=version_id,rulesetVersion=RULESET_VERSION,status='PROCESSING')
 
     def download(data, filename, media):
@@ -543,7 +547,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             if store.claim_fault(db, request.state.namespace, 'remediation'):
                 payload['remediationFault'] = True
             store.job(db,rid,'remediation',rid,version_id,request.state.namespace,payload)
-        background.add_task(runner.drain)
+        background.add_task(runner.poll)
         return accepted
 
     @app.get('/api/v1/remediations/{remediation_id}', response_model=RemediationResponse)

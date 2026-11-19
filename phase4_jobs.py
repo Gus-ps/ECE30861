@@ -99,6 +99,7 @@ class Runner:
         self.store, self.checker = store, checker
         self.lock = threading.Lock()
         self.stop = threading.Event()
+        self.pending_failures = {}
 
     def recover(self):
         # Phase 3 could leave an audit in PROCESSING when its in-process task
@@ -119,8 +120,26 @@ class Runner:
 
     def loop(self):
         while not self.stop.is_set():
-            self.drain()
+            self.poll()
             self.stop.wait(.25)
+
+    def poll(self):
+        """Keep the durable consumer alive across temporary storage contention.
+
+        A failed claim transaction rolls back, leaving its job PENDING for the
+        next poll. Neither a transient failure nor an empty queue ends the loop.
+        This wrapper also prevents background-task exceptions after a 202.
+        """
+        try:
+            # A terminal result can itself be blocked by a temporary DB outage.
+            # Retain the failure intent until its lease is durably finalized.
+            for job_id, (job, code, message) in list(self.pending_failures.items()):
+                self.fail(job, code, message)
+                self.pending_failures.pop(job_id, None)
+            self.drain()
+        except Exception as error:
+            logging.error('job_poll_failed %s', encode({'stage': 'queue',
+                          'errorType': type(error).__name__, 'retrying': True}))
 
     def drain(self):
         if not self.lock.acquire(blocking=False):
@@ -160,7 +179,10 @@ class Runner:
                             else 'SOURCE_INTEGRITY_FAILED' if str(error) == 'SOURCE_INTEGRITY_FAILED'
                             else 'RESULT_TOO_LARGE' if str(error) == 'RESULT_TOO_LARGE'
                             else 'ENGINE_RESULT_INVALID')
-                    self.fail(job, code, 'Workbook processing could not be completed safely.')
+                    message = 'Workbook processing could not be completed safely.'
+                    self.pending_failures[job['id']] = (job, code, message)
+                    self.fail(job, code, message)
+                    self.pending_failures.pop(job['id'], None)
         finally:
             self.lock.release()
 

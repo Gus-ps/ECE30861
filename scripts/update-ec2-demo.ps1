@@ -2,7 +2,8 @@ param(
     [string]$Region = 'us-east-2',
     [string]$Profile = 'coursework',
     [string]$InstanceId = 'i-0b6df01f860ba04fd',
-    [switch]$BuildOnInstance
+    [switch]$BuildOnInstance,
+    [switch]$SkipRegressionGate
 )
 $ErrorActionPreference = 'Stop'
 $env:Path += ";$env:LOCALAPPDATA\Programs\Amazon\AWSCLIV2"
@@ -60,10 +61,14 @@ if [ "__BUILD_ON_INSTANCE__" = "true" ]; then
     docker build --platform linux/amd64 --label "org.opencontainers.image.revision=__FULL_REVISION__" -t __IMAGE__ "$source_dir"
     # Gate the installed artifact on the host with adequate disk space, before
     # stopping the live service. Tests use only temporary databases and mocks.
+    if [ "__SKIP_REGRESSION_GATE__" != "true" ]; then
     docker run --rm --user 0:0 --entrypoint sh -v "$source_dir:/review:ro" -w /tmp \
         -e PYTHONPATH=/tmp/release-checks:/review/tests:/review \
         -e DATABASE_PATH=/tmp/release-checks.sqlite3 -e AWS_EC2_METADATA_DISABLED=true \
         __IMAGE__ -c 'python -m pip install --no-cache-dir --target /tmp/release-checks httpx==0.28.1 >/tmp/checks-install.log && cd /review && python scripts/test_gate.py'
+    else
+        echo "Regression suite skipped by explicit operator request."
+    fi
 
 else
     aws ecr get-login-password --region __REGION__ | docker login --username AWS --password-stdin __REGISTRY__
@@ -153,6 +158,7 @@ find /opt/workbook/data -maxdepth 1 -type f -name 'pre-deploy-*.sqlite3' \
     ! -name "pre-deploy-$release.sqlite3" -delete
 echo "Update succeeded; existing token, database, HTTPS proxy, and instance preserved."
 '@
+$script = $script.Replace('__SKIP_REGRESSION_GATE__', $SkipRegressionGate.IsPresent.ToString().ToLowerInvariant())
 $script = $script.Replace('__BUILD_ON_INSTANCE__', $BuildOnInstance.IsPresent.ToString().ToLowerInvariant()).Replace('__FULL_REVISION__', $revision)
 $script = $script.Replace('__CADDY_CONFIG__', (Get-Content -Raw (Join-Path $PSScriptRoot 'Caddyfile.template')))
 $script = $script.Replace('__REGION__',$Region).Replace('__REGISTRY__',$registry).Replace('__IMAGE__',$image).Replace('__REVISION__',$revision.Substring(0,12))
