@@ -48,6 +48,8 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     admins = test_admin_tokens if test_admin_tokens is not None else json.loads(os.getenv('TEST_ADMIN_TOKENS_JSON', '{}'))
     reviewers = reviewer_grants if reviewer_grants is not None else json.loads(os.getenv('REVIEWER_GRANTS_JSON', '{}'))
     scheduler_interval = scheduler.interval_seconds() if enable_scheduler else None
+    ledger_setting = os.getenv('DELETION_LEDGER_PATH')
+    ledger_path = Path(ledger_setting) if ledger_setting else None
     database = Database(db_path)
     database.initialize()
     store = Store(database)
@@ -60,7 +62,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @asynccontextmanager
     async def lifespan(app):
-        deletion.recover(store)
+        deletion.recover(store, ledger_path)
         runner.recover()
         thread = threading.Thread(target=runner.loop, daemon=True)
         thread.start()
@@ -355,14 +357,16 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                 if existing is not None:
                     if existing['owner'] != identity or existing['namespace'] != namespace or identity in reviewers:
                         raise ApiError(404, 'NOT_FOUND', 'Resource does not exist in this namespace.')
+                    created = existing['created']
                 else:
                     lookup(db, workbook_id, 'workbook', request, identity, mutate=True)
                     if deletion.active(db, workbook_id, time.time()):
                         raise ApiError(409, 'ACTIVE_OPERATION', 'An operation is active for this workbook.')
                     injected = store.claim_fault(db, namespace, 'deletion')
                     if not injected:
-                        deletion.reserve(db, workbook_id, identity, namespace)
+                        created = deletion.reserve(db, workbook_id, identity, namespace)
             if not injected:
+                deletion.record_intent(store, ledger_path, workbook_id, created, deadline)
                 deletion.finish(store, workbook_id, deadline)
         except (ApiError, TestSessionError):
             raise

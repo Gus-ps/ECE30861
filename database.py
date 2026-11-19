@@ -75,6 +75,7 @@ class Database:
                 if deadline is not None:
                     connection.set_progress_handler(lambda: monotonic() >= deadline, 1000)
                 connection.execute('PRAGMA foreign_keys=ON')
+                connection.execute('PRAGMA secure_delete=ON')
                 if write:
                     connection.execute('BEGIN IMMEDIATE')
                 with connection:

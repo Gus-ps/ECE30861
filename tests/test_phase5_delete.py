@@ -2,9 +2,12 @@
 P5-DELETE-RACE, P5-DELETE-CANCEL-FUTURE and P5-DELETE-RESTORE.
 """
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime
 import hashlib
+import json
 import os
+import sqlite3
 from pathlib import Path
 import tempfile
 import threading
@@ -278,7 +281,8 @@ class DeleteWorkbookTests(unittest.TestCase):
             finally:
                 ended.set()
 
-        with patch.object(deletion, 'DELETE_SECONDS', 0.3), patch.object(deletion, 'delete_step', side_effect=slow_step):
+        with (client, patch.object(deletion, 'DELETE_SECONDS', 0.3),
+              patch.object(deletion, 'delete_step', side_effect=slow_step)):
             try:
                 response = client.delete(path, headers=OWNER)
                 self.assertTrue(entered.is_set())
@@ -365,6 +369,159 @@ class DeleteWorkbookTests(unittest.TestCase):
             self.assertIsNone(deletion.reservation(db, up['workbookId']))
             self.assertIsNone(app.state.store.get(db, up['versionId']))
             self.assertIsNotNone(app.state.store.get(db, other['versionId']))
+
+    def with_ledger(self, path):
+        with patch.dict(os.environ, {'DELETION_LEDGER_PATH': str(path)}):
+            return self.start()
+
+    def test_ledger_is_synced_after_reservation_before_first_step(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        app, client = self.with_ledger(ledger)
+        up = self.upload(client)
+        wid = up['workbookId']
+        path = f'/api/v1/workbooks/{wid}'
+        original = deletion.commit_step
+        recorded = []
+
+        def observe(store, workbook_id, table, deadline):
+            if table == 'p4_jobs':
+                with store.connect() as db:
+                    row = deletion.reservation(db, wid)
+                    self.assertIsNotNone(row)
+                    record, = [json.loads(line) for line in ledger.read_text().splitlines()]
+                    self.assertEqual(record, {'workbook_id': wid, 'timestamp': row['created']})
+                    recorded.append(record)
+            return original(store, workbook_id, table, deadline)
+
+        with patch.object(deletion, 'commit_step', side_effect=observe), patch.object(
+                deletion.os, 'fsync', wraps=os.fsync) as sync:
+            self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+        self.assertEqual(len(recorded), 1)
+        self.assertGreaterEqual(sync.call_count, 1)
+
+    def test_ledger_sync_failure_retains_reservation_and_retry_deduplicates(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        app, client = self.with_ledger(ledger)
+        up = self.upload(client)
+        wid = up['workbookId']
+        path = f'/api/v1/workbooks/{wid}'
+        with patch.object(deletion.os, 'fsync', side_effect=OSError('sensitive path')), self.assertLogs(level='ERROR') as logs:
+            response = client.delete(path, headers=OWNER)
+        self.assertEqual((response.status_code, response.json()['code']), (500, 'DELETION_FAILED'))
+        self.assertNotIn('sensitive path', ' '.join(logs.output))
+        with app.state.store.connect() as db:
+            self.assertIsNotNone(deletion.reservation(db, wid))
+            self.assertIsNotNone(app.state.store.get(db, up['versionId']))
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+        self.assertEqual(len(ledger.read_text().splitlines()), 1)
+
+    def test_restart_reapplies_ledger_after_sqlite_restore(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        backup = Path(self.temp.name) / 'backup.sqlite3'
+        app, client = self.with_ledger(ledger)
+        up = self.upload(client)
+        other = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        with closing(sqlite3.connect(self.path)) as live, closing(sqlite3.connect(backup)) as archive:
+            live.backup(archive)
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+        before = ledger.read_bytes()
+        with closing(sqlite3.connect(self.path)) as live, closing(sqlite3.connect(backup)) as archive:
+            archive.backup(live)
+        app, restarted = self.with_ledger(ledger)
+        with restarted:
+            self.assertEqual(restarted.get(path + '/history', headers=OWNER).status_code, 404)
+            with app.state.store.connect() as db:
+                self.assertIsNone(app.state.store.get(db, up['versionId']))
+                self.assertIsNone(deletion.reservation(db, up['workbookId']))
+                self.assertIsNotNone(app.state.store.get(db, other['versionId']))
+        self.assertEqual(ledger.read_bytes(), before)
+
+    def test_startup_creates_missing_ledger_and_discards_only_torn_tail(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        _, client = self.with_ledger(ledger)
+        self.assertFalse(ledger.exists())
+        with client:
+            self.assertEqual(ledger.read_bytes(), b'')
+        complete = b'{"workbook_id":"unrelated","timestamp":"2027-01-01T00:00:00Z"}\n'
+        ledger.write_bytes(complete + b'{"workbook_id":"sensitive-fragment')
+        _, restarted = self.with_ledger(ledger)
+        with self.assertLogs('phase5_deletion', level='WARNING') as logs, restarted:
+            self.assertEqual(ledger.read_bytes(), complete)
+        self.assertIn('line=2', logs.output[0])
+        self.assertNotIn('sensitive-fragment', logs.output[0])
+
+    def test_startup_rejects_corrupt_complete_rows_and_unreadable_paths(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        valid = b'{"workbook_id":"unrelated","timestamp":"2027-01-01T00:00:00Z"}\n'
+        for path, line in ((ledger, 2), (ledger.parent, 0)):
+            with self.subTest(line=line):
+                ledger.write_bytes(valid + b'{"owner":"private"}\n')
+                _, client = self.with_ledger(path)
+                with (self.assertRaisesRegex(RuntimeError, 'Deletion ledger is unavailable or invalid'),
+                      self.assertLogs('phase5_deletion', level='ERROR') as logs):
+                    with client:
+                        self.fail('The service started with an invalid ledger.')
+                self.assertIn(f'line={line}', logs.output[0])
+                self.assertNotIn('private', logs.output[0])
+                self.assertNotIn(str(ledger), logs.output[0])
+
+    def test_no_ledger_warns_and_sqlite_connections_securely_delete(self):
+        with patch.dict(os.environ, {'DELETION_LEDGER_PATH': ''}):
+            app, client = self.start()
+        with self.assertLogs('phase5_deletion', level='WARNING') as logs, client:
+            self.assertEqual(client.get('/api/v1/health').status_code, 200)
+            with app.state.database.connect() as db:
+                self.assertEqual(db.execute('PRAGMA secure_delete').fetchone()[0], 1)
+        self.assertIn('DELETION_LEDGER_PATH', logs.output[0])
+
+    def test_session_cleanup_preserves_an_existing_ledger_entry(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        app, client = self.with_ledger(ledger)
+        admin = {'Authorization': 'Bearer admin'}
+        self.assertEqual(client.post('/test/setup', headers=admin, json={'session_id': 'side'}).status_code, 201)
+        up = self.upload(client, SIDE)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        self.fail_after_first_step(client, path, SIDE)
+        before = ledger.read_bytes()
+        self.assertTrue(before)
+        response = client.post('/test/setup', headers=admin, json={
+            'session_id': 'cleanup', 'setup': {'cleanup_session_ids': ['side']},
+        })
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(ledger.read_bytes(), before)
+        with app.state.store.connect() as db:
+            self.assertIsNone(deletion.reservation(db, up['workbookId']))
+            self.assertIsNone(app.state.store.get(db, up['versionId']))
+
+    def test_concurrent_owner_retry_finishes_without_duplicate_ledger_row(self):
+        ledger = Path(self.temp.name) / 'deletions.jsonl'
+        app, client = self.with_ledger(ledger)
+        up = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        entered, proceed = threading.Event(), threading.Event()
+        original = deletion.commit_step
+
+        def pause_first(store, workbook_id, table, deadline):
+            result = original(store, workbook_id, table, deadline)
+            if table == 'p4_jobs' and not entered.is_set():
+                entered.set()
+                if not proceed.wait(5):
+                    raise TimeoutError('Concurrent retry did not finish.')
+            return result
+
+        with patch.object(deletion, 'commit_step', side_effect=pause_first), ThreadPoolExecutor(1) as pool:
+            first = pool.submit(client.delete, path, headers=OWNER)
+            try:
+                self.assertTrue(entered.wait(5))
+                self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+            finally:
+                proceed.set()
+            self.assertEqual(first.result(timeout=5).status_code, 204)
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 404)
+        self.assertEqual(len(ledger.read_bytes().splitlines()), 1)
+        with app.state.store.connect() as db:
+            self.assertIsNone(deletion.reservation(db, up['workbookId']))
 
 
 if __name__ == '__main__':
