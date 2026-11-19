@@ -15,6 +15,7 @@ from accessibility_checker.checks.table_headers import check_table_headers
 from accessibility_checker.checks.worksheet_names import check_worksheet_names
 from accessibility_checker.finding_ids import get_source_sha256
 from accessibility_checker.results import Findings, finalize_findings
+from accessibility_checker.audit_cache import audit_cache
 
 # Implemented six-rule execution order.
 RULE_ORDER = (
@@ -44,11 +45,12 @@ def check_workbook(path: str | PathLike[str]) -> Findings:
         "LINK_TEXT": check_link_text,
         "COLOR_CONTRAST": check_color_contrast,
     }
-    for rule_id in RULE_ORDER:
-        if rule_id not in implemented:
-            continue
-        checker = implemented[rule_id]
-        result = checker(path, source_sha256=source_sha256)
-        findings.extend(result)
-        findings.limitations.extend(getattr(result, "limitations", []))
+    with audit_cache(path):
+        for rule_id in RULE_ORDER:
+            if rule_id not in implemented:
+                continue
+            checker = implemented[rule_id]
+            result = checker(path, source_sha256=source_sha256)
+            findings.extend(result)
+            findings.limitations.extend(getattr(result, "limitations", []))
     return finalize_findings(findings)

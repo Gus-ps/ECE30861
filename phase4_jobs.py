@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from uuid import uuid4
 
 from accessibility_checker.finding_ids import RULESET_VERSION
@@ -67,12 +68,21 @@ def child(mode, source, args=None, output=None):
         command.append(str(argfile))
     if output:
         command.append(str(output))
-    completed = subprocess.run(command, capture_output=True, text=True, encoding='utf-8',
-                               timeout=180 if mode == 'remediate' else 60)
-    if completed.returncode:
-        logging.error('Workbook worker failed: %s', completed.stderr[-3000:])
-        raise RuntimeError('ENGINE_RESULT_INVALID')
-    result = json.loads(completed.stdout)
+    # Capture to files rather than unbounded PIPE buffers. Workbook content and
+    # exception messages from the engine never enter application logs.
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        started = time.monotonic()
+        completed = subprocess.run(command, stdout=stdout, stderr=stderr,
+                                   timeout=180 if mode == 'remediate' else 60)
+        size = stdout.tell()
+        logging.info('worker_result %s', encode({'mode': mode, 'seconds': round(time.monotonic()-started, 4),
+                                                'returnCode': completed.returncode, 'responseBytes': size}))
+        if size > 64 * 1024 * 1024:
+            raise RuntimeError('RESULT_TOO_LARGE')
+        if completed.returncode:
+            raise RuntimeError('ENGINE_RESULT_INVALID')
+        stdout.seek(0)
+        result = json.load(stdout)
     if 'error' in result:
         from remediation import RemediationError
         raise RemediationError(result['error']['code'], result['error']['message'])
@@ -118,7 +128,8 @@ class Runner:
         try:
             while not self.stop.is_set():
                 with self.store.connect(write=True) as db:
-                    row = db.execute("SELECT * FROM p4_jobs WHERE state='PENDING' ORDER BY id LIMIT 1").fetchone()
+                    row = db.execute("""SELECT j.* FROM p4_jobs j JOIN p4_resources r ON r.id=j.resource_id
+                        WHERE j.state='PENDING' ORDER BY r.seq LIMIT 1""").fetchone()
                     if row is None:
                         return
                     job = dict(row)
@@ -128,13 +139,26 @@ class Runner:
                         continue
                     job['lease'] = lease
                 try:
+                    started = time.monotonic()
+                    payload = json.loads(job['payload'])
+                    queued = max(0, started - payload.get('_queuedMonotonic', started))
+                    logging.info('job_started %s', encode({'jobId': job['id'], 'requestId': payload.get('requestId'),
+                                                          'stage': job['kind'], 'queueSeconds': round(queued, 4)}))
+                    if queued > 15:
+                        self.fail(job, 'PROCESSING_TIMEOUT', 'The processing queue deadline was exceeded.')
+                        continue
                     self.execute(job)
+                    logging.info('job_finished %s', encode({'jobId': job['id'], 'stage': job['kind'],
+                                                           'executionSeconds': round(time.monotonic()-started, 4),
+                                                           'queueSeconds': round(queued, 4)}))
                 except Exception as error:
                     from remediation import RemediationError
-                    logging.exception('Phase 4 job failed: %s', job['id'])
+                    logging.error('job_failed %s', encode({'jobId': job['id'], 'stage': job['kind'],
+                                                          'errorType': type(error).__name__}))
                     code = ('PROCESSING_TIMEOUT' if isinstance(error, subprocess.TimeoutExpired)
                             else error.code if isinstance(error, RemediationError)
                             else 'SOURCE_INTEGRITY_FAILED' if str(error) == 'SOURCE_INTEGRITY_FAILED'
+                            else 'RESULT_TOO_LARGE' if str(error) == 'RESULT_TOO_LARGE'
                             else 'ENGINE_RESULT_INVALID')
                     self.fail(job, code, 'Workbook processing could not be completed safely.')
         finally:

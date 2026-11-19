@@ -1,5 +1,6 @@
 """Phase 4 HTTP adapter. Workbook evaluation/editing remains in Jonathan's modules."""
 import asyncio
+import base64
 from contextlib import asynccontextmanager
 import hashlib
 import json
@@ -22,6 +23,7 @@ from starlette.exceptions import HTTPException
 
 from contracts import Audit, Error, Health, Identifier, MAX_JSON_REQUEST_BYTES, UploadResponse, WorkbookVersion
 from database import Database, remaining_seconds
+from credentials import subject_for, validate as validate_credentials, fingerprint
 from phase4_contracts import (AuditReport, HistoryResponse, ReauditRequest, ReauditResponse,
                              RemediationAccepted, RemediationRequest, RemediationResponse, ReviewResponse)
 from phase4_jobs import RULESET_VERSION, Runner, begin_audit, child, identifier
@@ -31,6 +33,7 @@ import phase5_schedule as schedules
 import phase5_scheduler as scheduler
 from phase5_clock import PATH as CLOCK_PATH
 import phase5_deletion as deletion
+import release_guard
 from service_errors import ApiError
 from test_interface import SystemTests, TestSessionError
 
@@ -47,6 +50,16 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     credentials = tokens if tokens is not None else json.loads(os.getenv('API_TOKENS_JSON', '{}'))
     admins = test_admin_tokens if test_admin_tokens is not None else json.loads(os.getenv('TEST_ADMIN_TOKENS_JSON', '{}'))
     reviewers = reviewer_grants if reviewer_grants is not None else json.loads(os.getenv('REVIEWER_GRANTS_JSON', '{}'))
+    validate_credentials(credentials)
+    validate_credentials(admins)
+    if {fingerprint(key) for key in credentials} & {fingerprint(key) for key in admins}:
+        raise ValueError('Business and test-administrator credentials must be distinct.')
+    if not isinstance(reviewers, dict) or any(
+        not isinstance(subject, str) or not isinstance(owners, list)
+        or any(not isinstance(owner, str) or not owner for owner in owners)
+        for subject, owners in reviewers.items()
+    ):
+        raise ValueError('Reviewer grants must map reviewer subjects to owner lists (empty for no grant).')
     scheduler_interval = scheduler.interval_seconds() if enable_scheduler else None
     ledger_setting, ledger_bucket = os.getenv('DELETION_LEDGER_PATH'), os.getenv('DELETION_LEDGER_BUCKET')
     if ledger_setting and ledger_bucket:  # A split ledger lets a restore resurrect deletions (D11).
@@ -69,6 +82,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @asynccontextmanager
     async def lifespan(app):
+        # Startup is not accepting requests yet. Release the previous process's
+        # drain fence before recovery needs to reconstruct any orphaned jobs.
+        release_guard.resume(store)
         deletion.recover(store, ledger)
         runner.recover()
         thread = threading.Thread(target=runner.loop, daemon=True)
@@ -119,6 +135,9 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                         if request.url.path.startswith('/test/') else error(request, 'INTERNAL_ERROR', 'The operation could not be completed.', 500))
         response.headers['X-Request-ID'] = request.state.request_id
         response.headers['Cache-Control'] = 'no-store'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers['X-Frame-Options'] = 'DENY'
         return response
 
     @app.exception_handler(ApiError)
@@ -141,12 +160,14 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     def user(request: Request, auth=Depends(bearer)):
         token = auth.credentials if auth else ''
-        for expected, subject in credentials.items():
-            if token and secrets.compare_digest(token.encode(), expected.encode()):
-                with store.connect(deadline=getattr(request.state, 'delete_deadline', None)) as db:
-                    request.state.namespace = tests.check(db, request.headers.get('x-test-session'), subject)
-                return subject
-        if token and any(secrets.compare_digest(token.encode(), expected.encode()) for expected in admins):
+        subject = subject_for(credentials, token)
+        if subject is not None:
+            with store.connect(deadline=getattr(request.state, 'delete_deadline', None)) as db:
+                request.state.namespace = tests.check(db, request.headers.get('x-test-session'), subject)
+                if request.method not in ('GET', 'HEAD', 'OPTIONS') and release_guard.draining(db):
+                    raise ApiError(503, 'SERVICE_UNAVAILABLE', 'A release is draining; retry after it completes.')
+            return subject
+        if subject_for(admins, token) is not None:
             raise ApiError(403, 'FORBIDDEN', 'Test administrators cannot use business operations.')
         raise ApiError(401, 'UNAUTHORIZED', 'A valid bearer token is required.')
 
@@ -197,6 +218,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             raise ApiError(409, 'ACTIVE_OPERATION', 'An operation is already active for this version.')
 
     async def validate_upload(request, file):
+        intake_started = time.monotonic()
         form = await request.form()
         if len(form.multi_items()) != 1 or next(iter(form)) != 'file':
             raise ApiError(400, 'INVALID_REQUEST', 'Supply exactly one binary file field.')
@@ -220,7 +242,11 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         with tempfile.TemporaryDirectory(prefix='workbook-validation-') as directory:
             path = Path(directory)/'source.xlsx'
             path.write_bytes(data)
-            valid = await asyncio.to_thread(workbook_validator, str(path))
+            import subprocess
+            try:
+                valid = await asyncio.to_thread(workbook_validator, str(path))
+            except subprocess.TimeoutExpired:
+                raise ApiError(500, 'PROCESSING_TIMEOUT', 'Workbook validation exceeded its processing deadline.') from None
             if valid is True or type(valid) is int and valid == 1:
                 from package_checks import check_package
                 await asyncio.to_thread(check_package, path)
@@ -228,11 +254,20 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             raise ApiError(500, 'ENGINE_RESULT_INVALID', 'Validator must return a boolean.')
         if not valid:
             raise ApiError(422, 'INVALID_WORKBOOK', 'Workbook is invalid.', {'valid':False})
+        logging.info('upload_validated %s', encode({'requestId': request.state.request_id,
+                     'validationSeconds': round(time.monotonic()-intake_started, 4), 'bytes': len(data)}))
         return filename, bytes(data)
 
     @app.get('/', include_in_schema=False)
     def index():
-        return FileResponse(ROOT/'static/index.html')
+        page = ROOT/'static/index.html'
+        source = page.read_text(encoding='utf-8')
+        script = source.split('<script>', 1)[1].split('</script>', 1)[0]
+        digest = base64.b64encode(hashlib.sha256(script.encode('utf-8')).digest()).decode('ascii')
+        policy = ("default-src 'none'; script-src 'sha256-" + digest + "'; "
+                  "style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; "
+                  "base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
+        return FileResponse(page, headers={'Content-Security-Policy': policy})
 
     @app.get('/api/v1/health', response_model=Health)
     def health():
@@ -297,10 +332,14 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         return await upload_to(request, background, identity, file, workbook_id)
 
     @app.get('/api/v1/workbooks/{workbook_id}/versions/{version_id}', response_model=WorkbookVersion)
-    def metadata(request:Request, workbook_id:Identifier, version_id:Identifier, identity=Depends(user)):
+    def metadata(request:Request, response:Response, workbook_id:Identifier, version_id:Identifier, identity=Depends(user)):
         with store.connect() as db:
             row = lookup(db, version_id, 'version', request, identity, wb=workbook_id)
             blob(db,row)
+            # UI hint only; every mutation still authorizes on the server. This
+            # also identifies clean workbooks whose review has no findings.
+            response.headers['X-Workbook-Access'] = ('owner' if row['owner'] == identity
+                                                    and identity not in reviewers else 'reviewer')
         return row['body']
 
     def get_audit(db, request, identity, workbook_id, version_id, audit_id):

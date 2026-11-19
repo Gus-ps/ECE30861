@@ -84,12 +84,35 @@ class InterfaceTests(unittest.TestCase):
         # Click handlers only on buttons (Enter and Space work natively); forms use onsubmit.
         for target, event in re.findall(r"el\('([\w-]+)'\)\.on(\w+)=", script):
             with self.subTest(target=target):
-                self.assertEqual(self.page.ids[target], 'form' if event == 'submit' else 'button')
+                expected = 'form' if event == 'submit' else 'input' if event in ('input', 'change') else 'button'
+                self.assertEqual(self.page.ids[target], expected)
         for variable in re.findall(r'(\w+)\.onclick=', script):  # script-built controls
             self.assertRegex(script, rf"const {variable}=text\('button'")
-        self.assertNotRegex(script, r'key(down|up|press)|addEventListener|focus\(\)')  # no custom key handling or focus moves
+        self.assertNotRegex(script, r'key(down|up|press)')  # native activation; no keyboard interception
+        self.assertIn("el('delete-cancel').focus()", script)
+        self.assertIn("el('delete').focus()", script)
         css = re.sub(r'\s+', '', self.page.css)
         self.assertNotRegex(css, r'[;{](order|position):|flex-direction:\w+-reverse|grid-area|float:')  # visual order = DOM order
+
+    def test_remaining_controls_and_stored_version_disclosure(self):
+        script = PAGE.read_text(encoding='utf-8')
+        for name in ('schedule-form', 'schedule-enabled', 'interval', 'deadline', 'notifications',
+                     'delete-confirmation', 'delete-cancel', 'delete-confirm', 'open-workbook'):
+            self.assertIn(name, self.page.ids)
+        self.assertIn('Changes to an external workbook cannot be detected until a new version is uploaded.', script)
+        self.assertNotIn('/api/v1/test/clock', script)
+        self.assertNotRegex(script, r'localStorage|sessionStorage|innerHTML')
+
+    def test_text_contrast_including_disabled_buttons(self):
+        def luminance(value):
+            rgb=[int(value[i:i+2],16)/255 for i in (0,2,4)]
+            return sum(w*(c/12.92 if c<=.04045 else ((c+.055)/1.055)**2.4)
+                       for w,c in zip((.2126,.7152,.0722),rgb))
+        for fg,bg in [('172637','ffffff'),('172637','f1f5f8'),('ffffff','174b77'),
+                      ('9b1717','ffffff'),('172637','d5dde5')]:
+            a,b=sorted([luminance(fg),luminance(bg)])
+            self.assertGreaterEqual((b+.05)/(a+.05),4.5,(fg,bg))
+        self.assertIn('background:#d5dde5;color:#172637', self.page.css)
 
 
 if __name__ == '__main__':

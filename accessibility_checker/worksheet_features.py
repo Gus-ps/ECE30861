@@ -1,12 +1,25 @@
 """Sparse worksheet metadata for partial 1.3.1 Info and Relationships checks."""
 
 from accessibility_checker import safe_xml
+from accessibility_checker.audit_cache import cache_for
 from accessibility_checker.cell_reader import _namespace
 from accessibility_checker.coordinates import canonical_range, range_sort_key
 
 
 def worksheet_features(reader, sheet, names, *, with_paths=False):
     """Retain selected direct children only; discard grid XML as it is read."""
+    cache = cache_for(reader.path)
+    if cache is not None and (names is None or 'sheetData' not in names):
+        key = ('features', sheet)
+        if key not in cache:
+            cache[key] = _read_features(reader, sheet, None, with_paths=True)
+        selected = [(element, path) for element, path in cache[key]
+                    if names is None or element.tag.rsplit('}', 1)[-1] in names]
+        return selected if with_paths else [element for element, _ in selected]
+    return _read_features(reader, sheet, names, with_paths=with_paths)
+
+
+def _read_features(reader, sheet, names, *, with_paths=False):
     result = []
     stack = []
     selected = None

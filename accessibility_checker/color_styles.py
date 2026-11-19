@@ -134,6 +134,7 @@ class StyleResolver:
         self.theme_fonts = {}
         self._sheet_styles = {}
         self._table_overlays = {}
+        self._resolved_styles = {}
         for kind in ("styles", "theme"):
             matching = [r for r in relations.values() if r.attrib["Type"].endswith("/" + kind)]
             if len(matching) > 1:
@@ -265,6 +266,10 @@ class StyleResolver:
             if len(styles) > 1:
                 raise UnsupportedRendering("Conflicting covering column styles.")
             style_id = next(iter(styles), "0")
+        # Overlay and row/column precedence above remain cell-specific. Once
+        # resolved, plain-text cells sharing an XF have identical static styles.
+        if not cell.rich_text and style_id in self._resolved_styles:
+            return self._resolved_styles[style_id]
         if not self.xfs:
             if style_id != "0":
                 raise UnsupportedRendering("Referenced cell style is unavailable.")
@@ -332,9 +337,12 @@ class StyleResolver:
                 raise UnsupportedRendering("Mixed rich-text styling is unsupported.")
             if formats and next(iter(formats)):
                 raise UnsupportedRendering("Explicit rich-text run styling is not yet resolved.")
-        return StaticStyle(
+        result = StaticStyle(
             foreground, background, point_size, bold_value, font_name, tuple(assumptions)
         )
+        if not cell.rich_text:
+            self._resolved_styles[style_id] = result
+        return result
 
     def _component(self, xf, base, attribute, apply_flag, elements):
         if xf.get(apply_flag) is not None and not _flag(xf.get(apply_flag)):

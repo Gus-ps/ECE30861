@@ -1,10 +1,12 @@
 """1.3.1 Info and Relationships: populated declared merges, partial screening."""
 
+from bisect import bisect_left, bisect_right
+
 from accessibility_checker.cell_reader import WorkbookReader
 from accessibility_checker.coordinates import range_sort_key
 from accessibility_checker.finding_ids import get_source_sha256, make_phase4_finding_id
 from accessibility_checker.results import Findings, finalize_findings
-from accessibility_checker.worksheet_features import contains, merge_ranges, overlaps
+from accessibility_checker.worksheet_features import merge_ranges, overlaps
 
 
 def check_merged_cells(path, *, source_sha256=None):
@@ -23,7 +25,13 @@ def check_merged_cells(path, *, source_sha256=None):
             ranges = merge_ranges(reader, sheet)
             if not ranges:
                 continue
-            cells = [cell for cell in reader.read_cells(sheet) if cell.populated]
+            columns_by_row = {}
+            for cell in reader.read_cells(sheet):
+                if cell.populated:
+                    columns_by_row.setdefault(cell.row, []).append(cell.column)
+            rows = sorted(columns_by_row)
+            for columns in columns_by_row.values():
+                columns.sort()
             for rectangle in ranges:
                 top, left, bottom, right = range_sort_key(rectangle)
                 conflict = any(
@@ -31,7 +39,7 @@ def check_merged_cells(path, *, source_sha256=None):
                 )
                 if conflict or (
                     (top, left) != (bottom, right)
-                    and any(contains(rectangle, cell.row, cell.column) for cell in cells)
+                    and _has_populated_cell(columns_by_row, rows, top, left, bottom, right)
                 ):
                     reason = (
                         "Overlapping merge declarations require manual review."
@@ -47,6 +55,16 @@ def check_merged_cells(path, *, source_sha256=None):
                         conflict,
                     )
     return finalize_findings(result)
+
+
+def _has_populated_cell(columns_by_row, rows, top, left, bottom, right):
+    """Search only stored populated rows; never expand a merge rectangle."""
+    for index in range(bisect_left(rows, top), bisect_right(rows, bottom)):
+        columns = columns_by_row[rows[index]]
+        column_index = bisect_left(columns, left)
+        if column_index < len(columns) and columns[column_index] <= right:
+            return True
+    return False
 
 
 def _review(result, source, worksheet, target, reason, limitation):

@@ -2,6 +2,7 @@
 import asyncio
 import io
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -11,6 +12,7 @@ from service_errors import ApiError
 from phase4_service import create_app, MAX_UPLOAD, RULESET_VERSION
 from phase4_store import now as utc_now
 ROOT = Path(__file__).parent
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
 def load_workbook_validator():
     path = Path(os.getenv('VALIDATOR_PATH', str(ROOT / 'validity_check.py')))
@@ -36,7 +38,7 @@ with contextlib.redirect_stdout(output):
             if isinstance(explanation, list):
                 errors = explanation
 print(json.dumps({"result": result, "output": output.getvalue(), "errors": errors}))
-''', str(path), filepath], capture_output=True, text=True, timeout=60)
+''', str(path), filepath], capture_output=True, text=True, timeout=30)
         if completed.stderr:
             print(completed.stderr, end='', file=sys.stderr, flush=True)
         completed.check_returncode()

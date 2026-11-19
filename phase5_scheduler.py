@@ -7,6 +7,7 @@ from time import monotonic
 from phase4_jobs import identifier
 from phase5_reminders import dispatch_due_reminders, due_thresholds
 from phase5_schedule import audit_due, dispatch_due_audits, locked_schedules
+from release_guard import draining
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 def dispatch_work(store, db, namespace, instant, request_id, *, reject_busy=False,
                   audit_limit=None, reminder_limit=None, recorded_deadlines=None):
     """Fence the union once, then evaluate reminders before accepting audits."""
+    if draining(db, lock=store.database.postgres):
+        return [], []
     schedules = locked_schedules(store, db, namespace,
                                  lambda row: audit_due(row, instant) or due_thresholds(row, instant))
     notifications = dispatch_due_reminders(store, db, namespace, instant, limit=reminder_limit,

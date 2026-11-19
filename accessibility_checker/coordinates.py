@@ -4,6 +4,7 @@ Shared infrastructure, not an accessibility rule or an HTTP validator.
 """
 
 import re
+from functools import lru_cache
 
 from openpyxl.utils.cell import column_index_from_string, get_column_letter
 
@@ -55,6 +56,7 @@ def canonical_range(reference: str) -> str:
     return f"{cell_reference(*first)}:{cell_reference(*last)}"
 
 
+@lru_cache(maxsize=4096)
 def range_sort_key(reference: str) -> tuple[int, int, int, int]:
     first, last = canonical_range(reference).split(":")
     return (*cell_position(first), *cell_position(last))

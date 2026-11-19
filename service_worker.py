@@ -13,6 +13,8 @@ from remediation import RemediationError, remediate, validate_decisions, _templa
 def audit(path):
     findings = check_workbook(path)
     items = []
+    drawing_roots = {}
+    link_cells = {}
     with ZipFile(path) as archive:
         for finding in findings:
             value = None
@@ -22,17 +24,21 @@ def audit(path):
                 value = {'name': finding['worksheet']}
             elif supported and rule == 'ALT_TEXT':
                 part, identifier = finding['target'].split('#id=')
-                root = safe_xml.fromstring(archive.read(part))
+                if part not in drawing_roots:
+                    drawing_roots[part] = safe_xml.fromstring(archive.read(part))
+                root = drawing_roots[part]
                 props = next(n for n in root.iter() if n.tag.rsplit('}', 1)[-1] == 'cNvPr' and n.get('id') == identifier)
                 value = {'title': props.get('title'), 'description': props.get('descr')}
             elif supported and rule == 'TABLE_HEADER':
                 value = _template(archive, finding)
             elif supported and rule == 'LINK_TEXT':
                 part, reference = finding['target'].split('#cell=')
-                with WorkbookReader(path) as reader:
-                    sheet = next(s for s in reader.sheets if s.part == part)
-                    cell = next((c for c in reader.read_cells(sheet) if c.reference == reference), None)
-                    value = {'text': str(cell.value) if cell and cell.value is not None else ''}
+                if part not in link_cells:
+                    with WorkbookReader(path) as reader:
+                        sheet = next(s for s in reader.sheets if s.part == part)
+                        link_cells[part] = {c.reference: c for c in reader.read_cells(sheet)}
+                cell = link_cells[part].get(reference)
+                value = {'text': str(cell.value) if cell and cell.value is not None else ''}
             actions = ['APPLY', 'DECLINE', 'MANUAL_REVIEW'] if supported and value is not None else ['DECLINE', 'MANUAL_REVIEW']
             items.append({'findingId': finding['findingId'], 'allowedActions': actions,
                           'currentValue': value, 'reason': finding['recommendation']})
@@ -46,6 +52,7 @@ def main():
     if sys.platform != 'win32':
         import resource
         resource.setrlimit(resource.RLIMIT_AS, (384 * 1024**2, 384 * 1024**2))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (64 * 1024**2 + 1, 64 * 1024**2 + 1))
     mode, source = sys.argv[1:3]
     try:
         if mode == 'audit':

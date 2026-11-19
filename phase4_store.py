@@ -1,6 +1,7 @@
 """Additive Phase 4 persistence; existing Phase 3 bytes and audit observations survive."""
 import hashlib
 import json
+import time
 from datetime import datetime, timezone
 
 
@@ -46,6 +47,8 @@ class Store:
                 db.execute('''CREATE TRIGGER IF NOT EXISTS p4_immutable_bytes
                     BEFORE UPDATE OF data ON p4_resources WHEN OLD.kind='version'
                     BEGIN SELECT RAISE(ABORT,'Source bytes are immutable'); END''')
+        from release_guard import initialize
+        initialize(self)
 
     def import_legacy(self, db):
         rows = db.execute('''SELECT v.workbook_id,v.version_id,v.owner,v.filename,v.sha256,
@@ -116,5 +119,10 @@ class Store:
             db.execute('SELECT pg_advisory_xact_lock(hashtext(?))', (workbook_id,))
 
     def job(self, db, job_id, kind, resource_id, version_id, namespace, payload):
+        from release_guard import draining
+        from service_errors import ApiError
+        if draining(db, lock=self.database.postgres):
+            raise ApiError(503, 'SERVICE_UNAVAILABLE', 'A release is draining; retry after it completes.')
+        payload = dict(payload, _queuedMonotonic=time.monotonic())
         db.execute('INSERT INTO p4_jobs VALUES (?,?,?,?,?,?,?,?)',
                    (job_id, kind, resource_id, version_id, namespace, 'PENDING', None, encode(payload)))

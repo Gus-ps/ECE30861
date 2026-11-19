@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlsplit
 from zipfile import ZipFile
 
 from accessibility_checker import safe_xml
+from accessibility_checker.audit_cache import cache_for
 from accessibility_checker.coordinates import (
     MAX_ROW,
     CoordinateError,
@@ -339,6 +340,10 @@ class WorkbookReader:
             raise WorkbookReadError("WorkbookReader must be used inside a with block")
         if sheet.external or sheet.kind != "worksheet":
             raise WorkbookReadError("External sheets/chartsheets cannot supply worksheet cells")
+        cache = cache_for(self.path)
+        cache_key = ('cells', sheet)
+        if cache is not None and cache_key in cache:
+            return cache[cache_key]
         cells = {}
         rows = set()
         previous_row = 0
@@ -403,4 +408,7 @@ class WorkbookReader:
                     if stack:
                         stack[-1].remove(element)
                     element.clear()
-        return tuple(cells[key] for key in sorted(cells))
+        result = tuple(cells[key] for key in sorted(cells))
+        if cache is not None:
+            cache[cache_key] = result
+        return result

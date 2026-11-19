@@ -13,7 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, StrictInt
 from starlette.concurrency import run_in_threadpool
 
 from contracts import strict_json
+from credentials import subject_for
 import phase5_clock as clocks
+import release_guard
 from phase5_deletion import namespace_has_deletion
 from service_errors import ApiError
 
@@ -125,6 +127,9 @@ class SystemTests:
             if os.getenv('ENABLE_TEST_FAULTS', '').lower() != 'true':
                 raise TestSessionError(403, 'Test audit failures are disabled.')
         with self.database.connect(write=True) as db:
+            if self.database.postgres:
+                db.execute('SELECT id FROM p5_release_state WHERE id=1 FOR UPDATE')
+            release_guard.protect(db, owner)
             if self.session(db, body.session_id):
                 raise TestSessionError(409, 'Test session already exists.')
             cleanup = sorted(set(body.setup.cleanup_session_ids))
@@ -184,6 +189,8 @@ class SystemTests:
             with self.database.connect(write=True) as db:
                 # Use cleanup's session lock before taking the clock and workbook locks.
                 self.require_clock_session(db, owner, session_id)
+                if release_guard.draining(db):
+                    raise ApiError(503, 'SERVICE_UNAVAILABLE', 'A release is draining; retry after it completes.')
                 if namespace_has_deletion(db, session_id):
                     raise ApiError(409, 'DELETION_IN_PROGRESS', 'A workbook deletion is pending in this session.')
                 current = clocks.read(db, session_id, lock=self.database.postgres)
@@ -236,10 +243,10 @@ class SystemTests:
             if not credentials:
                 raise TestSessionError(401, 'A test-administrator bearer token is required.')
             token = credentials.credentials
-            for expected, subject in self.admins.items():
-                if secrets.compare_digest(expected.encode(), token.encode()):
-                    return subject
-            if any(secrets.compare_digest(expected.encode(), token.encode()) for expected in ordinary_credentials):
+            subject = subject_for(self.admins, token)
+            if subject is not None:
+                return subject
+            if subject_for(ordinary_credentials, token) is not None:
                 raise TestSessionError(403, 'Test administrator access is required.')
             raise TestSessionError(401, 'Test administrator token is not recognized.')
 

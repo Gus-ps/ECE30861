@@ -1,0 +1,22 @@
+{
+    auto_https disable_redirects
+}
+
+http://__HOST__, http://tester.__HOST__ {
+    respond "HTTPS is required." 403
+}
+
+__HOST__ {
+    header Strict-Transport-Security "max-age=31536000"
+    reverse_proxy 127.0.0.1:8000
+}
+
+tester.__HOST__ {
+    header Strict-Transport-Security "max-age=31536000"
+    reverse_proxy 127.0.0.1:8001 {
+        transport http {
+            read_timeout 2460s
+            write_timeout 2460s
+        }
+    }
+}
