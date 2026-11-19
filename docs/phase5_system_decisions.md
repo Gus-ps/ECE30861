@@ -1,8 +1,11 @@
 # Phase 5 system decisions
 
-Updated 2026-11-16. Configuration only: operations 11/G, ruleset 2.0.0 unchanged.
-These decisions summarize the shared schedule/strict JSON/authorization contract
-so no unpublished source file is needed. No claim of full Phase 5 acceptance.
+Updated 2026-11-19. This record covers operations 11, G, 12, 13 and 14,
+real-time scheduling, fault injection, durable deletion reservations and the
+external deletion ledger. Ruleset 2.0.0 remains in use.
+
+The initial 2026-11-16 record covered schedule configuration through
+operations 11/G. The dated entries below retain the history of each stage.
 
 ## SYS-001 — Dedicated additive schedule persistence (2026-11-16)
 
@@ -193,19 +196,25 @@ against .perf/baseline.json, storage.json, after_api.json and final.json found
 
 ## Executed verification and remaining limits
 
-SQLite only, local Python 3.14. Dedicated storage test plus five API tests pass.
-Existing tests and checker behavior were not changed. Existing service and cleanup
-files received only integration needed for the authorized endpoints.
-The tests cover the configuration portions of P5-SCHEDULE-DEFAULT/MIN/MAX,
-PUT-REPLAY, DEADLINE-ONLY, INTERVAL-CHANGE, DISABLE, REENABLE, LATEST-UPLOAD,
-LATEST-OUTPUT, OLD-REAUDIT, REJECT-* and UNKNOWN-FIELD, plus applicable
-P5-ACCESS-SCHEDULE-READ/WRITE-* boundaries. No claim is made for operation 13,
-actual dispatch, coalescing, cadence, notifications or deletion.
+The latest recorded gate at `609ae49` covered 214 tests with GATE PASSED,
+55 known failure/error events and zero new failures. All 114 Phase 5 tests
+passed. The verified environment was local SQLite with Python 3.14. Local
+checks include clock and real-time dispatch, fault injection, deletion recovery,
+and ledger replay after a SQLite backup was restored. Two Store instances
+sharing a database exercised concurrent dispatch.
 
-PostgreSQL (RUN_POSTGRES_TESTS not enabled), Python 3.13, production deployment,
-virtual clock and scheduler remain unverified/out of scope. Duplicate-key and
-strict-number behavior are intentionally stronger than default JSON coercion.
-No new dependency was added beyond the requested requirements and httpx.
+PostgreSQL, Python 3.13, production deployment, production restore procedures
+and actual multiple service processes remain unverified. Real storage-outage
+recovery, the DELETE deadline under production load and hosted backup retention
+also remain unverified.
+
+### Initial schedule configuration verification (historical)
+
+The original SQLite/Python 3.14 stage passed one storage test and five API tests.
+It covered schedule defaults, limits, replay, deadline and interval updates,
+disable/reenable, version selection, request validation and schedule permissions.
+Clock advancement, dispatch, notifications and deletion were pending at that
+stage. Later entries document their implementation and checks.
 
 ## Exact inherited failure/error events
 
