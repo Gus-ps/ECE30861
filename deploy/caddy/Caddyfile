@@ -1,21 +1,36 @@
-# Caddy: serve the tester at https://<host>/tester with an automatic certificate.
-# Replace <host> with the real DNS name; merge into an existing site block if the system shares the host.
+# Caddy: serve the tester at the root of its own subdomain, with an automatic certificate.
+# Team 12: https://tester.13.184.14.226.sslip.io (sslip.io resolves every subdomain to the IP it
+# embeds, so the tester and the system at https://13.184.14.226.sslip.io share one host and one
+# Caddy). Replace tester.<host> with the tester's DNS name; the system keeps its own site block.
+# The tester runs with an empty ROOT_PATH (no --root-path): nothing is stripped.
 
-<host> {
-    redir /tester /tester/ 308
-
-    # handle_path strips /tester before forwarding; uvicorn runs with --root-path /tester.
-    handle_path /tester/* {
-        request_body {
-            max_size 64KB
-        }
-        reverse_proxy 127.0.0.1:8001 {
-            transport http {
-                # A run waits for the whole suite: up to 2,400 s (Phase 5 budget) plus the
-                # tester's 30 s guard, so 2,430 s (spec 3.0.0 §12 minimum); 30 s more of headroom.
-                read_timeout 2460s
-                write_timeout 2460s
-            }
+tester.<host> {
+    request_body {
+        max_size 64KB
+    }
+    reverse_proxy 127.0.0.1:8001 {
+        transport http {
+            # A run waits for the whole suite: up to 2,400 s (Phase 5 budget) plus the
+            # tester's 30 s guard, so 2,430 s (spec 3.0.0 §12 minimum); 30 s more of headroom.
+            read_timeout 2460s
+            write_timeout 2460s
         }
     }
 }
+
+# Alternative: a path prefix on a shared site (https://<host>/tester). Use this instead of the
+# block above, inside the shared site's block, and run the tester with ROOT_PATH=/tester
+# (systemd: --root-path /tester). handle_path strips /tester before forwarding.
+#
+#   redir /tester /tester/ 308
+#   handle_path /tester/* {
+#       request_body {
+#           max_size 64KB
+#       }
+#       reverse_proxy 127.0.0.1:8001 {
+#           transport http {
+#               read_timeout 2460s
+#               write_timeout 2460s
+#           }
+#       }
+#   }

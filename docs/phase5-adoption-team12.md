@@ -18,13 +18,13 @@ changes these values, so recompute them at release.
 | Specification adoption reviewer and date | Pending: a Team 12 reviewer and date |
 | Agreement channel or evidence | Pending |
 | Adopted pack SHA256 | Pending: agree with Team 9 what is hashed. Team 12 holds pack 3.0.0 byte-for-byte in `ref/Phase5_Agent_Context_Pack/`, with `SHA256SUMS.txt` SHA256 `d38adb9fc05f149f0e8d4c0f9d350a928178d3702725ee129b63922a50bea30d`. The pack's own `validate_pack.py` fails only its last check on Windows (a path-separator bug in the script; to report to Team 9). |
-| System base URL | `https://13.184.14.226.sslip.io/`. Pending: confirm the exact registered string (trailing slash), since the tester matches exact strings |
-| Tester base URL | Pending |
+| System base URL | `https://13.184.14.226.sslip.io` (no trailing slash; confirmed 2026-11-18). The tester matches exact strings, so `ALLOWED_TARGET_URLS` and `TARGET_TEAMS_JSON` must use this form |
+| Tester base URL | `https://tester.13.184.14.226.sslip.io` (no trailing slash; confirmed 2026-11-18). Served at the host root, so no `--root-path` |
 | Target release SHA or tag | Pending (Team 12 system, deployment branch `origin/Gustavo`) |
 | Tester release SHA or tag | Pending (branch `Logan-tester-phase5`, not yet committed) |
 | Runnable manifest version and hash | `3.0.0-team12-draft`, `tester/fixtures/manifest_phase5.json` SHA256 `384f0c2a188457416d494aa66c3e573c9b9b5685fd7fdb033e9b87b0d9615074`. Generated from the plan by `scripts/build_phase5_manifest.py`: 357 hosted cases, all with checks |
 | Fixture and expectations hashes | `tester/fixtures/expectations_phase5.json` `9a50b328a46ece5d50f335898da0848c8158348ff5f8d0e528be1827fcf0bb08` (Phase 4 pack 2.1.1 entries unchanged, plus `performance_250000_cells.xlsx` `cc5113ac0e868e12c11565b97603f93607cf16b5b472a26bec5bc902b2d73ea1`). Phase 4 pack `tester/fixtures/phase4/expectations.json` `2d51a46b93cbc05bc27aed8d04383b35042f1eb10a16167ec2c64a38e1a00cab` |
-| Private access provisioning location | Pending. The tester needs per target userA, userB, reviewer and test-admin. Team 9 (2026-11-17): proceed with those four; the 5 access cases needing `reviewer-ungranted` or `test-admin-2` skip, naming the missing identity |
+| Private access provisioning location | Pending. The tester needs per target userA, userB, reviewer and test-admin. The optional `reviewer-ungranted` and `test-admin-2` identities are deferred to Phase 6 (Teams 9 and 12, 2026-11-18); the 5 access cases needing them skip, naming the missing identity |
 | Team design version and mapping URL/hash | Draft 1.0.0, `tester/fixtures/design_map_team12.json` SHA256 `73e88b6220e1d8533bd20f0c0b7cdf008b015979e9ad2234c00c4dddb9767c26`, mappingUrl `https://github.com/Gus-ps/ECE30861/blob/Logan-tester-phase5/tester/fixtures/design_map_team12.json`. Pending: Team 12 review, and a final URL on a stable branch or tag |
 | Own-team trusted target identity configuration reviewed | Pending. Configured by `TESTER_TEAM_ID=team12` and `TARGET_TEAMS_JSON` (exact base URLs, `deploy/tester.env.example`) |
 | Actual setup/run limits registered | Pending registration. Values: tester setup 45 s, run up to 2,430 s (2,400 s suite plus 30 s guard), system setup 30 s; deploy proxies allow 2,460 s. Team 9 sets its tester proxy timeout and renewable deployment protection lease to 2,700 s each, and its deployer defers while a run is protected |
@@ -38,8 +38,8 @@ changes these values, so recompute them at release.
 
 ## Deviations and shared decisions (owner: Team 12 tester)
 
-Team 9 answered each of these by email on 2026-11-17. Items 1 to 8 are agreed with Team 9 and only
-need recording in the shared ADOPTION.md; item 9 is still open.
+Team 9 answered each of these by email on 2026-11-17. All nine are agreed with Team 9 and only
+need recording in the shared ADOPTION.md.
 
 1. **P5-CLOCK-NOT-READY** skips. No hosted request can hold a namespace not ready, because a
    refused setup leaves no session at all. Agreed: local evidence.
@@ -63,6 +63,8 @@ need recording in the shared ADOPTION.md; item 9 is still open.
 8. **Extra sessions:** a Phase 5 run creates many namespaces (79 against the stand-in). Team 9
    accepts cleanup batches of up to 100 IDs, provided the creating test-admin submits them (the
    tester always does).
-9. **Missing identities:** the 5 access cases needing `reviewer-ungranted` or `test-admin-2` skip,
-   naming the missing identity, at Team 9's request. Team 12 still needs to decide whether its own
-   system provides these two identities.
+9. **Deferred identities:** `reviewer-ungranted` and `test-admin-2` are deferred to Phase 6 for
+   both systems (decided 2026-11-18). Neither tester configures them in Phase 5, so the 5 access
+   cases needing them (P5-ACCESS-{SCHEDULE-WRITE,SCHEDULE-READ,NOTIFICATIONS,DELETE}-UNGRANTED-REVIEWER
+   and P5-ACCESS-CLOCK-FOREIGN-ADMIN) skip, naming the missing identity. Team 9 confirms this causes
+   no other failures: the skips earn no coverage, and no other case uses these identities.

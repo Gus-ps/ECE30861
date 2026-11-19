@@ -1661,9 +1661,9 @@ def _identity(ctx, spec):
     ##  ctx.call keyword arguments for an identity, or a skip when its optional token is absent.
     role = spec["role"]
     if role is not None and not ctx.target.has_role(role):
-        raise Stop(CaseResult("skip", f"Not executed: missing identity. The target team has not provided a "
-                                      f"{role} token, so none is configured for this target (TARGET_AUTH_MAP_JSON) "
-                                      f"and this identity cannot be presented."))
+        raise Stop(CaseResult("skip", f"Not executed: missing identity. No {role} token is configured for this "
+                                      f"target (TARGET_AUTH_MAP_JSON), so this identity cannot be presented; "
+                                      f"Teams 9 and 12 deferred it to Phase 6."))
     kwargs = {"role": role}
     if spec.get("bearer"):
         kwargs["bearer"] = f"tester-invalid-{ctx.new_idempotency_key()[7:]}"

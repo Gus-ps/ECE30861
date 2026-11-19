@@ -14,9 +14,10 @@ Group=team12-tester
 WorkingDirectory=/opt/team12-tester
 EnvironmentFile=/etc/team12-tester/tester.env
 # One worker: the store and restart recovery assume one process per SQLite file.
-# --root-path must match the prefix the reverse proxy strips.
+# Served at the root of its own subdomain (Team 12: https://tester.13.184.14.226.sslip.io), so no
+# --root-path. Behind a proxy that strips a path prefix instead, append --root-path /tester.
 ExecStart=/opt/team12-tester/.venv/bin/uvicorn tester.main:create_app --factory \
-    --host 127.0.0.1 --port 8001 --workers 1 --root-path /tester
+    --host 127.0.0.1 --port 8001 --workers 1
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30

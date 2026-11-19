@@ -2,7 +2,7 @@
 
 Usage:
   TESTER_TOKEN=<operator token> uv run python scripts/smoke_test.py \
-      --tester-url https://<host>/tester --target-url https://<host>/system
+      --tester-url https://tester.13.184.14.226.sslip.io --target-url https://13.184.14.226.sslip.io
 (PowerShell: $env:TESTER_TOKEN = '<operator token>' first.)
 
 Runs one full suite: setup, report before run (409), run, stored report identical to the run

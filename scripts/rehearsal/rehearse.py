@@ -217,7 +217,11 @@ def main():
               json.dumps(r.json()["coverage"]["code"]))
         control(report_delay=0)
 
-        print("\n== D. Base path prefix (/tester) ==")
+        print("\n== D. Base path: subdomain root (deployed) and /tester prefix (alternative) ==")
+        ##  The deployed tester sits at a subdomain root with no --root-path, like the main tester here.
+        servers = client.get("/openapi.json").json().get("servers")
+        check("subdomain root (no --root-path): OpenAPI advertises no path prefix",
+              servers in (None, [{"url": "/"}]), json.dumps(servers))
         prefixed = start_tester(PREFIXED_PORT, WORK / "prefixed.db", "--root-path", "/tester")
         procs.append(prefixed)
         ##  uvicorn's --root-path expects the proxy to strip the prefix before forwarding.

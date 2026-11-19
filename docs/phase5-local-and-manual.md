@@ -79,7 +79,7 @@ part, it is named.
 | P4-LOCAL-STATE-TRANSITIONS | inherited audit and remediation cases | Open (system) |
 | P4-LOCAL-MIGRATION | none | Open (system) |
 | P4-LOCAL-CLEANUP-ACTIVE | inherited cleanup cases | Open (system) |
-| P4-LOCAL-REVIEWER-NO-GRANT | P5-ACCESS-*-UNGRANTED-REVIEWER (once a `reviewer-ungranted` token is configured) | Open (system) |
+| P4-LOCAL-REVIEWER-NO-GRANT | P5-ACCESS-*-UNGRANTED-REVIEWER, once a `reviewer-ungranted` token is configured (deferred to Phase 6) | Open (system; deferred to Phase 6) |
 | P4-LOCAL-XML-ESCAPING | inherited remediation cases with Unicode values | Open (system) |
 | P4-LOCAL-NAMING-COLLISIONS | inherited header-table cases | Open (system) |
 | P4-LOCAL-SCHEMA-NEGATIVES | every hosted response is validated against strict schemas | Open (system: request-side negatives) |
@@ -94,7 +94,7 @@ One `local_integration` entry (P5-LOCAL-RELEASE-DRAIN, deployment work) and all 
 | --- | --- | --- |
 | P5-LOCAL-RELEASE-DRAIN | Deployment protection covers a 2,400 s run plus overhead; expiry never deletes evidence | Open: proxy timeouts are raised to 2,460 s (`deploy/`); the protection lease on the system host still needs review by the deployer |
 | P5-MANUAL-EXCEL | Excel no-repair outcomes for each correction family, with hashes, reviewer and platform | Open: correction outputs not opened yet; fixture opens recorded in the Phase 4 pack's `excel_open` |
-| P5-MANUAL-FIXTURE-REVIEW | Two members of the other team review each answer-key pack | Open: Phase 4 pack sent to Team 9 (`dist/team12-phase4-pack-review.zip`); `performance_250000_cells` not yet sent |
+| P5-MANUAL-FIXTURE-REVIEW | Two members of the other team review each answer-key pack | Open: Phase 4 pack sent to Team 9 (`dist/team12-phase4-pack-review.zip`). `performance_250000_cells` sent (`dist/team12-phase5-addon-review.zip`); one Team 9 reviewer agreed on 2026-11-17, and the two-reviewer form is pending |
 | P5-MANUAL-REAL-PRECISION | Five real de-identified workbooks, at least 90% precision | Open (system team) |
 | P5-MANUAL-KEYBOARD | All primary flows by keyboard | Open (system UI) |
 | P5-MANUAL-A11Y-SCAN | Scanner and contrast results for every screen | Open (system UI) |

@@ -49,7 +49,7 @@ uv run python scripts/rehearsal/rehearse.py
 ```
 
 It needs free ports 8100–8103 (nothing may listen on 8199), takes about three minutes, prints
-one PASS/FAIL line per check and exits 0 when all 34 pass. Logs and the happy-path report
+one PASS/FAIL line per check and exits 0 when all 36 pass. Logs and the happy-path report
 are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
 
 | Scenario | Checks |
@@ -57,14 +57,16 @@ are written to `scripts/rehearsal/work/` (gitignored). Scenarios:
 | A. Happy path | 401/400 rejections, setup 201, system setup body and token, 409 before and after run, 53 valid results (52 pass; the controlled-failure case skips because no audit failed) with the shared fixture pack, 31 uploads including two 25 MB workbooks, code coverage, stored report identical to the run body |
 | B. Setup failures | system error forwarded unchanged, invalid 5xx body, unreachable system, failed IDs sent as `cleanup_session_ids` |
 | C. Timeout | a stalled system report is cut off at 10 s as error/communication |
-| D. Base path | `--root-path /tester` works when the proxy strips `/tester`; an unstripped path is 404 |
+| D. Base path | served at a root with no `--root-path` (as deployed on a subdomain), OpenAPI shows no path prefix; the path-prefix alternative `--root-path /tester` works when the proxy strips `/tester`, and an unstripped path is 404 |
 | E. Crash | tester killed mid-run; after restart the report is aborted with the interrupted case as error/tester |
 | F. Phase 4 | a second tester runs the draft Phase 4 manifest (215 cases) against the stand-in at ruleset 2.0.0: all 215 pass, and the next setup queues the run's 5 extra sessions for cleanup |
-| G. Phase 5 | a third tester, configured as Team 12 against its own (stand-in) system with the Phase 5 pack and both optional access tokens, runs the draft Phase 5 manifest (357 cases) with Phase 5 switched on in the stand-in: 344 pass and 13 skip (the 6 unbuilt tester self-checks, 3 cases no HTTP request can produce, and 4 busy cases the stand-in finishes too fast for), and the report carries `coverage.model` over the 38-requirement design map |
+| G. Phase 5 | a third tester, configured as Team 12 against its own (stand-in) system with the Phase 5 pack and both optional access tokens, runs the draft Phase 5 manifest (357 cases) with Phase 5 switched on in the stand-in: 349 pass and 8 skip (2 cases no HTTP request can produce, RETAIN-TESTER on a fresh store, CROSS-OMIT on an own-team run, and 4 busy cases the stand-in finishes too fast for), the report carries `coverage.model` over the 38-requirement design map, and GET `/test/report` returns the run response's exact bytes |
 
-Deployment note from scenario D: the reverse proxy must strip `/tester` before
-forwarding (nginx: `location /tester/ { proxy_pass http://127.0.0.1:8001/; }`) and
-uvicorn runs with `--root-path /tester`.
+Deployment: Team 12's tester is served at the root of its own subdomain,
+`https://tester.13.184.14.226.sslip.io`, next to the system at `https://13.184.14.226.sslip.io`
+(no trailing slashes). The proxy forwards paths unchanged and uvicorn runs with no
+`--root-path`. Serving under a path prefix instead needs the proxy to strip `/tester` and uvicorn
+to run with `--root-path /tester` (scenario D). See `deploy/README.md`.
 
 Every case in the Phase 3 manifest has a check (as does the Phase 4 plan's
 `upload_worksheets_chartsheet`):
@@ -158,8 +160,11 @@ Cases that skip with a stated reason:
   it hashes every finalized report before and after deleting a target workbook.
 - `P5-TESTER-SELF-MODEL` on a cross-team run and `P5-TESTER-CROSS-OMIT` on an own-team run.
 - The four busy cases, when the target finishes its work before the clock call or DELETE.
-- The five access cases needing `reviewer-ungranted` or `test-admin-2`, when the target team has not
-  provided that identity (Team 9 has asked that these skip, naming the missing identity).
+- The five access cases needing `reviewer-ungranted` or `test-admin-2`. Both identities are deferred
+  to Phase 6 by Teams 9 and 12, so neither is configured for any target in Phase 5. The cases skip,
+  naming the missing identity, and Team 9 confirms this causes no other failures. The tester still
+  accepts the two tokens if configured, and the stand-in tests and rehearsal G configure them, so
+  the checks themselves stay exercised.
 
 A setup sends at most 100 queued cleanup IDs; the rest wait. Run it with
 `MANIFEST_PATH=tester/fixtures/manifest_phase5.json POD_PROFILE_PATH=tester/fixtures/pod_profile_phase5.json

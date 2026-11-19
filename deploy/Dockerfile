@@ -29,7 +29,7 @@ USER tester
 ENV PATH="/app/.venv/bin:$PATH" \
     APP_ENV=production \
     TESTER_DB_PATH=/data/tester.db \
-    ROOT_PATH=/tester \
+    ROOT_PATH="" \
     PORT=8001
 
 VOLUME /data
@@ -38,5 +38,6 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/openapi.json', timeout=4)"
 
-# ROOT_PATH must match the prefix the reverse proxy strips (empty when served at the host root).
+# ROOT_PATH must match the prefix the reverse proxy strips: empty for a subdomain root (Team 12's
+# https://tester.13.184.14.226.sslip.io), /tester for a stripped path prefix.
 CMD ["sh", "-c", "exec uvicorn tester.main:create_app --factory --host 0.0.0.0 --port \"$PORT\" --workers 1 --root-path \"$ROOT_PATH\""]

@@ -1,24 +1,29 @@
 # Deploying the Team 12 tester
 
-Host-agnostic files for putting the tester at `https://<host>/tester`. Pick **one** way to run
-the process (Docker or systemd) and **one** HTTPS reverse proxy (nginx or Caddy). Nothing here
-assumes AWS or any particular provider.
+Host-agnostic files for putting the tester at the root of its own subdomain,
+`https://tester.<host>`. Team 12's tester is at `https://tester.13.184.14.226.sslip.io`, beside its
+system at `https://13.184.14.226.sslip.io` (neither has a trailing slash). sslip.io resolves every
+subdomain to the IP it embeds, so both run on one host behind one proxy and are told apart by
+host name. Pick **one** way to run the process (Docker or systemd) and **one** HTTPS reverse
+proxy (nginx or Caddy). Nothing here assumes AWS or any particular provider. A path prefix
+(`https://<host>/tester`) still works; see "Path-prefix alternative" below.
 
 | File | Purpose |
 | --- | --- |
 | `tester.env.example` | Production settings template, shared by every option |
 | `Dockerfile`, `compose.yaml`, `../.dockerignore` | Container option |
 | `systemd/team12-tester.service` | Plain Linux VM option, no Docker |
-| `nginx/team12-tester.conf` | nginx locations for `/tester` |
-| `caddy/Caddyfile` | Caddy site with automatic HTTPS |
+| `nginx/team12-tester.conf` | nginx server block for `tester.<host>` |
+| `caddy/Caddyfile` | Caddy site for `tester.<host>` with automatic HTTPS |
 | `../scripts/make_operator_token.py` | Generates an operator token and its hash |
 | `../scripts/smoke_test.py` | Runs one suite against the deployed tester |
 
 Fixed requirements, whichever option you pick:
 
 - **One process.** Run a single uvicorn worker per SQLite file; restart recovery assumes it.
-- **Strip the prefix.** The proxy removes `/tester` before forwarding, and uvicorn runs with
-  `--root-path /tester`. An unstripped `/tester/test/setup` returns 404 (checked by the rehearsal).
+- **No path prefix.** At a subdomain root the proxy forwards paths unchanged and uvicorn runs
+  with no `--root-path` (`ROOT_PATH` empty), so `https://tester.<host>/test/setup` reaches
+  `/test/setup`. The tester's base URL is the bare origin, with no `/test` suffix and no trailing slash.
 - **Long read timeout.** A run waits for the whole suite before answering: the profile's suite
   budget plus a 30 s guard, so up to 2,430 s with the Phase 5 profile (2,400 s budget), 1,830 s
   with Phase 4 and 630 s with Phase 3. Spec 3.0.0 §12 requires a proxy upstream read timeout of
@@ -39,10 +44,12 @@ Fixed requirements, whichever option you pick:
    Give the raw token out through a private channel. Only the hash entry goes in the settings.
 2. Copy `tester.env.example` and fill in:
    - `TESTER_OPERATOR_TOKEN_HASHES_JSON`: the hash entry from step 1.
-   - `ALLOWED_TARGET_URLS`: each system base URL exactly as the operator will send it.
+   - `ALLOWED_TARGET_URLS`: each system base URL exactly as the operator will send it. Team 12's
+     is `https://13.184.14.226.sslip.io` and Team 9's is `https://3.139.178.70.sslip.io/system`; neither
+     has a trailing slash, and matching is exact.
    - `TARGET_AUTH_MAP_JSON`: the userA, userB, reviewer and test-admin tokens each system team
-     provided privately. For Phase 5, also `reviewer-ungranted` and `test-admin-2` when the system
-     team provides them (see Phase 5 below).
+     provided privately. The optional `reviewer-ungranted` and `test-admin-2` identities are
+     deferred to Phase 6, so leave them out for Phase 5.
 3. Keep the file private (`chmod 600`), and never commit it. `deploy/*.env` is gitignored
    and excluded from the Docker build context.
 
@@ -81,13 +88,24 @@ because the unit runs with `ProtectHome=true`.
 
 ## 3. Put HTTPS in front
 
-- **nginx:** add the two locations from `nginx/team12-tester.conf` to the host's HTTPS server
-  block (certificate from e.g. certbot), then `sudo nginx -t && sudo systemctl reload nginx`.
-- **Caddy:** replace `<host>` in `caddy/Caddyfile` with the DNS name; Caddy obtains the
-  certificate itself.
+- **nginx:** get a certificate for the subdomain (e.g. `sudo certbot certonly --nginx -d
+  tester.13.184.14.226.sslip.io`), copy `nginx/team12-tester.conf` to
+  `/etc/nginx/conf.d/` with `tester.<host>` replaced by the subdomain, then
+  `sudo nginx -t && sudo systemctl reload nginx`.
+- **Caddy:** add the site block from `caddy/Caddyfile`, with `tester.<host>` replaced by the subdomain,
+  next to the system's own site block. Caddy obtains the certificate itself.
 
-If the system shares the host, give it its own prefix (e.g. `/system`), so the tester and
-system URLs are distinguishable.
+The system keeps its own server or site block for the bare host name, so neither needs a path
+prefix. Check `https://tester.<host>/openapi.json` afterwards. It should answer, and it should list no
+`servers` prefix. A `/tester` prefix there means `ROOT_PATH` was left at `/tester`.
+
+### Path-prefix alternative
+
+To serve the tester under a path on a shared host instead (`https://<host>/tester`), use the
+commented alternative in the nginx or Caddy file, and run uvicorn with `--root-path /tester`
+(Docker: `ROOT_PATH=/tester`; systemd: append it to `ExecStart`). The proxy must strip `/tester`
+before forwarding, since an unstripped `/tester/test/setup` returns 404 (checked by the rehearsal,
+scenario D).
 
 ## 4. Smoke test
 
@@ -95,7 +113,7 @@ Once a real system is up and allowlisted:
 
 ```sh
 TESTER_TOKEN=<operator token> uv run python scripts/smoke_test.py \
-    --tester-url https://<host>/tester --target-url https://<host>/system
+    --tester-url https://tester.13.184.14.226.sslip.io --target-url https://13.184.14.226.sslip.io
 ```
 
 On PowerShell, set `$env:TESTER_TOKEN = '<operator token>'` first, and put the command on one line.
@@ -112,7 +130,7 @@ Fill in Team 12's row in the instructor endpoint registry:
 
 | Field | Value |
 | --- | --- |
-| Tester base URL | `https://<host>/tester` (no `/test` suffix) |
+| Tester base URL | `https://tester.13.184.14.226.sslip.io` (no `/test` suffix, no trailing slash) |
 | Access / run notes | How to request an operator token (never the token itself); time limits: tester setup 45 s, tester run up to 2,430 s (Phase 5; callers and proxies need a read timeout of at least 2,430 s), system setup 30 s |
 
 ## Operating notes
@@ -133,10 +151,11 @@ Fill in Team 12's row in the instructor endpoint registry:
   `DESIGN_MAP_PATH=tester/fixtures/design_map_team12.json`. Before the first Phase 5 run:
   - raise every proxy, tunnel and caller read timeout to at least 2,430 s (above);
   - check the deployment protection for the target system covers a 2,400 s run plus setup and
-    coverage retrieval (spec §12: Team 9 uses a renewable 1,900 s lease; an expiring lease must
-    never delete a session or interrupt a protected run);
-  - add `reviewer-ungranted` and `test-admin-2` tokens for each target once its team provides
-    them;
+    coverage retrieval (spec §12: an expiring lease must never delete a session or interrupt a
+    protected run; Team 9 sets its proxy timeout and renewable lease to 2,700 s each, as of
+    2026-11-17);
+  - leave out the `reviewer-ungranted` and `test-admin-2` tokens: both identities are deferred to
+    Phase 6, and the five cases needing them skip, naming the missing identity;
   - expect many extra system sessions: every Phase 5 case that moves the clock or arms a fault
     prepares its own namespace (79 per run against the conforming stand-in, measured 2026-11-17).
     They are queued for cleanup once the run is stored, and each later setup sends at most 100 of
