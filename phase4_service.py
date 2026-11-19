@@ -48,8 +48,15 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
     admins = test_admin_tokens if test_admin_tokens is not None else json.loads(os.getenv('TEST_ADMIN_TOKENS_JSON', '{}'))
     reviewers = reviewer_grants if reviewer_grants is not None else json.loads(os.getenv('REVIEWER_GRANTS_JSON', '{}'))
     scheduler_interval = scheduler.interval_seconds() if enable_scheduler else None
-    ledger_setting = os.getenv('DELETION_LEDGER_PATH')
-    ledger_path = Path(ledger_setting) if ledger_setting else None
+    ledger_setting, ledger_bucket = os.getenv('DELETION_LEDGER_PATH'), os.getenv('DELETION_LEDGER_BUCKET')
+    if ledger_setting and ledger_bucket:  # A split ledger lets a restore resurrect deletions (D11).
+        raise RuntimeError('DELETION_LEDGER_PATH and DELETION_LEDGER_BUCKET are both set; unset the one '
+                           "that is not this deployment's ledger (see D11).")
+    if ledger_bucket:
+        import boto3
+        ledger = deletion.S3Ledger(boto3.client('s3'), ledger_bucket)
+    else:
+        ledger = Path(ledger_setting) if ledger_setting else None
     database = Database(db_path)
     database.initialize()
     store = Store(database)
@@ -62,7 +69,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @asynccontextmanager
     async def lifespan(app):
-        deletion.recover(store, ledger_path)
+        deletion.recover(store, ledger)
         runner.recover()
         thread = threading.Thread(target=runner.loop, daemon=True)
         thread.start()
@@ -366,7 +373,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
                     if not injected:
                         created = deletion.reserve(db, workbook_id, identity, namespace)
             if not injected:
-                deletion.record_intent(store, ledger_path, workbook_id, created, deadline)
+                deletion.record_intent(store, ledger, workbook_id, created, deadline)
                 deletion.finish(store, workbook_id, deadline)
         except (ApiError, TestSessionError):
             raise

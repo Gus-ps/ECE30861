@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import re
+from typing import Any, NamedTuple
 from time import monotonic
 
 from contracts import strict_json
@@ -128,10 +129,40 @@ def ledger_records(store, path, *, entry=None, deadline=None):
         raise RuntimeError('Deletion ledger is unavailable or invalid.') from None
 
 
-def record_intent(store, ledger_path, workbook_id, created, deadline):
-    if ledger_path is not None:
-        ledger_records(store, ledger_path, entry={'workbook_id': workbook_id, 'timestamp': created},
-                       deadline=deadline)
+class S3Ledger(NamedTuple):
+    client: Any
+    bucket: str
+
+
+def s3_ledger_records(ledger, *, entry=None, deadline=None):
+    """Put one object per deletion, or list the prefix; D11 fixes the key and body."""
+    try:
+        if entry is not None:
+            if deadline is not None:
+                remaining_seconds(deadline)
+            ledger.client.put_object(Bucket=ledger.bucket, Key=f"deletions/{entry['workbook_id']}.json",
+                                     Body=json.dumps(entry, separators=(',', ':')).encode('ascii'))
+            return None
+        ids = set()
+        pages = ledger.client.get_paginator('list_objects_v2').paginate(Bucket=ledger.bucket, Prefix='deletions/')
+        for page in pages:
+            for item in page.get('Contents', []):
+                match = re.fullmatch(r'deletions/([A-Za-z0-9_-]{1,64})\.json', item['Key'])
+                if match is None:
+                    raise ValueError('Invalid ledger key.')
+                ids.add(match.group(1))
+        return ids
+    except Exception as exc:  # botocore raises several unrelated exception families.
+        logger.error('Deletion ledger unavailable or invalid: error_type=%s', type(exc).__name__)
+        raise RuntimeError('Deletion ledger is unavailable or invalid.') from None
+
+
+def record_intent(store, ledger, workbook_id, created, deadline):
+    entry = {'workbook_id': workbook_id, 'timestamp': created}
+    if isinstance(ledger, S3Ledger):
+        s3_ledger_records(ledger, entry=entry, deadline=deadline)
+    elif ledger is not None:
+        ledger_records(store, ledger, entry=entry, deadline=deadline)
 
 
 def reserve_restored(store, workbook_id):
@@ -156,12 +187,13 @@ def reserve_restored(store, workbook_id):
                 break
 
 
-def recover(store, ledger_path=None):
+def recover(store, ledger=None):
     acknowledged = set()
-    if ledger_path is None:
+    if ledger is None:
         logger.warning('DELETION_LEDGER_PATH is unset; restores can reintroduce deleted workbooks.')
     else:
-        acknowledged = ledger_records(store, Path(ledger_path))
+        acknowledged = (s3_ledger_records(ledger) if isinstance(ledger, S3Ledger)
+                        else ledger_records(store, Path(ledger)))
         for workbook_id in sorted(acknowledged):
             reserve_restored(store, workbook_id)
     with store.connect() as db:
@@ -170,5 +202,5 @@ def recover(store, ledger_path=None):
         workbook_id = row['workbook_id']
         deadline = monotonic() + DELETE_SECONDS
         if workbook_id not in acknowledged:
-            record_intent(store, ledger_path, workbook_id, row['created'], deadline)
+            record_intent(store, ledger, workbook_id, row['created'], deadline)
         finish(store, workbook_id, deadline)

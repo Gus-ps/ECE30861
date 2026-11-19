@@ -15,6 +15,7 @@ import time
 import unittest
 from unittest.mock import patch
 
+from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 from app import create_app, load_workbook_validator
 from database import Database
@@ -24,6 +25,25 @@ from test_phase4_service import workbook
 
 OWNER = {'Authorization': 'Bearer a'}
 SIDE = dict(OWNER, **{'X-Test-Session': 'side'})
+
+
+class FakeS3:
+    """In-memory bucket; lists one key per page so pagination is exercised."""
+    def __init__(self):
+        self.objects, self.fail_puts = {}, 0
+
+    def put_object(self, Bucket, Key, Body):
+        if self.fail_puts:
+            self.fail_puts -= 1
+            raise ClientError({'Error': {'Code': 'InternalError', 'Message': 'sensitive'}}, 'PutObject')
+        self.objects[Key] = Body
+
+    def get_paginator(self, name):
+        assert name == 'list_objects_v2'
+        return self
+
+    def paginate(self, Bucket, Prefix):
+        return [{'Contents': [{'Key': key}]} for key in sorted(self.objects) if key.startswith(Prefix)] or [{}]
 
 
 class DeleteWorkbookTests(unittest.TestCase):
@@ -522,6 +542,81 @@ class DeleteWorkbookTests(unittest.TestCase):
         self.assertEqual(len(ledger.read_bytes().splitlines()), 1)
         with app.state.store.connect() as db:
             self.assertIsNone(deletion.reservation(db, up['workbookId']))
+
+    def with_s3(self, fake):
+        with (patch.dict(os.environ, {'DELETION_LEDGER_PATH': '', 'DELETION_LEDGER_BUCKET': 'ledger'}),
+              patch('boto3.client', return_value=fake) as factory):
+            started = self.start()
+        factory.assert_called_once_with('s3')
+        return started
+
+    def test_s3_ledger_put_precedes_removal_and_put_failure_retries(self):
+        fake = FakeS3()
+        app, client = self.with_s3(fake)
+        up = self.upload(client)
+        wid = up['workbookId']
+        path, key = f'/api/v1/workbooks/{wid}', f'deletions/{wid}.json'
+        fake.fail_puts = 1
+        with self.assertLogs('phase5_deletion', level='ERROR') as logs:
+            response = client.delete(path, headers=OWNER)
+        self.assertEqual((response.status_code, response.json()['code']), (500, 'DELETION_FAILED'))
+        self.assertIn('error_type=ClientError', logs.output[0])
+        self.assertNotIn('sensitive', ' '.join(logs.output))
+        with app.state.store.connect() as db:
+            self.assertIsNotNone(deletion.reservation(db, wid))
+            self.assertIsNotNone(app.state.store.get(db, up['versionId']))
+        original, seen = deletion.commit_step, []
+
+        def observe(store, workbook_id, table, deadline):
+            if table == 'p4_jobs':
+                with store.connect() as db:
+                    created = deletion.reservation(db, wid)['created']
+                seen.append(json.loads(fake.objects[key]) == {'workbook_id': wid, 'timestamp': created})
+            return original(store, workbook_id, table, deadline)
+
+        with patch.object(deletion, 'commit_step', side_effect=observe):
+            self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+        self.assertEqual(seen, [True])
+        self.assertEqual(list(fake.objects), [key])
+
+    def test_s3_ledger_replays_after_sqlite_restore(self):
+        fake = FakeS3()
+        fake.objects['deletions/unrelated.json'] = b'{}'
+        backup = Path(self.temp.name) / 'backup.sqlite3'
+        app, client = self.with_s3(fake)
+        up = self.upload(client)
+        other = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        with closing(sqlite3.connect(self.path)) as live, closing(sqlite3.connect(backup)) as archive:
+            live.backup(archive)
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+        before = dict(fake.objects)
+        with closing(sqlite3.connect(self.path)) as live, closing(sqlite3.connect(backup)) as archive:
+            archive.backup(live)
+        app, restarted = self.with_s3(fake)
+        with restarted:
+            self.assertEqual(restarted.get(path + '/history', headers=OWNER).status_code, 404)
+            with app.state.store.connect() as db:
+                self.assertIsNone(app.state.store.get(db, up['versionId']))
+                self.assertIsNone(deletion.reservation(db, up['workbookId']))
+                self.assertIsNotNone(app.state.store.get(db, other['versionId']))
+        self.assertEqual(fake.objects, before)
+
+    def test_s3_ledger_refuses_invalid_keys_and_both_settings(self):
+        for bad in ('deletions/bad id.json', 'deletions/x.jsonl', 'deletions/nested/x.json'):
+            with self.subTest(key=bad):
+                fake = FakeS3()
+                fake.objects[bad] = b'{}'
+                _, client = self.with_s3(fake)
+                with (self.assertRaisesRegex(RuntimeError, 'Deletion ledger is unavailable or invalid'),
+                      self.assertLogs('phase5_deletion', level='ERROR')):
+                    with client:
+                        self.fail('The service started with an invalid ledger key.')
+        both = {'DELETION_LEDGER_PATH': str(Path(self.temp.name) / 'deletions.jsonl'), 'DELETION_LEDGER_BUCKET': 'ledger'}
+        with (patch.dict(os.environ, both), patch('boto3.client') as factory,
+              self.assertRaisesRegex(RuntimeError, r'both set; unset the one .* \(see D11\)')):
+            self.start()
+        factory.assert_not_called()
 
 
 if __name__ == '__main__':
