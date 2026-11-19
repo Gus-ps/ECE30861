@@ -21,7 +21,7 @@ from fastapi.security import HTTPBearer
 from starlette.exceptions import HTTPException
 
 from contracts import Audit, Error, Health, Identifier, MAX_JSON_REQUEST_BYTES, UploadResponse, WorkbookVersion
-from database import Database
+from database import Database, remaining_seconds
 from phase4_contracts import (AuditReport, HistoryResponse, ReauditRequest, ReauditResponse,
                              RemediationAccepted, RemediationRequest, RemediationResponse, ReviewResponse)
 from phase4_jobs import RULESET_VERSION, Runner, begin_audit, child, identifier
@@ -30,8 +30,9 @@ import phase5_reminders as reminders
 import phase5_schedule as schedules
 import phase5_scheduler as scheduler
 from phase5_clock import PATH as CLOCK_PATH
+import phase5_deletion as deletion
 from service_errors import ApiError
-from test_interface import SystemTests
+from test_interface import SystemTests, TestSessionError
 
 ROOT = Path(__file__).parent
 MAX_UPLOAD = 25_000_000
@@ -59,6 +60,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
 
     @asynccontextmanager
     async def lifespan(app):
+        deletion.recover(store)
         runner.recover()
         thread = threading.Thread(target=runner.loop, daemon=True)
         thread.start()
@@ -126,11 +128,13 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             return JSONResponse(status_code=400, content={'message':'Missing or malformed test request data.','source':'system'})
         return error(request, 'NOT_FOUND' if exc.status_code == 404 else 'INVALID_REQUEST', str(exc.detail), exc.status_code)
 
-    def user(request: Request, auth=Depends(HTTPBearer(auto_error=False))):
+    bearer = HTTPBearer(auto_error=False)
+
+    def user(request: Request, auth=Depends(bearer)):
         token = auth.credentials if auth else ''
         for expected, subject in credentials.items():
             if token and secrets.compare_digest(token.encode(), expected.encode()):
-                with store.connect() as db:
+                with store.connect(deadline=getattr(request.state, 'delete_deadline', None)) as db:
                     request.state.namespace = tests.check(db, request.headers.get('x-test-session'), subject)
                 return subject
         if token and any(secrets.compare_digest(token.encode(), expected.encode()) for expected in admins):
@@ -138,7 +142,7 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
         raise ApiError(401, 'UNAUTHORIZED', 'A valid bearer token is required.')
 
     def lookup(db, resource_id, kind, request, identity, wb=None, vid=None, mutate=False):
-        row = store.get(db, resource_id, kind)
+        row = store.get(db, resource_id, kind, visible=True)
         if row is None or row['namespace'] != request.state.namespace or (wb and row['workbook_id'] != wb) or (vid and row['version_id'] != vid):
             raise ApiError(404, 'NOT_FOUND', 'Resource does not exist in this namespace.')
         if row['owner'] != identity and row['owner'] not in reviewers.get(identity, []):
@@ -328,28 +332,51 @@ def create_app(db_path=None, tokens=None, workbook_validator=None, accessibility
             data = blob(db,version)
         return download(data,version['body']['fileName'],'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-    @app.delete('/api/v1/workbooks/{workbook_id}', status_code=204, response_class=Response)
-    def delete_workbook(request:Request, workbook_id:Identifier, identity=Depends(user)):
-        versions="SELECT id FROM p4_resources WHERE workbook_id=? AND kind='version'"
-        with store.connect(write=True) as db:
-            store.fence(db,workbook_id)
-            lookup(db,workbook_id,'workbook',request,identity,mutate=True)
-            if db.execute(f"""SELECT 1 FROM p4_jobs WHERE state IN ('PENDING','RUNNING') AND version_id IN ({versions})
-                UNION ALL SELECT 1 FROM p5_upload_reservations WHERE workbook_id=? AND expires>?""",
-                          (workbook_id,workbook_id,time.time())).fetchone():
-                raise ApiError(409,'ACTIVE_OPERATION','An operation is active for this workbook.')
-            # Commit the one-shot claim but remove nothing, then report the injected failure.
-            injected = request.state.namespace is not None and db.execute(
-                "UPDATE p5_faults SET remaining=0 WHERE session_id=? AND kind='deletion' AND remaining=1",
-                (request.state.namespace,)).rowcount == 1
+    async def within_delete_deadline(request, function, *args):
+        try:
+            timeout = remaining_seconds(request.state.delete_deadline)
+            return await asyncio.wait_for(asyncio.to_thread(function, *args), timeout=timeout)
+        except TimeoutError:
+            raise ApiError(500, 'DELETION_FAILED', 'Workbook deletion exceeded its time limit.') from None
+
+    async def delete_user(request: Request, auth=Depends(bearer)):
+        request.state.delete_deadline = time.monotonic() + deletion.DELETE_SECONDS
+        return await within_delete_deadline(request, user, request, auth)
+
+    def delete_owned(request, workbook_id, identity):
+        namespace = request.state.namespace
+        deadline = request.state.delete_deadline
+        try:
+            with store.connect(write=True, deadline=deadline) as db:
+                tests.check(db, namespace, identity, lock=True)
+                store.fence(db, workbook_id)
+                existing = deletion.reservation(db, workbook_id)
+                injected = False
+                if existing is not None:
+                    if existing['owner'] != identity or existing['namespace'] != namespace or identity in reviewers:
+                        raise ApiError(404, 'NOT_FOUND', 'Resource does not exist in this namespace.')
+                else:
+                    lookup(db, workbook_id, 'workbook', request, identity, mutate=True)
+                    if deletion.active(db, workbook_id, time.time()):
+                        raise ApiError(409, 'ACTIVE_OPERATION', 'An operation is active for this workbook.')
+                    injected = store.claim_fault(db, namespace, 'deletion')
+                    if not injected:
+                        deletion.reserve(db, workbook_id, identity, namespace)
             if not injected:
-                db.execute(f'DELETE FROM p4_jobs WHERE version_id IN ({versions})',(workbook_id,))
-                for table in ('p4_keys','p4_resources','audits','test_workbooks','versions',
-                              'p5_upload_reservations','p5_schedules','p5_notifications','p5_reminder_considered'):
-                    db.execute(f'DELETE FROM {table} WHERE workbook_id=?',(workbook_id,))
+                deletion.finish(store, workbook_id, deadline)
+        except (ApiError, TestSessionError):
+            raise
+        except Exception as exc:
+            logging.error('Deletion failed: request_id=%s error_type=%s',
+                          request.state.request_id, type(exc).__name__)
+            raise ApiError(500, 'DELETION_FAILED', 'Workbook deletion could not be completed.') from None
         if injected:
-            raise ApiError(500,'TEST_DELETION_FAILURE','Deletion failure requested by the isolated test session.',
-                           {'stage':'deletion','testOnly':True})
+            raise ApiError(500, 'TEST_DELETION_FAILURE', 'Deletion failure requested by the isolated test session.',
+                           {'stage': 'deletion', 'testOnly': True})
+
+    @app.delete('/api/v1/workbooks/{workbook_id}', status_code=204, response_class=Response)
+    async def delete_workbook(request: Request, workbook_id: Identifier, identity=Depends(delete_user)):
+        await within_delete_deadline(request, delete_owned, request, workbook_id, identity)
         return Response(status_code=204)
 
     @app.get('/api/v1/workbooks/{workbook_id}/history', response_model=HistoryResponse)

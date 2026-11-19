@@ -1,3 +1,6 @@
+"""REQ-14 / AC-16. P5-DELETE-RECOVER, P5-LOCAL-DELETE-RESTART,
+P5-DELETE-RACE, P5-DELETE-CANCEL-FUTURE and P5-DELETE-RESTORE.
+"""
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 from pathlib import Path
@@ -10,6 +13,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import create_app, load_workbook_validator
 from database import Database
+import phase5_deletion as deletion
 from test_phase4_service import workbook
 
 OWNER = {'Authorization': 'Bearer a'}
@@ -197,6 +201,91 @@ class DeleteWorkbookTests(unittest.TestCase):
         with app.state.database.connect() as db:
             for table in ('versions', 'audits', 'p4_resources'):
                 self.assertEqual(db.execute(f"SELECT COUNT(*) FROM {table} WHERE workbook_id='old-wb'").fetchone()[0], 0)
+
+
+    def fail_after_first_step(self, client, path, headers=OWNER):
+        original = deletion.delete_step
+
+        def fail(db, workbook_id, table):
+            if table == 'p4_keys':
+                raise OSError('simulated failure after committed job deletion')
+            original(db, workbook_id, table)
+
+        with patch.object(deletion, 'delete_step', side_effect=fail), self.assertLogs(level='ERROR'):
+            response = client.delete(path, headers=headers)
+        self.assertEqual((response.status_code, response.json()['code']), (500, 'DELETION_FAILED'))
+
+    def test_partial_delete_hides_resources_and_owner_retry_finishes(self):
+        app, client = self.start()
+        up = self.upload(client)
+        wid, vid = up['workbookId'], up['versionId']
+        path = f'/api/v1/workbooks/{wid}'
+        version = f'{path}/versions/{vid}'
+        self.fail_after_first_step(client, path)
+        with app.state.store.connect() as db:
+            row = deletion.reservation(db, wid)
+            self.assertEqual(set(row.keys()), {'workbook_id', 'owner', 'namespace', 'created'})
+            self.assertEqual(row['owner'], 'owner')
+            self.assertIsNone(db.execute('SELECT 1 FROM p4_jobs WHERE version_id=?', (vid,)).fetchone())
+            self.assertIsNotNone(app.state.store.get(db, vid))
+        for suffix in ('/source', f"/audits/{up['auditId']}", f"/audits/{up['auditId']}/report"):
+            self.assertEqual(client.get(version + suffix, headers=OWNER).status_code, 404, suffix)
+        for url in (path + '/history', path + '/schedule', path + '/notifications'):
+            self.assertEqual(client.get(url, headers=OWNER).status_code, 404, url)
+        self.assertEqual(client.put(path + '/schedule', headers=OWNER, json={'enabled': False}).status_code, 404)
+        self.assertEqual(client.post(path + '/versions', headers=OWNER,
+                                     files={'file': ('book.xlsx', workbook())}).status_code, 404)
+        foreign_app = create_app(self.path, {'b': 'foreign'}, enable_scheduler=False)
+        foreign = TestClient(foreign_app)  # Do not run startup recovery yet.
+        self.addCleanup(foreign.close)
+        foreign_headers = {'Authorization': 'Bearer b'}
+        self.assertEqual(foreign.get(version + '/source', headers=foreign_headers).status_code, 404)
+        self.assertEqual(foreign.delete(path, headers=foreign_headers).status_code, 404)
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 404)
+        with app.state.store.connect() as db:
+            self.assertIsNone(deletion.reservation(db, wid))
+            self.assertIsNone(app.state.store.get(db, vid))
+
+    def test_startup_finishes_an_interrupted_deletion(self):
+        app, client = self.start()
+        up = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        self.fail_after_first_step(client, path)
+        new_app, restarted = self.start()
+        with restarted:
+            self.assertEqual(restarted.get(path + '/history', headers=OWNER).status_code, 404)
+            with new_app.state.store.connect() as db:
+                self.assertIsNone(deletion.reservation(db, up['workbookId']))
+                self.assertIsNone(new_app.state.store.get(db, up['versionId']))
+
+    def test_delete_deadline_retains_reservation_for_retry(self):
+        app, client = self.start()
+        up = self.upload(client)
+        path = f"/api/v1/workbooks/{up['workbookId']}"
+        entered, release, ended = threading.Event(), threading.Event(), threading.Event()
+        original = deletion.delete_step
+
+        def slow_step(db, workbook_id, table):
+            entered.set()
+            try:
+                if not release.wait(5):
+                    raise TimeoutError()
+                original(db, workbook_id, table)
+            finally:
+                ended.set()
+
+        with patch.object(deletion, 'DELETE_SECONDS', 0.3), patch.object(deletion, 'delete_step', side_effect=slow_step):
+            try:
+                response = client.delete(path, headers=OWNER)
+                self.assertTrue(entered.is_set())
+                self.assertEqual((response.status_code, response.json()['code']), (500, 'DELETION_FAILED'))
+            finally:
+                release.set()
+            self.assertTrue(ended.wait(5))
+        with app.state.store.connect() as db:
+            self.assertIsNotNone(deletion.reservation(db, up['workbookId']))
+        self.assertEqual(client.delete(path, headers=OWNER).status_code, 204)
 
 
 if __name__ == '__main__':

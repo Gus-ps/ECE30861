@@ -78,9 +78,13 @@ class Store:
             (id,kind,workbook_id,version_id,owner,namespace,payload,data) VALUES (?,?,?,?,?,?,?,?)''',
             (resource_id, kind, workbook_id, version_id, owner, namespace, encode(payload), data))
 
-    def get(self, db, resource_id, kind=None):
-        row = db.execute('''SELECT id,kind,workbook_id,version_id,owner,namespace,payload,seq
-            FROM p4_resources WHERE id=?''', (resource_id,)).fetchone()
+    def get(self, db, resource_id, kind=None, *, visible=False):
+        query = '''SELECT id,kind,workbook_id,version_id,owner,namespace,payload,seq
+            FROM p4_resources WHERE id=?'''
+        if visible:
+            query += ''' AND NOT EXISTS (SELECT 1 FROM p5_deletions
+                WHERE workbook_id=p4_resources.workbook_id)'''
+        row = db.execute(query, (resource_id,)).fetchone()
         if row is None or (kind and row['kind'] != kind):
             return None
         result = dict(row)

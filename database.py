@@ -1,16 +1,29 @@
 """SQLite locally; PostgreSQL on AWS or a host providing DATABASE_URL."""
 from contextlib import contextmanager
 import json
+from math import ceil
 import os
 from pathlib import Path
 import sqlite3
+from time import monotonic
+
+
+def remaining_seconds(deadline):
+    seconds = deadline - monotonic()
+    if seconds <= 0:
+        raise TimeoutError('Deletion deadline exceeded.')
+    return seconds
 
 
 class PostgresConnection:
-    def __init__(self, connection):
+    def __init__(self, connection, deadline=None):
         self.connection = connection
+        self.deadline = deadline
 
     def execute(self, query, parameters=()):
+        if self.deadline is not None:
+            timeout = str(ceil(1000 * remaining_seconds(self.deadline)))
+            self.connection.execute("SELECT set_config('statement_timeout', %s, true)", (timeout,))
         return self.connection.execute(query.replace('?', '%s'), parameters)
 
 
@@ -22,18 +35,21 @@ class Database:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
     @contextmanager
-    def connect(self, write=False):
+    def connect(self, write=False, *, deadline=None):
         if self.postgres:
             import psycopg
             from psycopg.rows import dict_row
+            timeout = 10 if deadline is None else min(10, ceil(remaining_seconds(deadline)))
             if os.getenv('DATABASE_URL') and not os.getenv('DB_HOST'):
                 # Render's private PostgreSQL endpoint uses a self-signed TLS
                 # certificate; require encryption as its documentation specifies.
                 with psycopg.connect(
                     os.environ['DATABASE_URL'], sslmode='require',
-                    connect_timeout=10, row_factory=dict_row,
+                    connect_timeout=timeout, row_factory=dict_row,
                 ) as connection:
-                    yield PostgresConnection(connection)
+                    yield PostgresConnection(connection, deadline)
+                    if deadline is not None:
+                        remaining_seconds(deadline)
                 return
             if os.getenv('DB_SECRET_ARN'):
                 import boto3
@@ -46,18 +62,25 @@ class Database:
                 dbname=os.getenv('DB_NAME', 'workbooks'),
                 user=secret['username'], password=secret['password'],
                 sslmode='verify-full', sslrootcert=os.environ['DB_SSLROOTCERT'],
-                connect_timeout=10, row_factory=dict_row,
+                connect_timeout=timeout, row_factory=dict_row,
             ) as connection:
-                yield PostgresConnection(connection)
+                yield PostgresConnection(connection, deadline)
+                if deadline is not None:
+                    remaining_seconds(deadline)
         else:
-            connection = sqlite3.connect(self.path)
+            timeout = 5 if deadline is None else min(5, remaining_seconds(deadline))
+            connection = sqlite3.connect(self.path, timeout=timeout)
             connection.row_factory = sqlite3.Row
             try:
+                if deadline is not None:
+                    connection.set_progress_handler(lambda: monotonic() >= deadline, 1000)
                 connection.execute('PRAGMA foreign_keys=ON')
                 if write:
                     connection.execute('BEGIN IMMEDIATE')
                 with connection:
                     yield connection
+                    if deadline is not None:
+                        remaining_seconds(deadline)
             finally:
                 connection.close()
 
@@ -79,6 +102,9 @@ class Database:
                 session_id TEXT PRIMARY KEY, owner TEXT NOT NULL, state TEXT NOT NULL)''')
             db.execute('''CREATE TABLE IF NOT EXISTS p5_clocks (
                 session_id TEXT PRIMARY KEY REFERENCES test_sessions(session_id), "current_time" TEXT NOT NULL)''')
+            db.execute('''CREATE TABLE IF NOT EXISTS p5_deletions (
+                workbook_id TEXT PRIMARY KEY, owner TEXT NOT NULL, namespace TEXT, created TEXT NOT NULL)''')
+            db.execute('CREATE INDEX IF NOT EXISTS p5_deletions_namespace ON p5_deletions(namespace)')
             db.execute('''CREATE TABLE IF NOT EXISTS test_workbooks (
                 workbook_id TEXT PRIMARY KEY REFERENCES versions(workbook_id),
                 session_id TEXT NOT NULL REFERENCES test_sessions(session_id))''')
