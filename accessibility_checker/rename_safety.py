@@ -10,6 +10,7 @@ from openpyxl.utils import FORMULAE
 from openpyxl.utils.cell import column_index_from_string
 
 from accessibility_checker import safe_xml
+from accessibility_checker.conditional_formats import supported_x14_node
 from accessibility_checker.coordinates import (
     MAX_COLUMN,
     MAX_ROW,
@@ -488,6 +489,8 @@ def rename_limitations(archive, root, workbook_relations):
                         or (kind == "drawing" and namespace in CHART_NS and local == "chart")
                     )
                     if kind == "drawing" and namespace == DECORATIVE and local == "decorative":
+                        known = True
+                    if kind == "worksheet" and supported_x14_node(stack):
                         known = True
                     if kind == "drawing" and local in {"ext", "extLst"}:
                         known = namespace in DRAW_NS and (

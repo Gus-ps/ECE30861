@@ -46,6 +46,10 @@ def _labels(cells, rectangle):
 
 
 def _record(result, source, sheet, target, reasons, safe=False):
+    reasons = list(reasons)
+    if not safe and '#range=' in target:
+        rectangle = target.split('#range=', 1)[1]
+        reasons.append(f'Logical table structure could not be established safely for {rectangle}.')
     result.append(
         {
             "findingId": make_phase4_finding_id(source, "TABLE_HEADER", sheet.name, target),

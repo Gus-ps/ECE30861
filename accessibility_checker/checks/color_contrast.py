@@ -1,6 +1,7 @@
 """1.4.1 Use of Color / 1.4.3 Contrast (Minimum): static screening only."""
 
 from accessibility_checker import safe_xml
+from accessibility_checker.conditional_formats import bold_only_x14_extension
 from accessibility_checker.cell_reader import WorkbookReader, _part, _relationships
 from accessibility_checker.color_styles import (
     StyleResolver,
@@ -46,6 +47,10 @@ def _conditional_ranges(reader, sheet):
     unresolved = False
     for feature in worksheet_features(reader, sheet, {"conditionalFormatting", "extLst"}):
         ns = feature.tag.split("}")[0] + "}"
+        if feature.tag == ns+'extLst' and bold_only_x14_extension(feature, ns[1:-1]):
+            # As with main-namespace bold-only rules, these cannot change colors.
+            # Unknown, opaque and color-changing extensions still fall through.
+            continue
         candidates = (
             [feature]
             if feature.tag == ns + "conditionalFormatting"
