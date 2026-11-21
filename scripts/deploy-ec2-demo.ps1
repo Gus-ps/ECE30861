@@ -35,6 +35,7 @@ $bootstrap = @'
 set -euo pipefail
 dnf install -y docker
 systemctl enable --now docker
+__PREPARE_HOST_MEMORY__
 mkdir -p /opt/workbook/data /opt/workbook/caddy
 chown 1000:1000 /opt/workbook/data
 install -d -m 0700 -o 1000 -g 1000 /opt/workbook/deletion-ledger
@@ -56,6 +57,7 @@ CADDY
 sed -i "s/__HOST__/$PUBLIC_IP.sslip.io/g" /opt/workbook/caddy/Caddyfile
 docker run -d --restart unless-stopped --name workbook-https --network host -v /opt/workbook/caddy/Caddyfile:/etc/caddy/Caddyfile:ro -v workbook-caddy-data:/data -v workbook-caddy-config:/config caddy:2
 '@
+$bootstrap = $bootstrap.Replace('__PREPARE_HOST_MEMORY__', (Get-Content -Raw (Join-Path $PSScriptRoot 'prepare-ec2-memory.sh')))
 $bootstrap = $bootstrap.Replace('__CADDY_CONFIG__', (Get-Content -Raw (Join-Path $PSScriptRoot 'Caddyfile.template')))
 $bootstrap = $bootstrap.Replace('__REGION__', $Region).Replace('__REGISTRY__', $registry).Replace('__IMAGE__', $image)
 $template = @{

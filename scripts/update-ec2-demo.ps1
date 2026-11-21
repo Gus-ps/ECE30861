@@ -51,6 +51,7 @@ try {
 $script = @'
 #!/bin/bash
 set -euo pipefail
+__PREPARE_HOST_MEMORY__
 if [ "__BUILD_ON_INSTANCE__" = "true" ]; then
     # Build the exact pushed commit on the existing host; no new AWS resources.
     source_dir="/opt/workbook/releases/__FULL_REVISION__"
@@ -159,6 +160,7 @@ find /opt/workbook/data -maxdepth 1 -type f -name 'pre-deploy-*.sqlite3' \
 echo "Update succeeded; existing token, database, HTTPS proxy, and instance preserved."
 '@
 $script = $script.Replace('__SKIP_REGRESSION_GATE__', $SkipRegressionGate.IsPresent.ToString().ToLowerInvariant())
+$script = $script.Replace('__PREPARE_HOST_MEMORY__', (Get-Content -Raw (Join-Path $PSScriptRoot 'prepare-ec2-memory.sh')))
 $script = $script.Replace('__BUILD_ON_INSTANCE__', $BuildOnInstance.IsPresent.ToString().ToLowerInvariant()).Replace('__FULL_REVISION__', $revision)
 $script = $script.Replace('__CADDY_CONFIG__', (Get-Content -Raw (Join-Path $PSScriptRoot 'Caddyfile.template')))
 $script = $script.Replace('__REGION__',$Region).Replace('__REGISTRY__',$registry).Replace('__IMAGE__',$image).Replace('__REVISION__',$revision.Substring(0,12))
